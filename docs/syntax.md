@@ -175,6 +175,8 @@ label.
   `---:` → `end`, left or none → no mark.
 - Rows are padded with empty cells to the header width. Extra cells are dropped, with
   `W_TABLE_CELL_DROPPED`.
+- All tables of a document together may have at most 100,000 cells, padding included; more fails
+  with `E_INPUT_TOO_LARGE` (see the [limits](cli-contract.md#limits)).
 - Tables are only valid in the document and in an expand. Elsewhere they are
   [hoisted](#container-rules).
 - `\|` is a literal pipe, including inside code spans.

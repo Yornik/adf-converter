@@ -39,6 +39,8 @@ the installed version supports.
 - The first row is the header. `:---:` centres a column, `---:` right-aligns it.
 - Every row gets the header's number of cells: missing cells are added empty, extra cells are
   dropped (`W_TABLE_CELL_DROPPED`). Write a literal pipe as `\|`, also inside code.
+- A document's tables may have at most 100,000 cells in total, counting the added empty cells;
+  more fails with `E_INPUT_TOO_LARGE`.
 - `<br>` makes a line break inside a cell. Put lists or several paragraphs in a box cell instead
   (below).
 - Tables only work at the top level or inside `<details>`. Inside a list, quote, panel or box they

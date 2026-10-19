@@ -14,6 +14,16 @@ pub const DEFAULT_MAX_DEPTH: usize = 64;
 /// everything this tool writes can be read back.
 pub const JSON_LEVELS_PER_CONTAINER: usize = 8;
 
+/// Maximum number of table cells in one Markdown document, counting the empty cells that GFM adds
+/// to pad short rows to the header width. More fails with `E_INPUT_TOO_LARGE`.
+///
+/// Padding makes tables the one super-linear construct in Markdown: a 3 KB table of 256 columns
+/// and a thousand one-character rows becomes 256,000 cells (about 14 MB of ADF), and 4 MiB of
+/// such tables would make the parser build hundreds of millions of nodes. 100,000 cells (about
+/// 10 MB of ADF) is far beyond what Jira or Confluence accept in one field or page. The Markdown
+/// reader checks it with a linear scan before parsing, and again on the tables it builds.
+pub const MAX_TABLE_CELLS: usize = 100_000;
+
 /// Jira's documented limit for a text field / comment, in characters. Larger output gets
 /// `W_SIZE_LIMIT`.
 pub const JIRA_FIELD_CHAR_LIMIT: usize = 32_767;

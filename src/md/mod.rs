@@ -2,7 +2,9 @@
 //!
 //! OWNER: stream S1. The signature is frozen; the work is split into stages:
 //!
-//! 1. `prepass`: BOM, line endings, front matter, `::: cell` boxes;
+//! 1. `prepass`: BOM, line endings, front matter, `::: cell` boxes; then `budget`, a linear
+//!    scan that refuses tables which would expand past `MAX_TABLE_CELLS` once GFM pads their
+//!    rows (pulldown-cmark builds every padded cell before it emits an event);
 //! 2. `tree`: pulldown-cmark events → an intermediate block tree (`ir`), with inline content
 //!    handled by `inline` (marks, links, `adf:` extensions, HTML tags, autolinks);
 //! 3. `lower`: container rules (demote, flatten, convert, hoist) while building the strict
@@ -12,6 +14,7 @@
 //! enforces `Limits::max_depth` (capped at 100 internally), and the lowering pass only recurses
 //! along that bounded tree.
 
+mod budget;
 mod cx;
 mod extensions;
 mod finalize;
@@ -28,6 +31,7 @@ mod tests;
 use crate::Conversion;
 use crate::adf::model::Doc;
 use crate::diagnostics::{Code, Diagnostic, Diagnostics};
+use crate::limits::MAX_TABLE_CELLS;
 use crate::options::MdToAdfOptions;
 
 use cx::Cx;
@@ -48,6 +52,9 @@ pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Di
         ));
     }
     let mut pre = prepass::run(source, opts.extensions.cells);
+    // Before pulldown-cmark runs: it builds every padded table cell up front.
+    budget::check(&pre.text, MAX_TABLE_CELLS)
+        .map_err(|exceeded| Diagnostics::single(exceeded.diagnostic(&pre.text, MAX_TABLE_CELLS)))?;
     if !tree::parses_completely(&pre.text, opts) {
         // Work around a pulldown-cmark bug triggered by indented blank lines (see
         // `tree::parses_completely`); blank lines then carry no whitespace.

@@ -11,8 +11,10 @@ use pulldown_cmark::{
 
 use crate::adf::model::{Align, HeadingLevel, NonEmptyString, PanelType, TaskState};
 use crate::diagnostics::{Code, Diagnostic};
+use crate::limits::MAX_TABLE_CELLS;
 use crate::options::MdToAdfOptions;
 
+use super::budget;
 use super::cx::Cx;
 use super::extensions::parse_raw;
 use super::html::{BlockPiece, HtmlTag, Recognised, classify, decode_entities, scan_block};
@@ -116,6 +118,8 @@ struct Builder<'c, 'a> {
     /// Footnote label → number, assigned at the first reference.
     numbers: BTreeMap<String, u32>,
     definitions: Vec<(String, Vec<Block>, Span)>,
+    /// GFM table cells so far, padding included (the ADF cells the rows lower to).
+    table_cells: usize,
 }
 
 fn internal(message: &str) -> Diagnostic {
@@ -181,6 +185,7 @@ pub(crate) fn build(cx: &mut Cx<'_>, pre: &Prepass) -> Result<Parsed, Diagnostic
         depth: 0,
         numbers: BTreeMap::new(),
         definitions: Vec::new(),
+        table_cells: 0,
     };
     for (event, range) in Parser::new_ext(text, options).into_offset_iter() {
         builder.event(event, range)?;
@@ -404,11 +409,14 @@ impl Builder<'_, '_> {
                     span: span.clone(),
                 }
             }
-            Tag::TableHead | Tag::TableRow => Frame::Row {
-                header: matches!(tag, Tag::TableHead),
-                cells: Vec::new(),
-                last_cell_end: None,
-            },
+            Tag::TableHead | Tag::TableRow => {
+                self.count_row_cells()?;
+                Frame::Row {
+                    header: matches!(tag, Tag::TableHead),
+                    cells: Vec::new(),
+                    last_cell_end: None,
+                }
+            }
             Tag::TableCell => Frame::Cell {
                 inline: InlineBuilder::new(),
             },
@@ -433,6 +441,24 @@ impl Builder<'_, '_> {
             | Tag::MetadataBlock(_) => return Err(internal("not a table tag")),
         };
         self.stack.push(frame);
+        Ok(())
+    }
+
+    /// Counts the cells of a table row about to start against [`MAX_TABLE_CELLS`]: every row
+    /// lowers to one cell per column. A backstop for the `budget` pre-scan, which estimates the
+    /// same count from the source before parsing.
+    fn count_row_cells(&mut self) -> Result<(), Diagnostic> {
+        let Some(Frame::Table { aligns, span, .. }) = self.stack.last() else {
+            return Err(internal("table row outside a table"));
+        };
+        self.table_cells = self.table_cells.saturating_add(aligns.len().max(1));
+        if self.table_cells > MAX_TABLE_CELLS {
+            let at = span.start..span.start;
+            return Err(self
+                .cx
+                .diag(Code::InputTooLarge, budget::message(MAX_TABLE_CELLS), &at)
+                .with_hint(budget::HINT));
+        }
         Ok(())
     }
 
