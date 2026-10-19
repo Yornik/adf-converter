@@ -1,0 +1,5 @@
+# A smart link in the JSON-LD `data` form inside an ```adf block must pass the URL allowlist.
+bin.name = "adf"
+args = ["convert", "--compact"]
+status.code = 3
+binary = true

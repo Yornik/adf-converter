@@ -7,9 +7,9 @@
 //!    explained node by node (see the `schema` submodule) instead of as raw `anyOf` noise.
 //! 2. **Target** (`E_TARGET`): nodes, marks and attributes the product does not accept
 //!    ([`crate::adf::targets`]).
-//! 3. **Invariants** (`E_INVARIANT`): list items start with a paragraph, unique non-empty task
-//!    `localId`s, rectangular tables, no duplicate or empty marks, integer levels, allowed link
-//!    URLs, no `null` attributes.
+//! 3. **Invariants** (`E_INVARIANT`): list items do not start with a nested list, unique
+//!    non-empty task `localId`s, rectangular tables, no duplicate or empty marks, integer levels,
+//!    allowed link, smart-link and external media URLs, no `null` attributes.
 //!
 //! Plus two warnings: `W_EMPTY_DOCUMENT` and (Jira only) `W_SIZE_LIMIT`.
 
@@ -292,6 +292,18 @@ mod tests {
                     json!([{"type":"paragraph","content":[{"type":"text","text":"x","marks":[{"type":"link","attrs":{"href":"javascript:alert(1)"}}]}]}]),
                 ),
                 vec![(Code::Invariant, "/content/0/content/0/marks/0/attrs/href")],
+            ),
+            (
+                doc(
+                    json!([{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"data":{"@type":"Document","url":"javascript:alert(1)"}}}]}]),
+                ),
+                vec![(Code::Invariant, "/content/0/content/0/attrs/data/url")],
+            ),
+            (
+                doc(
+                    json!([{"type":"mediaSingle","attrs":{"layout":"center"},"content":[{"type":"media","attrs":{"type":"external","url":"javascript:alert(1)"}}]}]),
+                ),
+                vec![(Code::Invariant, "/content/0/content/0/attrs/url")],
             ),
             (
                 doc(

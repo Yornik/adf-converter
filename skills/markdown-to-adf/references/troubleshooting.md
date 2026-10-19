@@ -35,7 +35,7 @@ as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 | `E_OUTPUT_WRITE` | 3 | The `-o` file could not be written. | Check that the directory exists and is writable, and that there is disk space. Nothing was written. |
 | `E_SCHEMA` | 4 | The ADF document does not match the ADF JSON schema; `pointer` shows where. | Don't patch the JSON. Regenerate it from Markdown with `adf convert`, or convert it to Markdown (`--from adf`) and back. |
 | `E_TARGET` | 4 | The document uses a node, mark or attribute the target product does not accept (for example `fontSize`, layouts or extensions in Jira). | Remove the construct, or check that `-t`/`-e` match where you post. Regenerate from Markdown. |
-| `E_INVARIANT` | 4 | The document breaks a rule Jira or Confluence enforce beyond the schema: an empty text node, bold on inline code, a list item that doesn't start with a paragraph, duplicate task `localId`s, a ragged table. | Regenerate from Markdown; `adf convert` always produces documents that satisfy these rules. |
+| `E_INVARIANT` | 4 | The document breaks a rule Jira or Confluence enforce beyond the schema: an empty text node, bold on inline code, a list item that starts with a nested list, duplicate task `localId`s, a ragged table, a link, smart link or external image URL that is not allowed. | Regenerate from Markdown; `adf convert` always produces documents that satisfy these rules. |
 | `E_LOSSY` | 5 | `--strict` is set (or `--html error`) and the conversion would lose something. | Read the warnings reported with it and fix the Markdown so they go away. Drop `--strict` only if the user accepts the loss. |
 
 ## Warnings: Markdown → ADF

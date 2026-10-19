@@ -266,6 +266,13 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
   - extensions
   - stage-0 nodes
 
+`adf validate` and ```` ```adf ```` blocks check ADF that comes from elsewhere against the rules
+Jira and Confluence themselves enforce, which are looser in two places. A list item may also
+start with a `codeBlock` or a `mediaSingle` (only a nested list first is rejected). Several
+`annotation` marks with different `id`s may share a text node (overlapping inline comments). In
+that input the URL allowlist also applies to the `data.url` of smart links in the JSON-LD form and
+to the `url` of external `media`.
+
 ## ADF → Markdown
 
 `adf convert --from adf` accepts:
