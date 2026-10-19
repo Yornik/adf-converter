@@ -1350,9 +1350,16 @@ fn large_inputs_stay_fast() {
         ("html block", format!("<div>\n{}", fill("<a b='<!--"))),
         ("list", fill("- item\n")),
         ("tasks", fill("- [ ] t\n")),
+        // Rows of 88 bytes keep a full-size table within `MAX_TABLE_CELLS` (about 95,000 cells);
+        // larger tables fail with `E_INPUT_TOO_LARGE` (see `tests/properties.rs`).
         (
             "table",
-            format!("| a | b |\n|---|---|\n{}", fill("| 1 | 2 |\n")),
+            format!(
+                "| a | b |\n|---|---|\n{}",
+                fill(
+                    "| a cell holding a few words of plain text, x | another cell with a few more words, y |\n"
+                )
+            ),
         ),
         ("quotes", fill("> q\n>\n")),
         ("headings", fill("# h\n")),
@@ -1383,6 +1390,57 @@ fn large_inputs_stay_fast() {
         let elapsed = start.elapsed();
         assert!(elapsed.as_secs() < 20, "{name}: {elapsed:?}");
     }
+}
+
+/// `columns` columns, `body_rows` one-character rows padded to the header width.
+fn padded_table(columns: usize, body_rows: usize) -> String {
+    let mut md = format!("|{}\n|{}\n", "h|".repeat(columns), "-|".repeat(columns));
+    md.push_str(&"x\n".repeat(body_rows));
+    md
+}
+
+#[test]
+fn table_cells_are_limited() {
+    use crate::limits::MAX_TABLE_CELLS;
+    // 100 columns × (999 body rows + the header row) = exactly the limit.
+    assert_eq!(MAX_TABLE_CELLS, 100_000);
+    let at_limit = padded_table(100, 999);
+    assert!(super::to_adf(&at_limit, &MdToAdfOptions::default()).is_ok());
+    // One row more, after some text: refused by the pre-scan, located at the header row.
+    let over = format!("intro\n\n{}", padded_table(100, 1_000));
+    let err = error_of(&over, &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::InputTooLarge);
+    assert_eq!(
+        err.message,
+        "Tables in the input would expand to more than 100000 cells"
+    );
+    let location = err.location.as_ref().unwrap();
+    assert_eq!((location.line, location.column), (Some(3), Some(1)));
+    // Several tables add up.
+    let tables = [padded_table(100, 499), padded_table(100, 500)].join("\n");
+    assert_eq!(
+        error_of(&tables, &MdToAdfOptions::default()).code,
+        Code::InputTooLarge
+    );
+}
+
+/// The tree builder counts the cells it builds, in case the pre-scan under-estimates: here an
+/// HTML block (which ends at the blank line) makes the line-based scan take the table for
+/// fenced code.
+#[test]
+fn table_cell_backstop_in_the_tree_builder() {
+    let md = format!("<div>\n```\n\n{}", padded_table(101, 1_000));
+    let err = error_of(&md, &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::InputTooLarge);
+    assert_eq!(
+        err.message,
+        "Tables in the input would expand to more than 100000 cells"
+    );
+    let location = err.location.as_ref().unwrap();
+    assert_eq!((location.line, location.column), (Some(4), Some(1)));
+    // The same table without the HTML block is refused by the pre-scan.
+    let err = error_of(&padded_table(101, 1_000), &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::InputTooLarge);
 }
 
 #[test]

@@ -19,6 +19,9 @@
 
 mod support;
 
+use std::time::{Duration, Instant};
+
+use adf_converter::limits::{DEFAULT_MAX_INPUT_BYTES, MAX_TABLE_CELLS};
 use adf_converter::{
     AdfToMdOptions, Code, Diagnostics, Extensions, HtmlPolicy, ImagePolicy, Limits, MdFlavor,
     MdToAdfOptions, SoftBreak, Target,
@@ -911,32 +914,99 @@ fn pathological_inputs_finish() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// GFM pads short rows to the header width. Without a cap, a 3 KB input (256 columns, 1,000
-/// one-character rows) would produce about 14 MB of ADF, and a 4 MiB input about 20 GB. The
-/// output must stay within the linear bound, or the conversion must be refused.
+/// Upper bound on the compact JSON of one empty, aligned table cell (about 55 bytes in practice).
+const CELL_BYTES: usize = 128;
+
+/// A table of `columns` columns and `body_rows` one-character rows, which GFM pads to the
+/// header width: `columns × (body_rows + 1)` cells from about `2 × (columns + body_rows)` bytes.
+fn padded_table(columns: usize, body_rows: usize) -> String {
+    let mut markdown = format!("|{}\n|{}\n", "c|".repeat(columns), "-|".repeat(columns));
+    markdown.push_str(&"x\n".repeat(body_rows));
+    markdown
+}
+
+/// GFM pads short rows to the header width. Without a limit, a 3 KB input (256 columns, 1,000
+/// one-character rows) would produce about 14 MB of ADF, and a 4 MiB input about 20 GB. Tables
+/// may expand to at most `MAX_TABLE_CELLS` cells: within it, the output stays within the linear
+/// bound plus `CELL_BYTES` per allowed cell; beyond it, the conversion fails with
+/// `E_INPUT_TOO_LARGE`.
 #[test]
 fn padded_table_rows_keep_output_bounded() {
-    let columns = 256;
-    let mut markdown = format!("|{}\n", "c|".repeat(columns));
-    markdown.push('|');
-    markdown.push_str(&"-|".repeat(columns));
-    markdown.push('\n');
-    markdown.push_str(&"x\n".repeat(1_000));
-    match adf_converter::md_to_adf(&markdown, &MdToAdfOptions::default()) {
-        Ok(conversion) => {
-            let size =
-                support::to_compact_json(&conversion.output.to_value().expect("serializes")).len();
-            let bound = SIZE_K * markdown.len() + SIZE_C;
-            assert!(
-                size <= bound,
-                "{} input bytes produced {size} bytes of ADF (bound {bound})",
-                markdown.len()
-            );
+    let cases = [
+        (256, 1_000),
+        (256, 389),
+        (100, 999),
+        (100, 1_000),
+        (1_000, 99),
+        (1_000, 100),
+        (3, 30_000),
+    ];
+    for (columns, rows) in cases {
+        let markdown = padded_table(columns, rows);
+        let cells = columns * (rows + 1);
+        match adf_converter::md_to_adf(&markdown, &MdToAdfOptions::default()) {
+            Ok(conversion) => {
+                assert!(
+                    cells <= MAX_TABLE_CELLS,
+                    "{columns}×{rows}: {cells} cells were accepted"
+                );
+                let size =
+                    support::to_compact_json(&conversion.output.to_value().expect("serializes"))
+                        .len();
+                let bound = SIZE_K * markdown.len() + SIZE_C + CELL_BYTES * MAX_TABLE_CELLS;
+                assert!(
+                    size <= bound,
+                    "{columns}×{rows}: {} input bytes produced {size} bytes of ADF (bound {bound})",
+                    markdown.len()
+                );
+            }
+            Err(d) => {
+                assert!(
+                    cells > MAX_TABLE_CELLS,
+                    "{columns}×{rows}: {cells} cells were refused: {d}"
+                );
+                let codes: Vec<Code> = d.iter().filter(|d| d.is_error()).map(|d| d.code).collect();
+                assert_eq!(codes, [Code::InputTooLarge], "{columns}×{rows}: {d}");
+            }
         }
-        Err(d) => assert!(
-            d.iter().any(|d| d.code == Code::InputTooLarge),
-            "refused with an unexpected error: {d}"
-        ),
+    }
+}
+
+/// Close to 4 MiB of padded tables (about 300 million cells) is refused before the Markdown
+/// parser builds them, fast and with `E_INPUT_TOO_LARGE` at the table that crosses the limit;
+/// so is a single padded table after 4 MiB of table-free text, which the pre-scan reads in full.
+#[test]
+fn many_padded_tables_fail_fast() {
+    let table = padded_table(256, 1_000);
+    let tables = vec![table.as_str(); DEFAULT_MAX_INPUT_BYTES / (table.len() + 1)].join("\n");
+    let mut text = "| not | a | table |\n".repeat((DEFAULT_MAX_INPUT_BYTES - table.len()) / 20);
+    let text_lines = text.matches('\n').count();
+    text.push_str(&table);
+    for (name, markdown, line) in [("tables", &tables, 1), ("text", &text, text_lines + 1)] {
+        assert!(
+            markdown.len() > 4_000_000,
+            "{name}: {} bytes",
+            markdown.len()
+        );
+        let start = Instant::now();
+        let result = adf_converter::md_to_adf(markdown, &MdToAdfOptions::default());
+        let elapsed = start.elapsed();
+        let error = result
+            .expect_err("refused")
+            .iter()
+            .find(|d| d.is_error())
+            .cloned()
+            .expect("an error");
+        assert_eq!(error.code, Code::InputTooLarge, "{name}: {error}");
+        let location = error.location.expect("located");
+        assert_eq!(location.line, Some(u32::try_from(line).unwrap()), "{name}");
+        // Release builds take a few milliseconds; debug builds are about 10× slower.
+        let budget = if cfg!(debug_assertions) {
+            Duration::from_secs(5)
+        } else {
+            Duration::from_millis(500)
+        };
+        assert!(elapsed < budget, "{name}: refused after {elapsed:?}");
     }
 }
 
