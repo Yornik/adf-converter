@@ -2,14 +2,15 @@
 //!
 //! OWNER: stream S1. The signature is frozen; the work is split into stages:
 //!
-//! 1. [`prepass`]: BOM, line endings, front matter, `::: cell` boxes;
-//! 2. [`tree`]: pulldown-cmark events → an intermediate block tree ([`ir`]), with inline
-//!    content handled by [`inline`] (marks, links, `adf:` extensions, HTML tags, autolinks);
-//! 3. [`lower`]: container rules (demote, flatten, convert, hoist) while building the strict
-//!    model of [`crate::adf::model`]; inline tokens are finalised by [`finalize`].
+//! 1. `prepass`: BOM, line endings, front matter, `::: cell` boxes;
+//! 2. `tree`: pulldown-cmark events → an intermediate block tree (`ir`), with inline content
+//!    handled by `inline` (marks, links, `adf:` extensions, HTML tags, autolinks);
+//! 3. `lower`: container rules (demote, flatten, convert, hoist) while building the strict
+//!    model of [`crate::adf::model`]; inline tokens are finalised by `finalize`.
 //!
 //! No stage recurses without a depth bound: the tree builder is an explicit stack machine that
-//! enforces `Limits::max_depth`, and the lowering pass only recurses along that bounded tree.
+//! enforces `Limits::max_depth` (capped at 100 internally), and the lowering pass only recurses
+//! along that bounded tree.
 
 mod cx;
 mod extensions;
