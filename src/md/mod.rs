@@ -21,6 +21,9 @@ mod lower;
 mod prepass;
 mod tree;
 
+#[cfg(test)]
+mod tests;
+
 use crate::Conversion;
 use crate::adf::model::Doc;
 use crate::diagnostics::{Code, Diagnostic, Diagnostics};
