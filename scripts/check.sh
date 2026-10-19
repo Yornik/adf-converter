@@ -4,6 +4,10 @@
 #   scripts/check.sh
 #
 # cargo-deny is optional locally (`cargo install --locked cargo-deny`); CI always runs it.
+#
+# Not run here, but in CI: the lint job's type-check of the fuzz workspace (it compiles libFuzzer's
+# C++ sources; after changing the library API, run
+# `cargo check --manifest-path fuzz/Cargo.toml --bins --lib` yourself) and the msrv job.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
