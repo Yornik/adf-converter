@@ -22,6 +22,8 @@ mod table;
 mod verify;
 
 #[cfg(test)]
+mod roundtrip_tests;
+#[cfg(test)]
 mod tests;
 
 use serde_json::Value;
