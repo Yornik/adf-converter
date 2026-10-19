@@ -95,7 +95,8 @@ Any Markdown: paragraphs, **lists**, code, alerts, `<details>`.
 ```
 
 A framed box (a 1×1 table), common in Jira descriptions. The `:::` lines must start at column 0.
-Boxes cannot be nested, and tables inside a box are moved after it.
+Boxes cannot be nested. A table inside a box is moved out of it, and the box is split around it:
+a box, the table, then a second box with the rest (`W_BLOCK_HOISTED`).
 
 ### Raw ADF (`raw-adf`)
 
@@ -159,9 +160,11 @@ warning, so `adf validate --from md` shows what to restructure.
 
 `adf convert --from adf` writes the same syntax back:
 
-- `--md-flavor roundtrip` (default): converting the Markdown again gives the same document.
-  Nodes without a Markdown form become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); keep them
-  unchanged when editing.
+- `--md-flavor roundtrip` (default): converting the Markdown again **with `--images external`**
+  gives the same document (without it, embedded external images become links). Nodes without a
+  Markdown form become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); keep them unchanged when
+  editing. Attributes and marks without a Markdown form (column widths, cell colours, alignment,
+  Confluence inline-comment anchors) are dropped with `W_ATTR_DROPPED`.
 - `--md-flavor plain`: compact Markdown for reading. Mentions become `@Name`, statuses `[TEXT]`,
   dates `YYYY-MM-DD`, emoji their character, cards bare URLs, and nodes without a Markdown form
   are dropped.

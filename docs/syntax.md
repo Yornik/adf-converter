@@ -27,7 +27,7 @@ document disagree, that's a bug.
 | `1. item` / `1) item` | `orderedList` `{order: N}` | `order` is always emitted, equal to the start number. |
 | Nested lists | `listItem` > [`paragraph`, `bulletList` …] | A list item **always starts with a paragraph**; an empty one is inserted if needed. |
 | `- [ ] task` / `- [x] task` | `taskList` > `taskItem` `{state: TODO/DONE}` | Deterministic `localId`s (UUIDv8 from a hash of the input). See [Task lists](#task-lists). |
-| ```` ```lang ```` fenced / indented code | `codeBlock` `{language}` | `language` is the first word of the info string, omitted if empty. One trailing newline is stripped. Content is never parsed as Markdown. Empty block → `{"type":"codeBlock"}`. |
+| ```` ```lang ```` fenced / indented code | `codeBlock` `{language}` | `language` is the first word of the info string, omitted if empty. One trailing newline is stripped. Content is never parsed as Markdown. An empty block has no `content` but keeps its `language`: ```` ``` ```` → `{"type":"codeBlock"}`, ```` ```rust ```` → `{"type":"codeBlock","attrs":{"language":"rust"}}`. |
 | `> quote` | `blockquote` | See [Container rules](#container-rules). |
 | `---` / `***` / `___` | `rule` | |
 | GFM table | `table` > `tableRow` > `tableHeader`/`tableCell` > `paragraph` | See [Tables](#tables). |
@@ -91,11 +91,19 @@ GitHub alert syntax: the first line of a blockquote is `[!KIND]` (case-insensiti
 | `[!WARNING]` | `warning` |
 | `[!CAUTION]` | `error` |
 
-A panel can contain paragraphs, headings, lists, task lists, code blocks and rules. A table,
-quote, panel or details block inside one is [hoisted](#container-rules). Panels can only be placed
-in the document, an expand, a nested expand, or a table cell. Anywhere else (a list item, a quote,
-another panel), the alert is converted as a plain blockquote, with `W_BLOCK_FLATTENED`. An empty
-alert holds one empty paragraph.
+A panel can contain paragraphs, headings, lists, task lists, code blocks and rules. Other blocks
+inside one are repaired by the [container rules](#container-rules):
+- a table or a quote is [hoisted](#container-rules): the panel is split around it
+  (`W_BLOCK_HOISTED`);
+- a `<details>` block is flattened to a bold title and its content, inside the panel
+  (`W_BLOCK_FLATTENED`; see [Expand](#expand-details));
+- a nested alert becomes a plain quote, which is then hoisted (see below).
+
+Panels can only be placed in the document, an expand, a nested expand, or a table cell. Anywhere
+else (a list item, a quote, another panel), the alert is converted as a plain blockquote, with
+`W_BLOCK_FLATTENED`. That quote then follows the quote rules: in a quote it is merged into the
+outer quote, and in a list item or a panel it is hoisted (`W_BLOCK_HOISTED`). An empty alert holds
+one empty paragraph.
 
 #### Expand (`<details>`)
 
@@ -129,7 +137,9 @@ Any Markdown: paragraphs, **lists**, code, alerts, `<details>`…
   closing line is the same number of `:` characters. An unclosed box ends at the end of the input.
 - Recognised only at the start of a line with no indentation, and not inside fenced code.
 - Result: `table` `{isNumberColumnEnabled: false, layout: "default"}` with one row and one
-  `tableCell` holding the content. Tables inside a box are hoisted after it.
+  `tableCell` holding the content. A table inside a box is [hoisted](#container-rules): the box
+  is closed before the table and reopened after it, so a box holding a paragraph, a table and
+  another paragraph becomes a box, the table, and a second box, with `W_BLOCK_HOISTED`.
 - Boxes cannot be nested. An inner `::: cell` line is kept as text, with `W_BLOCK_FLATTENED`.
 
 #### Raw ADF (```` ```adf ````)
@@ -212,13 +222,14 @@ ADF restricts which blocks may appear where. When a block is not allowed in its 
 2. **Flatten**:
    - a quote inside a quote → merged into the outer quote;
    - an alert or `<details>` where a panel or expand is not allowed → converted as described
-     above.
+     above. The quote an alert becomes is then merged (in a quote) or hoisted (in a list item or
+     a panel) like any other quote.
 
    Both report `W_BLOCK_FLATTENED`.
 3. **Convert**: an expand inside an expand or a table cell becomes a `nestedExpand`, without a
    warning.
-4. **Hoist**: for anything else (a table in a list, a rule in a quote, a quote in a list item, a
-   panel in a list, a table in a box cell…):
+4. **Hoist**: for anything else (a table in a list, a rule in a quote, a quote in a list item or
+   a panel, a table in a panel or a box cell…):
    - the container is closed before the block;
    - the block is placed in the nearest ancestor that allows it;
    - the container is reopened afterwards for the remaining content. A reopened ordered list
@@ -247,7 +258,9 @@ root-relative path (`/browse/PROJ-1`) or an anchor (`#section`). Everything else
 
 ### Rules the converter always enforces
 
-The schema alone does not catch everything Jira rejects. These rules hold for all output:
+The schema alone does not catch everything Jira rejects. These rules hold for all output, whether
+`adf validate` reports a break of them as `E_SCHEMA` (for example an empty text node, or `code`
+with `strong`), `E_TARGET` or `E_INVARIANT`:
 
 - no empty text nodes;
 - no `"marks": []` and no `null` attributes;
@@ -279,7 +292,7 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
 
 | Flavour | Purpose |
 |---|---|
-| `--md-flavor roundtrip` (default) | Uses the extension syntax above, so `md → adf` gives the same document back. Nodes Markdown cannot express become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`). |
+| `--md-flavor roundtrip` (default) | Uses the extension syntax above, so `md → adf` with `--images external` gives the same document back (see the [round-trip guarantee](#round-trip-guarantee)). Nodes Markdown cannot express become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`). |
 | `--md-flavor plain` | Compact, readable Markdown for people and LLMs. Drops what Markdown cannot express, with no `adf` blocks. Mentions become `@Name`, statuses `[TEXT]`, dates `YYYY-MM-DD`, emoji their character, panels alerts, expands `<details>`, cards bare URLs. Plain mode is lossy by design and reports no warnings for it. |
 
 ### Mapping (roundtrip)
@@ -303,9 +316,23 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
 | `mediaSingle` with external `media` | `![alt](url)` |
 | anything else: other tables, Media Services files, `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`) |
 
-Attributes with no Markdown form are dropped with `W_ATTR_DROPPED`: cell `colwidth` and
-`background`, table `width`/`layout`/`displayMode`, a numbered column, media size, panel icons.
-`localId`s are always dropped silently, because they are editor bookkeeping.
+In the roundtrip flavour, attributes and marks that Markdown cannot express are dropped and
+reported with `W_ATTR_DROPPED`, whose `pointer` locates the node or the mark. This covers:
+- **attributes** without a Markdown form, for example cell `colwidth`, `background` and
+  `valign`, table `width`/`layout`/`displayMode`, a numbered column, media size, panel icons,
+  mention `accessLevel`, emoji `id`, codeBlock `uniqueId`, and link attributes other than `href`
+  and `title` (such as Confluence's `__confluenceMetadata`);
+- **block marks**: `alignment` (except on the paragraphs of a GFM table's cells), `indentation`,
+  `breakout`;
+- **text marks** without a Markdown form, notably Confluence's `annotation` marks, which anchor
+  inline comments: the text is kept, so posting the Markdown back detaches those comments;
+- marks with a value Markdown cannot carry: a link whose URL fails the
+  [URL allowlist](#url-allowlist) (the text is kept), a `textColor`/`backgroundColor` that is not
+  `#RRGGBB`, a `subsup` without a valid `type`.
+
+Attributes whose value carries no information (`null`, `""`, `false`, or the default, such as
+mention `userType: "DEFAULT"`) are dropped silently, and so are `localId`s, because they are editor
+bookkeeping. The plain flavour drops all of these without warnings.
 
 ### Round-trip guarantee
 
@@ -319,11 +346,16 @@ where `normalize`:
 - removes all `localId` attributes, except on task lists and items, which are compared by
   position;
 - splits `\n` inside text nodes into `hardBreak`s;
-- drops the attributes listed under `W_ATTR_DROPPED`.
+- drops every attribute and mark that `adf_to_md` drops, as described above (each one is
+  reported with `W_ATTR_DROPPED`, so a conversion without that warning drops nothing but
+  `localId`s and empty or default attributes).
 
 `md_to_adf` here runs for the document's target, with all ADF extensions on (the roundtrip
 Markdown is written with them) and with `--images external` (`![alt](url)` stands for an external
-image).
+image). To edit converted content and post it back, convert the Markdown with the same options:
+`adf convert FILE.md --images external` plus the envelope (`-e jira-description`,
+`-e confluence`, …). With the default `--images link`, each external image becomes a text link
+(`W_IMAGE_AS_LINK`).
 
 Every document produced by `md → adf` (with any options) satisfies this. The test suite checks it
 with goldens and property tests.
