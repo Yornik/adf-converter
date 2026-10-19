@@ -6,13 +6,15 @@
 
 use linkify::{LinkFinder, LinkKind};
 
-use crate::adf::model::{Formatting, HexColor, Href, Link, MediaSingle, NonEmptyString, SubSup};
+use crate::adf::model::{
+    ALLOWED_URL_FORMS, Formatting, HexColor, Href, Link, MediaSingle, NonEmptyString, SubSup,
+};
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{HtmlPolicy, ImagePolicy, SoftBreak};
 
 use super::cx::Cx;
 use super::extensions::{build_link_node, split_adf_url, truncate};
-use super::html::{HtmlMark, Recognised, classify, parse_tag};
+use super::html::{HtmlMark, HtmlTag, Recognised, classify, closes_by_name, parse_tag};
 use super::ir::{Marks, Span, Tok};
 
 /// What a frame adds to the mark set; used to undo it when the frame closes.
@@ -53,8 +55,11 @@ struct ImageFrame {
     mode: ImageMode,
     url: String,
     link: Option<Link>,
-    /// Alt text, collected when the image does not become text.
+    /// Alt text, collected when the image does not become text. While the frame is open the
+    /// text goes to [`MarkStack::captures`]; it is moved here when the frame is removed.
     alt: String,
+    /// The image has a title (which external media cannot carry).
+    titled: bool,
     start_tok: usize,
     span: Span,
 }
@@ -66,8 +71,50 @@ enum FrameKind {
     Strike,
     Link(LinkFrame),
     Image(ImageFrame),
-    Html(String),
+    /// An HTML tag frame, closed by `</name>`. A `literal` frame stands for an unrecognised
+    /// opening tag (`<span class="x">`): it adds no mark, and its closing tag is handled by the
+    /// HTML policy instead of closing a recognised frame of the same name.
+    Html {
+        name: String,
+        literal: bool,
+    },
 }
+
+/// What [`InlineBuilder::close_html`] found for a closing tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Closed {
+    /// It closed a recognised mark frame.
+    Mark,
+    /// It closed the frame of an unrecognised opening tag; the HTML policy applies to it.
+    Literal,
+    /// No frame of that name is open.
+    NotOpen,
+}
+
+/// What [`InlineBuilder::unknown_tag`] did with a tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unknown {
+    /// The tag was handled by the HTML policy.
+    Reported,
+    /// `<script>` or `<style>` under `--html drop`: its content is dropped up to the closing tag.
+    RawTextOpened,
+    /// The closing tag of such an element; its content was dropped.
+    RawTextClosed,
+}
+
+/// An open `<script>` or `<style>` element whose content is dropped (`--html drop`).
+#[derive(Debug)]
+struct RawText {
+    name: String,
+    /// Tokens from this index on belong to the element.
+    start_tok: usize,
+    /// The opening tag, for messages.
+    shown: String,
+    span: Span,
+}
+
+/// Elements whose content is not shown by browsers, so `--html drop` removes it with them.
+const RAW_TEXT_ELEMENTS: &[&str] = &["script", "style"];
 
 #[derive(Debug)]
 struct Frame {
@@ -92,8 +139,13 @@ struct MarkStack {
     backgrounds: Vec<(u64, HexColor)>,
     /// Open links and images: no autolinking inside them.
     in_link: u32,
+    /// Open `adf:` links (also counted in `in_link`).
+    adf_links: u32,
     /// Open images whose alt text is captured instead of emitted.
     capturing: u32,
+    /// The alt text of each capturing image frame, innermost last, so text inside one is
+    /// appended in constant time however deep the emphasis inside it is nested.
+    captures: Vec<(u64, String)>,
     /// Open HTML tag frames (bounded by [`MAX_HTML_FRAMES`]).
     html: usize,
     /// Open HTML tag frames per tag name (at most one entry per recognised tag).
@@ -160,14 +212,20 @@ impl MarkStack {
             adds.background = true;
         }
         match &kind {
-            FrameKind::Link(_) => self.in_link += 1,
+            FrameKind::Link(link) => {
+                self.in_link += 1;
+                if link.adf.is_some() {
+                    self.adf_links += 1;
+                }
+            }
             FrameKind::Image(image) => {
                 self.in_link += 1;
                 if image.mode != ImageMode::Link {
                     self.capturing += 1;
+                    self.captures.push((id, String::new()));
                 }
             }
-            FrameKind::Html(name) => {
+            FrameKind::Html { name, .. } => {
                 self.html += 1;
                 match self.html_names.iter_mut().find(|(n, _)| n == name) {
                     Some((_, count)) => *count += 1,
@@ -192,7 +250,7 @@ impl MarkStack {
         if index >= self.frames.len() {
             return None;
         }
-        let frame = self.frames.remove(index);
+        let mut frame = self.frames.remove(index);
         self.apply(frame.adds, false);
         if frame.adds.link {
             remove_value(&mut self.links, frame.id);
@@ -206,15 +264,24 @@ impl MarkStack {
         if frame.adds.background {
             remove_value(&mut self.backgrounds, frame.id);
         }
-        match &frame.kind {
-            FrameKind::Link(_) => self.in_link = self.in_link.saturating_sub(1),
+        let id = frame.id;
+        match &mut frame.kind {
+            FrameKind::Link(link) => {
+                self.in_link = self.in_link.saturating_sub(1);
+                if link.adf.is_some() {
+                    self.adf_links = self.adf_links.saturating_sub(1);
+                }
+            }
             FrameKind::Image(image) => {
                 self.in_link = self.in_link.saturating_sub(1);
                 if image.mode != ImageMode::Link {
                     self.capturing = self.capturing.saturating_sub(1);
+                    if let Some(pos) = self.captures.iter().rposition(|(i, _)| *i == id) {
+                        image.alt = self.captures.remove(pos).1;
+                    }
                 }
             }
-            FrameKind::Html(name) => {
+            FrameKind::Html { name, .. } => {
                 self.html = self.html.saturating_sub(1);
                 if let Some((_, count)) = self.html_names.iter_mut().find(|(n, _)| n == name) {
                     *count = count.saturating_sub(1);
@@ -251,20 +318,9 @@ impl MarkStack {
         }
     }
 
-    /// The innermost capturing image frame.
-    fn capture_frame(&mut self) -> Option<&mut ImageFrame> {
-        self.frames
-            .iter_mut()
-            .rev()
-            .find_map(|f| match &mut f.kind {
-                FrameKind::Image(image) if image.mode != ImageMode::Link => Some(image),
-                FrameKind::Em
-                | FrameKind::Strong
-                | FrameKind::Strike
-                | FrameKind::Link(_)
-                | FrameKind::Image(_)
-                | FrameKind::Html(_) => None,
-            })
+    /// The alt text of the innermost capturing image frame.
+    fn capture_alt(&mut self) -> Option<&mut String> {
+        self.captures.last_mut().map(|(_, alt)| alt)
     }
 }
 
@@ -292,6 +348,8 @@ pub(crate) struct InlineBuilder {
     toks: Vec<Tok>,
     stack: MarkStack,
     pending: Pending,
+    /// An open `<script>`/`<style>` element under `--html drop`.
+    raw_text: Option<RawText>,
 }
 
 /// Link types whose destination may be an `adf:` extension.
@@ -316,6 +374,79 @@ pub(crate) fn strip_controls(s: &str) -> String {
         .collect()
 }
 
+/// [`strip_controls`] for text that goes into an attribute (a title, a language, a label):
+/// reports `W_CONTROL_CHAR` at `span` when something was removed. `what` names the attribute,
+/// with its article ("a link title").
+pub(crate) fn strip_controls_reported(s: &str, what: &str, span: &Span, cx: &mut Cx<'_>) -> String {
+    let cleaned = strip_controls(s);
+    if cleaned.len() != s.len() {
+        cx.warn(
+            Code::ControlChar,
+            format!("Control characters were removed from {what}"),
+            span,
+        );
+    }
+    cleaned
+}
+
+/// The plain-text label of an `adf:` link. A line break or an image between two words reads as
+/// one space (status and mention text cannot hold a break), and never doubles a space that is
+/// already there; at the start or end of the label it leaves no space at all.
+fn adf_label(toks: &[Tok]) -> String {
+    const SPACE: [char; 2] = [' ', '\t'];
+    let mut label = String::new();
+    let mut gap = false;
+    for tok in toks {
+        match tok {
+            Tok::Text { text, .. } => {
+                for (index, part) in text.split('\n').enumerate() {
+                    if index > 0 {
+                        gap = true;
+                    }
+                    if part.is_empty() {
+                        continue;
+                    }
+                    if !gap {
+                        label.push_str(part);
+                    } else if label.is_empty() || label.ends_with(SPACE) {
+                        label.push_str(part.trim_start_matches(SPACE));
+                    } else {
+                        if !part.starts_with(SPACE) {
+                            label.push(' ');
+                        }
+                        label.push_str(part);
+                    }
+                    gap = false;
+                }
+            }
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => gap = true,
+        }
+    }
+    if gap {
+        label.truncate(label.trim_end_matches(SPACE).len());
+    }
+    label
+}
+
+/// Link text made only of literal spaces (`[ ](url)`) is kept at the edge of a block: it is the
+/// whole link, and trimming it would remove the link.
+fn keep_linked_whitespace(toks: &mut [Tok]) {
+    let only_linked_space = !toks.is_empty()
+        && toks.iter().all(|t| match t {
+            Tok::Text { text, marks, .. } => {
+                marks.fmt.link.is_some() && text.chars().all(|c| c == ' ' || c == '\t')
+            }
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => false,
+        });
+    if only_linked_space {
+        for tok in toks {
+            if let Tok::Text { trim, .. } = tok {
+                *trim = false;
+            }
+        }
+    }
+}
+
 impl InlineBuilder {
     pub(crate) fn new() -> Self {
         Self::default()
@@ -327,8 +458,8 @@ impl InlineBuilder {
             return;
         }
         if self.stack.capturing > 0 {
-            if let Some(image) = self.stack.capture_frame() {
-                image.alt.push_str(text);
+            if let Some(alt) = self.stack.capture_alt() {
+                alt.push_str(text);
             }
             return;
         }
@@ -363,7 +494,7 @@ impl InlineBuilder {
         if pending.autolink && pending.text.contains(['.', '@', ':']) {
             for (start, end, href) in find_autolinks(&pending.text) {
                 if literal_contiguous(&pending.segs, start, end) {
-                    cuts.push((start, end, Some(Link { href, title: None })));
+                    cuts.push((start, end, Some(Link::new(href, None))));
                 }
             }
         }
@@ -443,8 +574,8 @@ impl InlineBuilder {
     /// An inline code span.
     pub(crate) fn code(&mut self, text: &str, span: Span, cx: &mut Cx<'_>) {
         if self.stack.capturing > 0 {
-            if let Some(image) = self.stack.capture_frame() {
-                image.alt.push_str(text);
+            if let Some(alt) = self.stack.capture_alt() {
+                alt.push_str(text);
             }
             return;
         }
@@ -480,8 +611,8 @@ impl InlineBuilder {
     /// A soft line break.
     pub(crate) fn soft_break(&mut self, span: Span, cx: &Cx<'_>) {
         if self.stack.capturing > 0 {
-            if let Some(image) = self.stack.capture_frame() {
-                image.alt.push(' ');
+            if let Some(alt) = self.stack.capture_alt() {
+                alt.push(' ');
             }
             return;
         }
@@ -505,8 +636,8 @@ impl InlineBuilder {
     /// A hard line break (`<br>`, two trailing spaces, backslash).
     pub(crate) fn hard_break(&mut self, cx: &Cx<'_>) {
         if self.stack.capturing > 0 {
-            if let Some(image) = self.stack.capture_frame() {
-                image.alt.push(' ');
+            if let Some(alt) = self.stack.capture_alt() {
+                alt.push(' ');
             }
             return;
         }
@@ -598,9 +729,9 @@ impl InlineBuilder {
             } else {
                 dest.to_owned()
             };
-            link = Href::parse(&href).map(|href| Link {
-                href,
-                title: NonEmptyString::new(strip_controls(title).replace('\n', " ")),
+            link = Href::parse(&href).map(|href| {
+                let title = strip_controls_reported(title, "a link title", &span, cx);
+                Link::new(href, NonEmptyString::new(title.replace('\n', " ")))
             });
             if link.is_none() {
                 cx.warn_hint(
@@ -609,7 +740,7 @@ impl InlineBuilder {
                         "Link target '{}' is not an allowed URL; the link text was kept without a link",
                         truncate(dest, 80)
                     ),
-                    "Use an absolute http(s), mailto or tel URL, a /path or an #anchor",
+                    format!("Use an allowed URL: {ALLOWED_URL_FORMS}"),
                     &span,
                 );
             }
@@ -645,48 +776,85 @@ impl InlineBuilder {
         }
         let start = frame.start_tok.min(self.toks.len());
         if let Some((kind, arg)) = &frame.adf {
-            let inner = self.toks.get(start..).unwrap_or_default();
-            let label: String = inner
-                .iter()
-                .filter_map(|t| match t {
-                    Tok::Text { text, .. } => Some(text.as_str()),
-                    Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => None,
-                })
-                .collect();
-            let inner_marked = inner.iter().any(|t| match t {
-                Tok::Text { marks, .. } => !marks.is_empty(),
-                Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => false,
-            });
-            match build_link_node(kind, arg.as_deref(), &label, &cx.opts.extensions) {
-                Ok(node) => {
-                    if inner_marked || !self.stack.marks().is_empty() {
-                        cx.warn(
-                            Code::MarkDropped,
-                            format!(
-                                "Formatting on an adf:{kind} link was dropped; ADF {kind} nodes cannot carry marks"
-                            ),
-                            &frame.span,
-                        );
-                    }
-                    self.toks.truncate(start);
-                    self.toks.push(Tok::Node(node));
-                }
-                Err(fallback) => cx.warn(fallback.code, fallback.message, &frame.span),
-            }
+            self.end_adf_link(kind, arg.as_deref(), start, &frame.span, cx);
             return;
         }
         if self.toks.len() == start {
-            // Empty link text: show the URL.
+            // Empty link text: show the URL. Control characters in it are removed, and
+            // reported, with the rest of the text.
             let mut marks = self.stack.marks();
             if frame.link.is_some() {
                 marks.fmt.link = frame.link;
             }
             self.toks.push(Tok::Text {
-                text: strip_controls(&frame.display),
+                text: frame.display,
                 marks,
                 span: frame.span,
                 trim: false,
             });
+        } else if let Some(inner) = self.toks.get_mut(start..) {
+            keep_linked_whitespace(inner);
+        }
+    }
+
+    /// Replaces the label tokens of an `adf:` link (from `start`) with its node, or keeps them
+    /// as text when the link is invalid.
+    fn end_adf_link(
+        &mut self,
+        kind: &str,
+        arg: Option<&str>,
+        start: usize,
+        span: &Span,
+        cx: &mut Cx<'_>,
+    ) {
+        let inner = self.toks.get(start..).unwrap_or_default();
+        let inner_marked = inner.iter().any(|t| match t {
+            Tok::Text { marks, .. } => !marks.is_empty(),
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => false,
+        });
+        let written = adf_label(inner);
+        let label = strip_controls(&written);
+        match build_link_node(kind, arg, &label, &cx.opts.extensions) {
+            Ok(node) => {
+                // (When the link stays text, the text rules report control characters.)
+                if label.len() != written.len() {
+                    cx.warn(
+                        Code::ControlChar,
+                        format!("Control characters were removed from an adf:{kind} label"),
+                        span,
+                    );
+                }
+                if inner_marked || !self.stack.marks().is_empty() {
+                    cx.warn(
+                        Code::MarkDropped,
+                        format!(
+                            "Formatting on an adf:{kind} link was dropped; ADF {kind} nodes cannot carry marks"
+                        ),
+                        span,
+                    );
+                }
+                // External images in the label cannot be part of the node: they follow it, and
+                // become blocks like any other external image.
+                let images: Vec<Tok> = self
+                    .toks
+                    .drain(start..)
+                    .filter(|t| matches!(t, Tok::Media { .. }))
+                    .collect();
+                for image in &images {
+                    if let Tok::Media { span, .. } = image {
+                        cx.warn(
+                            Code::BlockHoisted,
+                            format!(
+                                "An image cannot be part of an adf:{kind} label; it was moved after the {kind}"
+                            ),
+                            span,
+                        );
+                    }
+                }
+                self.toks.push(Tok::Node(node));
+                self.toks.extend(images);
+            }
+            Err(fallback) => cx.warn(fallback.code, fallback.message, span),
         }
     }
 
@@ -705,9 +873,9 @@ impl InlineBuilder {
         let mut push_link = None;
         let mut link = None;
         if mode == ImageMode::Link {
-            link = Href::parse(dest).map(|href| Link {
-                href,
-                title: NonEmptyString::new(strip_controls(title).replace('\n', " ")),
+            link = Href::parse(dest).map(|href| {
+                let title = strip_controls_reported(title, "an image title", &span, cx);
+                Link::new(href, NonEmptyString::new(title.replace('\n', " ")))
             });
             if link.is_none() {
                 cx.warn(
@@ -736,6 +904,7 @@ impl InlineBuilder {
             url: dest.to_owned(),
             link,
             alt: String::new(),
+            titled: !title.trim().is_empty(),
             start_tok: self.toks.len(),
             span,
         };
@@ -760,8 +929,8 @@ impl InlineBuilder {
         };
         if self.stack.capturing > 0 {
             // A nested image inside captured alt text: its alt text joins the outer one.
-            if let Some(outer) = self.stack.capture_frame() {
-                outer.alt.push_str(&frame.alt);
+            if let Some(outer) = self.stack.capture_alt() {
+                outer.push_str(&frame.alt);
             }
             return;
         }
@@ -773,61 +942,74 @@ impl InlineBuilder {
                         marks.fmt.link = frame.link;
                     }
                     self.toks.push(Tok::Text {
-                        text: strip_controls(&frame.url),
+                        text: frame.url,
                         marks,
                         span: frame.span,
                         trim: false,
                     });
+                } else if let Some(inner) = self.toks.get_mut(frame.start_tok..) {
+                    keep_linked_whitespace(inner);
                 }
             }
-            ImageMode::External => {
-                // Trim last: a removed control character or newline must not leave the alt
-                // text starting or ending with a space.
-                let alt = strip_controls(&frame.alt)
-                    .replace('\n', " ")
-                    .trim()
-                    .to_owned();
-                if Href::parse(&frame.url).is_none() {
-                    cx.warn(
-                        Code::UnsafeUrl,
-                        format!(
-                            "Image URL '{}' is not an allowed URL; only the alt text was kept",
-                            truncate(&frame.url, 80)
-                        ),
-                        &frame.span,
-                    );
-                    let marks = self.stack.marks();
-                    if !alt.is_empty() {
-                        self.toks.push(Tok::Text {
-                            text: alt,
-                            marks,
-                            span: frame.span,
-                            trim: false,
-                        });
-                    }
-                    return;
-                }
-                if !self.stack.links.is_empty() || self.stack.in_link > 0 {
-                    cx.warn(
-                        Code::MarkDropped,
-                        "The link around an image was dropped; ADF media cannot be linked",
-                        &frame.span,
-                    );
-                }
-                self.toks.push(Tok::Media {
-                    media: MediaSingle {
-                        url: frame.url.trim().to_owned(),
-                        alt: NonEmptyString::new(alt),
-                    },
-                    span: frame.span,
-                });
-            }
+            ImageMode::External => self.end_external_image(frame, cx),
             ImageMode::Drop => cx.warn(
                 Code::ImageDropped,
                 "Image dropped (--images drop)",
                 &frame.span,
             ),
         }
+    }
+
+    /// An image with `--images external`: a media token, or its alt text for a bad URL.
+    fn end_external_image(&mut self, frame: ImageFrame, cx: &mut Cx<'_>) {
+        // Trim last: a removed control character or newline must not leave the alt text
+        // starting or ending with a space.
+        let alt = strip_controls_reported(&frame.alt, "an image's alt text", &frame.span, cx)
+            .replace('\n', " ")
+            .trim()
+            .to_owned();
+        if Href::parse(&frame.url).is_none() {
+            cx.warn(
+                Code::UnsafeUrl,
+                format!(
+                    "Image URL '{}' is not an allowed URL; only the alt text was kept",
+                    truncate(&frame.url, 80)
+                ),
+                &frame.span,
+            );
+            let marks = self.stack.marks();
+            if !alt.is_empty() {
+                self.toks.push(Tok::Text {
+                    text: alt,
+                    marks,
+                    span: frame.span,
+                    trim: false,
+                });
+            }
+            return;
+        }
+        // In an `adf:` link label, the image is moved after the node (see `end_adf_link`).
+        if self.stack.in_link > self.stack.adf_links {
+            cx.warn(
+                Code::MarkDropped,
+                "The link around an image was dropped; ADF media cannot be linked",
+                &frame.span,
+            );
+        }
+        if frame.titled {
+            cx.warn(
+                Code::MarkDropped,
+                "The image title was dropped; ADF media cannot carry a title",
+                &frame.span,
+            );
+        }
+        self.toks.push(Tok::Media {
+            media: MediaSingle {
+                url: frame.url.trim().to_owned(),
+                alt: NonEmptyString::new(alt),
+            },
+            span: frame.span,
+        });
     }
 
     /// An inline HTML tag or comment.
@@ -838,11 +1020,28 @@ impl InlineBuilder {
         cx: &mut Cx<'_>,
     ) -> Result<(), Diagnostic> {
         if self.stack.capturing > 0 {
+            // Alt text is plain text: tags are removed, and `<br>` is a space like the other
+            // line breaks.
+            if parse_tag(html).is_some_and(|(tag, _)| classify(&tag, false) == Recognised::Br)
+                && let Some(alt) = self.stack.capture_alt()
+            {
+                alt.push(' ');
+            }
             return Ok(());
         }
         let Some((tag, _)) = parse_tag(html) else {
+            if self.raw_text.is_some() {
+                return Ok(());
+            }
             return self.unknown_html(html, span, cx);
         };
+        if self.raw_text.is_some() {
+            // Inside `<script>`/`<style>` (`--html drop`), only its closing tag counts.
+            if self.closes_raw_text(&tag) {
+                self.unknown_tag(&tag, html, span, cx)?;
+            }
+            return Ok(());
+        }
         let details = cx.opts.extensions.details;
         match classify(&tag, details) {
             Recognised::Comment | Recognised::Empty => Ok(()),
@@ -851,16 +1050,13 @@ impl InlineBuilder {
                 Ok(())
             }
             Recognised::OpenMark { name, mark } => {
-                self.open_html(name, mark, cx);
+                self.open_html(name, mark, &span, cx);
                 Ok(())
             }
-            Recognised::CloseMark { name } => {
-                if self.close_html(&name, cx) {
-                    Ok(())
-                } else {
-                    self.unknown_html(html, span, cx)
-                }
-            }
+            Recognised::CloseMark { name } => match self.close_html(&name, cx) {
+                Closed::Mark => Ok(()),
+                Closed::Literal | Closed::NotOpen => self.unknown_html(html, span, cx),
+            },
             Recognised::DetailsOpen
             | Recognised::DetailsClose
             | Recognised::SummaryOpen
@@ -873,18 +1069,34 @@ impl InlineBuilder {
                         &span,
                     );
                 }
-                self.unknown_html(html, span, cx)
+                self.unknown_tag(&tag, html, span, cx).map(|_| ())
             }
         }
     }
 
     /// Opens a recognised HTML mark frame. Beyond [`MAX_HTML_FRAMES`] open tags the tag is
     /// ignored.
-    pub(crate) fn open_html(&mut self, name: String, mark: HtmlMark, cx: &Cx<'_>) {
+    pub(crate) fn open_html(&mut self, name: String, mark: HtmlMark, span: &Span, cx: &mut Cx<'_>) {
         if self.stack.html >= MAX_HTML_FRAMES {
             return;
         }
         self.flush(cx);
+        if let HtmlMark::SubSup(inner) = mark
+            && let Some((_, outer)) = self.stack.subsup.last()
+            && *outer != inner
+        {
+            let (outer_tag, outer_kind) = match outer {
+                SubSup::Sub => ("sub", "subscript"),
+                SubSup::Sup => ("sup", "superscript"),
+            };
+            cx.warn(
+                Code::MarkDropped,
+                format!(
+                    "<{name}> inside <{outer_tag}> dropped the {outer_kind}; ADF text cannot be both subscript and superscript"
+                ),
+                span,
+            );
+        }
         let mut contrib = Contrib::default();
         match mark {
             HtmlMark::Underline => contrib.adds.underline = true,
@@ -898,30 +1110,120 @@ impl InlineBuilder {
                 contrib.background = background;
             }
         }
-        self.stack.push(FrameKind::Html(name), contrib);
+        self.stack.push(
+            FrameKind::Html {
+                name,
+                literal: false,
+            },
+            contrib,
+        );
     }
 
-    /// Closes the innermost open HTML frame named `name`; `false` if there is none.
-    pub(crate) fn close_html(&mut self, name: &str, cx: &Cx<'_>) -> bool {
+    /// Closes the innermost open HTML frame named `name`.
+    pub(crate) fn close_html(&mut self, name: &str, cx: &Cx<'_>) -> Closed {
         let open = self
             .stack
             .html_names
             .iter()
             .any(|(n, count)| n == name && *count > 0);
         if !open {
-            return false;
+            return Closed::NotOpen;
         }
         let Some(index) = self
             .stack
             .frames
             .iter()
-            .rposition(|f| matches!(&f.kind, FrameKind::Html(n) if n == name))
+            .rposition(|f| matches!(&f.kind, FrameKind::Html { name: n, .. } if n == name))
         else {
-            return false;
+            return Closed::NotOpen;
         };
         self.flush(cx);
-        self.stack.remove(index);
-        true
+        match self.stack.remove(index) {
+            Some(Frame {
+                kind: FrameKind::Html { literal: true, .. },
+                ..
+            }) => Closed::Literal,
+            Some(_) | None => Closed::Mark,
+        }
+    }
+
+    /// Whether `tag` closes the open `<script>`/`<style>` element (`--html drop`).
+    pub(crate) fn closes_raw_text(&self, tag: &HtmlTag) -> bool {
+        matches!(
+            (tag, &self.raw_text),
+            (HtmlTag::Close { name }, Some(raw)) if *name == raw.name
+        )
+    }
+
+    /// Whether a `<script>`/`<style>` element is open (`--html drop`): until its closing tag,
+    /// other tags are part of its content.
+    pub(crate) fn in_raw_text(&self) -> bool {
+        self.raw_text.is_some()
+    }
+
+    /// A tag without an ADF equivalent: applies `--html` to it ([`Self::unknown_html`]), and
+    /// remembers the opening tags whose closing tag must pair with them:
+    ///
+    /// - an unrecognised `<span …>` gets a frame without marks, so its `</span>` does not close
+    ///   a recognised `<span style="color: …">` around it;
+    /// - under `--html drop`, `<script>` and `<style>` drop their content with them, up to the
+    ///   closing tag (browsers never show it). Without a closing tag the content is kept.
+    pub(crate) fn unknown_tag(
+        &mut self,
+        tag: &HtmlTag,
+        html: &str,
+        span: Span,
+        cx: &mut Cx<'_>,
+    ) -> Result<Unknown, Diagnostic> {
+        if self.closes_raw_text(tag) {
+            self.flush(cx);
+            if let Some(raw) = self.raw_text.take() {
+                self.toks.truncate(raw.start_tok.min(self.toks.len()));
+                cx.warn(
+                    Code::HtmlDropped,
+                    format!(
+                        "HTML '{}' was dropped with the content of '{}' (--html drop)",
+                        truncate(html.trim(), 60),
+                        raw.shown
+                    ),
+                    &(raw.span.start..span.end),
+                );
+            }
+            return Ok(Unknown::RawTextClosed);
+        }
+        self.unknown_html(html, span.clone(), cx)?;
+        let HtmlTag::Open {
+            name,
+            self_closing: false,
+            ..
+        } = tag
+        else {
+            return Ok(Unknown::Reported);
+        };
+        if cx.opts.html == HtmlPolicy::Drop
+            && self.raw_text.is_none()
+            && RAW_TEXT_ELEMENTS.contains(&name.as_str())
+        {
+            self.flush(cx);
+            self.raw_text = Some(RawText {
+                name: name.clone(),
+                start_tok: self.toks.len(),
+                shown: truncate(html.trim(), 60),
+                span,
+            });
+            return Ok(Unknown::RawTextOpened);
+        }
+        if closes_by_name(name) && self.stack.html < MAX_HTML_FRAMES {
+            self.flush(cx);
+            self.stack.push(
+                FrameKind::Html {
+                    name: name.clone(),
+                    literal: true,
+                },
+                Contrib::default(),
+            );
+        }
+        Ok(Unknown::Reported)
     }
 
     /// HTML without an ADF equivalent, handled per `--html`.

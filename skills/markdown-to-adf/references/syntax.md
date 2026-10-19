@@ -23,7 +23,7 @@ the installed version supports.
 | ```` ```python ```` … ```` ``` ```` | code block with language | Contents are never formatted. |
 | `> quote` | quote | Quotes hold paragraphs, lists and code only. |
 | `---` on its own line (blank line before it) | horizontal rule | Directly under a text line, `---` makes that line a heading instead. |
-| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL. |
+| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL (without the title, `W_MARK_DROPPED`). |
 | `[^1]` and `[^1]: note` | superscript number + numbered list at the end | `W_FOOTNOTE_FLATTENED`. |
 | `\*`, `&amp;` | literal `*`, `&` | Backslash escapes and entities work as usual. |
 
@@ -68,8 +68,10 @@ All are on by default (`--extensions all`). `--extensions none` or a list such a
 | `[!WARNING]` | warning (yellow) |
 | `[!CAUTION]` | error (red) |
 
-A panel may contain paragraphs, headings, lists, task lists, code and rules. Use panels at the top
-level, in `<details>` or in a box cell; elsewhere they become a plain quote (`W_BLOCK_FLATTENED`).
+A panel may contain paragraphs, headings, lists, task lists, code and rules. Panels go at the top
+level, in `<details>` or in a box cell. An alert under a list item (a numbered step, a task) or
+inside another alert is moved after it and still becomes a panel (`W_BLOCK_HOISTED`); inside a
+quote it becomes plain quote text (`W_BLOCK_FLATTENED`).
 
 ### Expand (`details`)
 
@@ -82,7 +84,8 @@ Markdown content here, separated from the tags by blank lines.
 </details>
 ```
 
-The blank lines matter, as on GitHub. The summary is plain text. A `<details>` inside another
+The blank lines matter, as on GitHub. The summary is plain text: tags in it are removed, and
+unrecognised ones such as `<code>` or `<img>` are reported (`W_HTML_DROPPED`). A `<details>` inside another
 `<details>` or a box cell becomes a nested expand; inside a list, quote or panel it is flattened to
 a bold title followed by the content.
 
@@ -122,7 +125,8 @@ whenever it can express the content.
 
 These nodes cannot be bold or italic; formatting around them is dropped (`W_MARK_DROPPED`). A bad
 argument keeps the label as text (`W_INVALID_EXTENSION_ARG`); an unknown kind such as
-`adf:foo/x` too (`W_UNKNOWN_EXTENSION`).
+`adf:foo/x` too (`W_UNKNOWN_EXTENSION`). A line break inside a label becomes a space, so a label
+may wrap across lines even with `--softbreak hardbreak`.
 
 ## Inline HTML
 
@@ -131,7 +135,7 @@ argument keeps the label as text (`W_INVALID_EXTENSION_ARG`); an unknown kind su
 | `<u>x</u>`, `<ins>x</ins>` | underline |
 | `<s>`, `<del>`, `<strike>` | strike |
 | `<b>`, `<strong>`, `<i>`, `<em>` | bold, italic |
-| `<sub>x</sub>`, `<sup>x</sup>` | subscript, superscript |
+| `<sub>x</sub>`, `<sup>x</sup>` | subscript, superscript (not both: the inner one wins, `W_MARK_DROPPED`) |
 | `<span style="color: #FF5630">x</span>` | text colour (6-digit hex only) |
 | `<span style="background-color: #FFF0B3">x</span>` | highlight (6-digit hex only) |
 | `<kbd>x</kbd>` | inline code |
@@ -139,7 +143,8 @@ argument keeps the label as text (`W_INVALID_EXTENSION_ARG`); an unknown kind su
 | `<!-- comment -->` | removed silently |
 
 Other HTML is kept as literal text (`W_HTML_AS_TEXT`); `--html drop` removes it
-(`W_HTML_DROPPED`) and `--html error` fails (exit 5).
+(`W_HTML_DROPPED`), with the content of `<script>` and `<style>` elements, and `--html error`
+fails (exit 5).
 
 ## Where blocks may go
 

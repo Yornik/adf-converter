@@ -1047,15 +1047,41 @@ fn alerts_become_panels() {
 
 #[test]
 fn alerts_in_containers_that_cannot_hold_panels() {
+    // A list item cannot hold a panel, but the document it is hoisted to can.
     let (value, warnings) = run("- > [!TIP]\n  > in list");
     assert_eq!(
         value["content"],
-        json!([{"type": "blockquote", "content": [pt("in list")]}])
+        json!([{"type": "panel", "attrs": {"panelType": "success"}, "content": [pt("in list")]}])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    assert_eq!(
+        warnings[0].message,
+        "An alert is not allowed in a list item; it was moved out of it"
+    );
+    // Under a numbered runbook step: the list continues after the panel.
+    let (value, warnings) = run(
+        "1. Stop the service.\n\n   > [!WARNING]\n   > This drops live connections.\n\n2. Restart it.\n",
     );
     assert_eq!(
-        codes(&warnings),
-        vec![Code::BlockFlattened, Code::BlockHoisted]
+        value["content"],
+        json!([
+            ordered(1, json!([li(json!([pt("Stop the service.")]))])),
+            {"type": "panel", "attrs": {"panelType": "warning"},
+             "content": [pt("This drops live connections.")]},
+            ordered(2, json!([li(json!([pt("Restart it.")]))])),
+        ])
     );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    // An alert inside an alert becomes a second panel after the first.
+    let (value, warnings) = run("> [!NOTE]\n> a\n>\n> > [!WARNING]\n> > b");
+    assert_eq!(
+        value["content"],
+        json!([
+            {"type": "panel", "attrs": {"panelType": "info"}, "content": [pt("a")]},
+            {"type": "panel", "attrs": {"panelType": "warning"}, "content": [pt("b")]},
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
     let (value, warnings) = run("> a\n>\n> > [!NOTE]\n> > b");
     assert_eq!(
         value["content"],
@@ -1073,12 +1099,26 @@ fn alerts_in_containers_that_cannot_hold_panels() {
         ])
     );
     assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
-    // ...and its conversion to a quote is reported where it is not.
+    assert_eq!(
+        warnings[0].message,
+        "An alert is not allowed in a task item; it was moved after the task list"
+    );
+    // ...also through several levels...
     let (mut value, warnings) = run("- - [ ] t\n\n    > [!NOTE]\n    > x");
     strip_ids(&mut value);
     assert_eq!(
         value["content"][1],
-        json!({"type": "blockquote", "content": [pt("x")]})
+        json!({"type": "panel", "attrs": {"panelType": "info"}, "content": [pt("x")]})
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    // ...and its conversion to quote content is reported where it is not allowed.
+    let (value, warnings) = run("> - item\n>\n>   > [!NOTE]\n>   > x");
+    assert_eq!(
+        value["content"],
+        json!([{"type": "blockquote", "content": [
+            bullet(json!([li(json!([pt("item")]))])),
+            pt("x")
+        ]}])
     );
     assert_eq!(
         codes(&warnings),
@@ -1847,4 +1887,516 @@ fn deep_invalid_raw_adf_blocks_fail_fast() {
             start.elapsed()
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Review regressions
+// ---------------------------------------------------------------------------------------------
+
+/// The tokens of the first paragraph of `md`, before lowering.
+fn paragraph_tokens(md: &str, opts: &MdToAdfOptions) -> Vec<super::ir::Tok> {
+    let pre = super::prepass::run(md, true);
+    let mut cx = super::cx::Cx::new(&pre.text, opts);
+    let parsed = super::tree::build(&mut cx, &pre).unwrap();
+    match parsed.blocks.into_iter().next() {
+        Some(super::ir::Block::Paragraph { content, .. }) => content,
+        other => panic!("not a paragraph: {other:?}"),
+    }
+}
+
+/// Regression: every text run of a link label held its own copy of the link's href and title,
+/// so `[` + 16,000 `\!` + `](` + 32 KB URL `)` (64 KB) needed 1 GB. The runs must share one
+/// link value. (A memory test would crash a regressed build, so the sharing is checked.)
+#[test]
+fn link_label_runs_share_the_link() {
+    let md = format!(
+        "[{}](https://example.com/{} \"{}\")",
+        "\\!".repeat(500),
+        "a".repeat(2000),
+        "t".repeat(2000)
+    );
+    for images in [ImagePolicy::Link, ImagePolicy::External] {
+        let opts = opts_with(|o| o.images = images);
+        let toks = paragraph_tokens(&md, &opts);
+        let links: Vec<&crate::adf::model::Link> = toks
+            .iter()
+            .filter_map(|t| match t {
+                super::ir::Tok::Text { marks, .. } => marks.fmt.link.as_ref(),
+                super::ir::Tok::HardBreak
+                | super::ir::Tok::Node(_)
+                | super::ir::Tok::Media { .. } => None,
+            })
+            .collect();
+        assert_eq!(links.len(), 500);
+        assert!(links.iter().all(|l| l.shares(links[0])));
+    }
+    // The same for an image in the default link mode, whose alt text carries the link.
+    let md = format!(
+        "![{}](https://example.com/{})",
+        "\\!".repeat(500),
+        "a".repeat(2000)
+    );
+    let toks = paragraph_tokens(&md, &MdToAdfOptions::default());
+    let links: Vec<&crate::adf::model::Link> = toks
+        .iter()
+        .filter_map(|t| match t {
+            super::ir::Tok::Text { marks, .. } => marks.fmt.link.as_ref(),
+            super::ir::Tok::HardBreak | super::ir::Tok::Node(_) | super::ir::Tok::Media { .. } => {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(links.len(), 500);
+    assert!(links.iter().all(|l| l.shares(links[0])));
+    // The output still merges the runs into one linked text node.
+    let (value, _) = run(&format!("[{}](https://example.com/x)", "\\!".repeat(50)));
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([tm(&"!".repeat(50), json!([link("https://example.com/x")]))])
+    );
+}
+
+/// Regression: alt text captured with `--images external`/`drop` searched the whole mark stack
+/// for every text event, quadratic under deeply nested emphasis (256 KB took 2.3 s, 4 MiB ~10 min).
+#[test]
+fn captured_alt_text_stays_fast_under_deep_emphasis() {
+    let n = if cfg!(debug_assertions) {
+        50_000
+    } else {
+        200_000
+    };
+    let md = format!(
+        "![{}{}{}](https://example.com/i.png)",
+        "_a ".repeat(n),
+        "\\!".repeat(2 * n),
+        " a_".repeat(n)
+    );
+    for images in [ImagePolicy::External, ImagePolicy::Drop] {
+        let opts = opts_with(|o| o.images = images);
+        let start = std::time::Instant::now();
+        assert!(super::to_adf(&md, &opts).is_ok());
+        let elapsed = start.elapsed();
+        assert!(elapsed.as_secs() < 10, "{images:?}: {elapsed:?}");
+    }
+}
+
+#[test]
+fn line_breaks_in_adf_labels_are_spaces() {
+    let mention = |text: &str| json!({"type": "mention", "attrs": {"id": "x", "text": text}});
+    for md in [
+        "[@Jane  \nDoe](adf:mention/x)",
+        "[@Jane\\\nDoe](adf:mention/x)",
+        "[@Jane<br>Doe](adf:mention/x)",
+        "[@Jane <br> Doe](adf:mention/x)",
+        "[@Jane&#10;Doe](adf:mention/x)",
+        "[@Jane\nDoe](adf:mention/x)",
+        "[<br>@Jane Doe<br>](adf:mention/x)",
+    ] {
+        let (value, warnings) = run(md);
+        assert_eq!(
+            value["content"][0]["content"],
+            json!([mention("@Jane Doe")]),
+            "{md:?}"
+        );
+        assert_eq!(codes(&warnings), vec![], "{md:?}");
+    }
+    let hard = opts_with(|o| o.softbreak = SoftBreak::HardBreak);
+    let (value, warnings) = run_with("[IN\nPROGRESS](adf:status/blue)", &hard);
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([{"type": "status", "attrs": {"text": "IN PROGRESS", "color": "blue"}}])
+    );
+    assert_eq!(codes(&warnings), vec![]);
+    // Spaces in the label itself are kept as written.
+    let (value, _) = run("[ In  progress ](adf:status/blue)");
+    assert_eq!(
+        value["content"][0]["content"][0]["attrs"]["text"],
+        " In  progress "
+    );
+    // `<br>` in captured alt text is a space, like the other line breaks.
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    for md in [
+        "![two<br>words](https://example.com/a.png)",
+        "![two  \nwords](https://example.com/a.png)",
+    ] {
+        let (value, _) = run_with(md, &external);
+        assert_eq!(
+            value["content"][0]["content"][0]["attrs"]["alt"], "two words",
+            "{md:?}"
+        );
+    }
+}
+
+#[test]
+fn control_characters_in_attributes_are_removed_and_reported() {
+    let (value, warnings) =
+        run("[@Ja\u{1}ne](adf:mention/x) [DO\u{2}NE](adf:status/green) [x\u{1}y](adf:emoji/smile)");
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([
+            {"type": "mention", "attrs": {"id": "x", "text": "@Jane"}}, t(" "),
+            {"type": "status", "attrs": {"text": "DONE", "color": "green"}}, t(" "),
+            {"type": "emoji", "attrs": {"shortName": ":smile:", "text": "xy"}}
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::ControlChar; 3]);
+    assert_eq!(
+        warnings[0].message,
+        "Control characters were removed from an adf:mention label"
+    );
+    let md = "```py\u{1}thon\ncode\n```\n\n[t](https://x.com \"ti\u{1}tle\")\n\n<details><summary>Ti\u{1}tle</summary>\n\nb\n\n</details>\n\n![i](https://x.com/i.png \"ti\u{1}tle\")";
+    let (value, warnings) = run(md);
+    assert_eq!(value["content"][0]["attrs"]["language"], "python");
+    assert_eq!(
+        value["content"][1]["content"][0]["marks"][0]["attrs"]["title"],
+        "title"
+    );
+    assert_eq!(value["content"][2]["attrs"]["title"], "Title");
+    assert_eq!(
+        value["content"][3]["content"][0]["marks"][0]["attrs"]["title"],
+        "title"
+    );
+    assert_eq!(
+        codes(&warnings),
+        vec![
+            Code::ControlChar,
+            Code::ControlChar,
+            Code::ControlChar,
+            Code::ControlChar,
+            Code::ImageAsLink
+        ]
+    );
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    let (value, warnings) = run_with("![a\u{1}lt](https://x.com/i.png)", &external);
+    assert_eq!(value["content"][0]["content"][0]["attrs"]["alt"], "alt");
+    assert_eq!(codes(&warnings), vec![Code::ControlChar]);
+    // Text shown for an empty link goes through the text rules.
+    let (value, warnings) = run("[](https://x.com/a&#1;b)");
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([t("https://x.com/ab")])
+    );
+    assert_eq!(codes(&warnings), vec![Code::UnsafeUrl, Code::ControlChar]);
+}
+
+#[test]
+fn external_images_in_adf_labels_follow_the_node() {
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    let (value, warnings) = run_with(
+        "[x ![i](https://x.com/i.png) y](adf:mention/abc) z",
+        &external,
+    );
+    assert_eq!(
+        value["content"],
+        json!([
+            p(json!([{"type": "mention", "attrs": {"id": "abc", "text": "x y"}}])),
+            {"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+                {"type": "media", "attrs": {"type": "external", "url": "https://x.com/i.png", "alt": "i"}}
+            ]},
+            pt("z"),
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    assert_eq!(
+        warnings[0].message,
+        "An image cannot be part of an adf:mention label; it was moved after the mention"
+    );
+    // A real link around an external image is still reported as dropped.
+    let (_, warnings) = run_with("[![i](https://x.com/i.png)](https://x.com)", &external);
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+}
+
+#[test]
+fn whitespace_only_link_text_is_kept_at_block_edges() {
+    let linked_space = |href: &str| tm(" ", json!([link(href)]));
+    let (value, warnings) =
+        run("[ ](https://x.com)\n\n- [ ](https://x.com)\n\n# [ ](https://x.com)");
+    assert_eq!(
+        value["content"],
+        json!([
+            p(json!([linked_space("https://x.com")])),
+            bullet(json!([li(json!([p(json!([linked_space("https://x.com")]))]))])),
+            {"type": "heading", "attrs": {"level": 1}, "content": [linked_space("https://x.com")]},
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![]);
+    let (value, _) = run("see [ ](https://x.com)");
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([t("see "), linked_space("https://x.com")])
+    );
+    // Without a link (unsafe URL), the space is ordinary block-edge whitespace.
+    let (value, _) = run("x\n\n[ ](javascript:x)");
+    assert_eq!(value["content"], json!([pt("x")]));
+}
+
+#[test]
+fn external_image_titles_are_reported() {
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    let (value, warnings) = run_with("![c](https://x.com/c.png \"Tooltip title\")", &external);
+    assert_eq!(
+        value["content"][0]["content"][0]["attrs"],
+        json!({"type": "external", "url": "https://x.com/c.png", "alt": "c"})
+    );
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+    let (_, warnings) = run_with("![c](https://x.com/c.png)", &external);
+    assert_eq!(codes(&warnings), vec![]);
+}
+
+#[test]
+fn nested_sub_and_sup_report_the_dropped_mark() {
+    let (value, warnings) = run("<sub><sup>both</sup></sub>");
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([tm(
+            "both",
+            json!([{"type": "subsup", "attrs": {"type": "sup"}}])
+        )])
+    );
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+    assert_eq!(
+        warnings[0].message,
+        "<sup> inside <sub> dropped the subscript; ADF text cannot be both subscript and superscript"
+    );
+    // The same kind nested loses nothing.
+    let (_, warnings) = run("<sub><sub>x</sub></sub>");
+    assert_eq!(codes(&warnings), vec![]);
+}
+
+#[test]
+fn tags_inside_summary_follow_the_html_policy() {
+    let md = "<details><summary><img src=\"x.png\"> Logs</summary>\n\nb\n\n</details>";
+    for html in [HtmlPolicy::Text, HtmlPolicy::Drop] {
+        let opts = opts_with(|o| o.html = html);
+        let (value, warnings) = run_with(md, &opts);
+        assert_eq!(value["content"][0]["attrs"]["title"], "Logs");
+        assert_eq!(codes(&warnings), vec![Code::HtmlDropped], "{html:?}");
+    }
+    let error = opts_with(|o| o.html = HtmlPolicy::Error);
+    assert_eq!(error_of(md, &error).code, Code::Lossy);
+    // Recognised formatting tags are removed silently, as documented.
+    let (value, warnings) = run("<details><summary><b>Bold</b> title</summary>\n\nb\n\n</details>");
+    assert_eq!(value["content"][0]["attrs"]["title"], "Bold title");
+    assert_eq!(codes(&warnings), vec![]);
+    // A summary outside <details> is ordinary HTML, as inline.
+    let (value, warnings) = run("<summary>Orphan</summary>");
+    assert_eq!(value["content"], json!([pt("<summary>Orphan</summary>")]));
+    assert_eq!(codes(&warnings), vec![Code::HtmlAsText, Code::HtmlAsText]);
+    let drop = opts_with(|o| o.html = HtmlPolicy::Drop);
+    let (value, warnings) = run_with("<summary>Orphan</summary>", &drop);
+    assert_eq!(value["content"], json!([pt("Orphan")]));
+    assert_eq!(codes(&warnings), vec![Code::HtmlDropped, Code::HtmlDropped]);
+    assert_eq!(
+        error_of("<summary>Orphan</summary>", &error).code,
+        Code::Lossy
+    );
+}
+
+#[test]
+fn script_and_style_content_is_dropped_with_html_drop() {
+    let drop = opts_with(|o| o.html = HtmlPolicy::Drop);
+    for md in [
+        "<script>\nvar secret = 1;\n</script>",
+        "<style>\n.a { color: red }\n\n.b { x: y }\n</style>",
+        "<SCRIPT type=\"text/javascript\">if (a < b) { x(\"</div>\"); }</SCRIPT>",
+    ] {
+        let (value, warnings) = run_with(md, &drop);
+        assert_eq!(value["content"], json!([]), "{md:?}");
+        assert_eq!(
+            codes(&warnings),
+            vec![Code::HtmlDropped, Code::HtmlDropped],
+            "{md:?}"
+        );
+    }
+    let (value, warnings) = run_with("a <script>alert(*2*)</script> b", &drop);
+    assert_eq!(value["content"], json!([pt("a  b")]));
+    assert_eq!(codes(&warnings), vec![Code::HtmlDropped, Code::HtmlDropped]);
+    assert!(
+        warnings[1]
+            .message
+            .contains("with the content of '<script>'")
+    );
+    // Without a closing tag only the tag goes: the text may be prose about the tag.
+    let (value, warnings) = run_with("Use the <script> tag here.", &drop);
+    assert_eq!(value["content"], json!([pt("Use the  tag here.")]));
+    assert_eq!(codes(&warnings), vec![Code::HtmlDropped]);
+    // The default policy keeps everything as text.
+    let (value, _) = run("a <script>alert(2)</script> b");
+    assert_eq!(
+        value["content"],
+        json!([pt("a <script>alert(2)</script> b")])
+    );
+}
+
+#[test]
+fn unrecognised_span_does_not_close_a_colour_span() {
+    let red = json!([{"type": "textColor", "attrs": {"color": "#ff0000"}}]);
+    let md = "<span style=\"color: #ff0000\">a <span class=\"x\">b</span> c</span> d";
+    let (value, warnings) = run(md);
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([tm("a <span class=\"x\">b</span> c", red.clone()), t(" d")])
+    );
+    assert_eq!(codes(&warnings), vec![Code::HtmlAsText, Code::HtmlAsText]);
+    // The literal closing tag is the inner one.
+    assert_eq!(warnings[1].location.as_ref().unwrap().column, Some(49));
+    let drop = opts_with(|o| o.html = HtmlPolicy::Drop);
+    let (value, _) = run_with(md, &drop);
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([tm("a b c", red.clone()), t(" d")])
+    );
+    // The same in an HTML block.
+    let (value, _) = run_with(&format!("<p>{md}</p>"), &drop);
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([tm("a b c", red), t(" d")])
+    );
+}
+
+#[test]
+fn backslash_after_slash_is_not_a_root_relative_url() {
+    let (value, warnings) = run("[a](/\\evil.com) [b](/\\\\evil.com) [ok](/a\\b)");
+    assert_eq!(
+        value["content"][0]["content"],
+        json!([t("a b "), tm("ok", json!([link("/a\\b")]))])
+    );
+    assert_eq!(codes(&warnings), vec![Code::UnsafeUrl, Code::UnsafeUrl]);
+    let (_, warnings) = run("[/\\evil.com](adf:card)");
+    assert_eq!(codes(&warnings), vec![Code::InvalidExtensionArg]);
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    let (value, warnings) = run_with("![i](/\\evil.com/x.png)", &external);
+    assert_eq!(value["content"], json!([pt("i")]));
+    assert_eq!(codes(&warnings), vec![Code::UnsafeUrl]);
+    // The hint lists every allowed form.
+    let (_, warnings) = run("[f](docs/x.md)");
+    assert_eq!(
+        warnings[0].hint.as_deref(),
+        Some("Use an allowed URL: http, https, ftp, ftps, mailto, tel, /path, #anchor")
+    );
+}
+
+#[test]
+fn text_after_a_one_line_details_opener_in_a_tight_item_is_kept() {
+    let (value, warnings) =
+        run("- <!-- x --><details><summary>T</summary>\n  important text\n- next");
+    assert_eq!(
+        value["content"],
+        json!([bullet(json!([
+            li(json!([
+                p(json!([tm("T", json!([{"type": "strong"}]))])),
+                pt("important text")
+            ])),
+            li(json!([pt("next")])),
+        ]))])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockFlattened]);
+    for md in [
+        "- <pre>x</pre><details>\n  important **text**\n- next",
+        "- item\n  <!-- c --><details><summary>S</summary>\n  more text\n- next",
+        "- <!-- x --><details>\n  text\n  </details>\n  after\n- next",
+    ] {
+        let text = serde_json::to_string(&run(md).0).unwrap();
+        for word in ["important", "more text", "after"] {
+            if md.contains(word) {
+                assert!(text.contains(word), "{md:?}: {text}");
+            }
+        }
+    }
+}
+
+#[test]
+fn front_matter_warning_covers_the_removed_lines() {
+    let (_, warnings) = run("---\ntitle: x\nowner: y\n---\nHello");
+    assert_eq!(codes(&warnings), vec![Code::FrontMatterDropped]);
+    assert_eq!(
+        warnings[0].message,
+        "Leading YAML front matter (lines 1-4) was removed"
+    );
+    let location = warnings[0].location.as_ref().unwrap();
+    assert_eq!(
+        (
+            location.line,
+            location.column,
+            location.end_line,
+            location.end_column
+        ),
+        (Some(1), Some(1), Some(4), Some(4))
+    );
+    // A rule followed by Markdown whose first line looks like a key is not front matter.
+    let (value, warnings) = run("---\nSummary: done.\n\nSome **prose**.\n\n---\n\nEnd");
+    assert_eq!(value["content"][0], json!({"type": "rule"}));
+    assert_eq!(value["content"][1], pt("Summary: done."));
+    assert_eq!(codes(&warnings), vec![]);
+}
+
+#[test]
+fn footnote_labels_match_with_unicode_case_folding() {
+    let (value, _) = run("x[^Straße] y[^b]\n\n[^b]: B\n[^STRASSE]: S\n");
+    let items = &value["content"][2]["content"];
+    assert_eq!(items[0]["content"], json!([pt("S")]));
+    assert_eq!(items[1]["content"], json!([pt("B")]));
+    for (reference, definition) in [("SS", "ß"), ("ﬀ", "FF"), ("ſ", "S"), ("Σ", "ς")] {
+        let md = format!("x[^{reference}] y[^b]\n\n[^b]: B\n[^{definition}]: S\n");
+        let (value, _) = run(&md);
+        assert_eq!(
+            value["content"][2]["content"][0]["content"],
+            json!([pt("S")]),
+            "{md:?}"
+        );
+    }
+}
+
+#[test]
+fn local_ids_shared_by_raw_blocks_are_reported_at_the_fence() {
+    let block = |id: &str| {
+        format!(
+            "```adf\n{{\"type\":\"taskList\",\"attrs\":{{\"localId\":\"dup\"}},\"content\":[{{\"type\":\"taskItem\",\"attrs\":{{\"localId\":\"{id}\",\"state\":\"TODO\"}},\"content\":[{{\"type\":\"text\",\"text\":\"a\"}}]}}]}}\n```\n"
+        )
+    };
+    let md = format!("Intro.\n\n{}\n{}", block("i1"), block("i2"));
+    let err = error_of(&md, &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::RawAdf);
+    assert!(err.message.contains("`dup`"), "{}", err.message);
+    let location = err.location.as_ref().unwrap();
+    assert_eq!((location.line, location.end_line), (Some(7), Some(9)));
+    // Different IDs are fine, also next to generated ones.
+    let md = format!("{}\n- [ ] t\n", block("i1").replace("dup", "own"));
+    let (mut value, _) = run(&md);
+    strip_ids_unchecked(&mut value);
+}
+
+/// Like [`strip_ids`], without the UUID shape check (raw blocks use any IDs).
+fn strip_ids_unchecked(value: &mut Value) {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut stack = vec![value];
+    while let Some(v) = stack.pop() {
+        match v {
+            Value::Object(map) => {
+                if let Some(Value::Object(attrs)) = map.get_mut("attrs")
+                    && let Some(id) = attrs.get("localId").and_then(Value::as_str)
+                {
+                    assert!(seen.insert(id.to_owned()), "duplicate localId {id}");
+                }
+                stack.extend(map.values_mut());
+            }
+            Value::Array(items) => stack.extend(items.iter_mut()),
+            Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+        }
+    }
+}
+
+#[test]
+fn images_removed_from_headings_and_cells_leave_one_space() {
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    let (value, _) = run_with("# H ![i](https://x/i.png) tail", &external);
+    assert_eq!(value["content"][0]["content"], json!([t("H tail")]));
+    let (value, _) = run_with("| a |\n|---|\n| x ![i](https://x/i.png) y |", &external);
+    assert_eq!(
+        value["content"][0]["content"][1]["content"][0]["content"][0]["content"],
+        json!([t("x y")])
+    );
+    // Entity-encoded spaces are content and stay.
+    let (value, _) = run_with("# H ![i](https://x/i.png)&#32;tail", &external);
+    assert_eq!(value["content"][0]["content"], json!([t("H  tail")]));
 }

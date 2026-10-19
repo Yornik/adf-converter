@@ -3,7 +3,10 @@
   "version": 1,
   "content": [
     {
-      "type": "blockquote",
+      "type": "panel",
+      "attrs": {
+        "panelType": "warning"
+      },
       "content": [
         {
           "type": "paragraph",

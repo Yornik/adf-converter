@@ -1,0 +1,59 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Status "
+        },
+        {
+          "type": "status",
+          "attrs": {
+            "text": "IN PROGRESS",
+            "color": "blue"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", owner "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5b10ac8d82e05b22cc7d4ef5",
+            "text": "@Jane Doe"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", reviewer "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "6c21bd9e93f16c33dd8e5f06",
+            "text": "@Sam Lee"
+          }
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "status",
+          "attrs": {
+            "text": "ON HOLD",
+            "color": "yellow"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

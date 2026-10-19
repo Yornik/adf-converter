@@ -30,7 +30,7 @@ mod tests;
 
 use crate::Conversion;
 use crate::adf::model::Doc;
-use crate::diagnostics::{Code, Diagnostic, Diagnostics};
+use crate::diagnostics::{Code, Diagnostic, Diagnostics, Location};
 use crate::limits::MAX_TABLE_CELLS;
 use crate::options::MdToAdfOptions;
 
@@ -67,6 +67,22 @@ pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Di
         }
     }
     let mut cx = Cx::new(&pre.text, opts);
+    if let Some((end_line, end_column)) = pre.front_matter {
+        let to_u32 = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+        cx.warnings.push(
+            Diagnostic::new(
+                Code::FrontMatterDropped,
+                format!("Leading YAML front matter (lines 1-{end_line}) was removed"),
+            )
+            .at(Location {
+                line: Some(1),
+                column: Some(1),
+                end_line: Some(to_u32(end_line)),
+                end_column: Some(to_u32(end_column)),
+                ..Location::default()
+            }),
+        );
+    }
     for (code, message, span) in &pre.warnings {
         cx.warn(*code, message.clone(), span);
     }

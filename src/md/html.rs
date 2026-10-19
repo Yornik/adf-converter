@@ -240,11 +240,29 @@ pub(crate) fn classify(tag: &HtmlTag, details: bool) -> Recognised {
             "br" => Recognised::Br,
             "details" if details => Recognised::DetailsClose,
             "summary" if details => Recognised::SummaryClose,
-            "u" | "ins" | "s" | "del" | "strike" | "strong" | "b" | "em" | "i" | "sub" | "sup"
-            | "kbd" | "span" => Recognised::CloseMark { name: name.clone() },
+            mark if closes_by_name(mark) => Recognised::CloseMark { name: name.clone() },
             _ => Recognised::Unknown,
         },
     }
+}
+
+/// Tag names whose closing tag closes a mark frame of the same name.
+pub(crate) fn closes_by_name(name: &str) -> bool {
+    matches!(
+        name,
+        "u" | "ins"
+            | "s"
+            | "del"
+            | "strike"
+            | "strong"
+            | "b"
+            | "em"
+            | "i"
+            | "sub"
+            | "sup"
+            | "kbd"
+            | "span"
+    )
 }
 
 fn mark_for(name: &str, attrs: &[(String, String)]) -> Option<HtmlMark> {

@@ -12,13 +12,13 @@ use pulldown_cmark::{
 use crate::adf::model::{Align, HeadingLevel, NonEmptyString, PanelType, TaskState};
 use crate::diagnostics::{Code, Diagnostic};
 use crate::limits::MAX_TABLE_CELLS;
-use crate::options::MdToAdfOptions;
+use crate::options::{HtmlPolicy, MdToAdfOptions};
 
 use super::budget;
 use super::cx::Cx;
-use super::extensions::parse_raw;
+use super::extensions::{parse_raw, truncate};
 use super::html::{BlockPiece, HtmlTag, Recognised, classify, decode_entities, scan_block};
-use super::inline::{InlineBuilder, strip_controls};
+use super::inline::{Closed, InlineBuilder, Unknown, strip_controls, strip_controls_reported};
 use super::ir::{Block, Footnote, Item, Row, Span, Tok};
 use super::prepass::Prepass;
 
@@ -65,6 +65,9 @@ enum Frame {
         title: Option<String>,
         awaiting_summary: bool,
         children: Vec<Block>,
+        /// Inline content directly in it: the following lines of a tight list item whose line
+        /// opened the `<details>` (no paragraph event), as for [`Frame::Item`].
+        implicit: Option<(InlineBuilder, Span)>,
         span: Span,
     },
     Paragraph {
@@ -104,10 +107,20 @@ enum Frame {
 enum HtmlItem {
     Para(Vec<Tok>, Span),
     DetailsOpen(Span),
-    Summary(String, Span),
+    Summary(Summary),
     DetailsClose(Span),
     CellOpen(Span),
     CellClose(Span),
+}
+
+/// A `<summary>` element of an HTML block: its plain-text title, and its tags (for a summary
+/// outside `<details>`, which is ordinary HTML).
+#[derive(Debug)]
+struct Summary {
+    title: String,
+    span: Span,
+    open: (String, Span),
+    close: Option<(String, Span)>,
 }
 
 struct Builder<'c, 'a> {
@@ -217,7 +230,7 @@ impl Builder<'_, '_> {
             }
             Event::InlineHtml(html) => self.inline_html(&html, span)?,
             Event::FootnoteReference(label) => {
-                let key = label.to_lowercase();
+                let key = fold_label(&label);
                 let next = u32::try_from(self.numbers.len() + 1).unwrap_or(u32::MAX);
                 let number = *self.numbers.entry(key).or_insert(next);
                 let cx = &*self.cx;
@@ -293,13 +306,41 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
-    /// Flushes the implicit paragraph of a tight list item before a block starts in it.
+    /// Flushes the implicit paragraph of a tight list item (or of a `<details>` opened in one)
+    /// before a block starts in it.
     fn flush_implicit(&mut self) {
-        if let Some(Frame::Item {
-            implicit, children, ..
-        }) = self.stack.last_mut()
-            && let Some((inline, span)) = implicit.take()
-        {
+        let (implicit, children) = match self.stack.last_mut() {
+            Some(Frame::Item {
+                implicit, children, ..
+            }) => (implicit, children),
+            Some(Frame::Details {
+                implicit,
+                children,
+                awaiting_summary,
+                ..
+            }) => {
+                if implicit.is_some() {
+                    *awaiting_summary = false;
+                }
+                (implicit, children)
+            }
+            Some(
+                Frame::Doc { .. }
+                | Frame::List { .. }
+                | Frame::Quote { .. }
+                | Frame::Footnote { .. }
+                | Frame::Box { .. }
+                | Frame::Paragraph { .. }
+                | Frame::Heading { .. }
+                | Frame::Code { .. }
+                | Frame::Html { .. }
+                | Frame::Table { .. }
+                | Frame::Row { .. }
+                | Frame::Cell { .. },
+            )
+            | None => return,
+        };
+        if let Some((inline, span)) = implicit.take() {
             let content = inline.finish(self.cx);
             children.push(Block::Paragraph { content, span });
         }
@@ -374,7 +415,7 @@ impl Builder<'_, '_> {
                 self.flush_implicit();
                 self.enter_container(&span)?;
                 self.stack.push(Frame::Footnote {
-                    label: label.to_lowercase(),
+                    label: fold_label(&label),
                     children: Vec::new(),
                     span,
                 });
@@ -722,7 +763,7 @@ impl Builder<'_, '_> {
     ) -> Result<Block, Diagnostic> {
         let language = info
             .and_then(|i| i.split_whitespace().next())
-            .map(strip_controls);
+            .map(|word| strip_controls_reported(word, "a code block's language", &span, self.cx));
         let mut text = text;
         if text.ends_with('\n') {
             text.pop();
@@ -810,6 +851,7 @@ impl Builder<'_, '_> {
 
     /// Pops a `<details>` or box frame and adds the block to its parent.
     fn close_top_extra(&mut self) -> Result<(), Diagnostic> {
+        self.flush_implicit();
         let block = if let Some(Frame::Details {
             title,
             children,
@@ -896,35 +938,12 @@ impl Builder<'_, '_> {
                     title: None,
                     awaiting_summary: true,
                     children: Vec::new(),
+                    implicit: None,
                     span,
                 });
                 Ok(())
             }
-            HtmlItem::Summary(title, span) => {
-                let title = collapse_whitespace(&strip_controls(&title));
-                if let Some(Frame::Details {
-                    title: slot,
-                    awaiting_summary,
-                    ..
-                }) = self.stack.last_mut()
-                    && *awaiting_summary
-                {
-                    *awaiting_summary = false;
-                    *slot = (!title.is_empty()).then_some(title);
-                    return Ok(());
-                }
-                // A summary outside <details>: keep its text.
-                if title.is_empty() {
-                    return Ok(());
-                }
-                let content = vec![Tok::Text {
-                    text: title,
-                    marks: super::ir::Marks::default(),
-                    span: span.clone(),
-                    trim: true,
-                }];
-                self.add_block(Block::Paragraph { content, span })
-            }
+            HtmlItem::Summary(summary) => self.apply_summary(summary),
             HtmlItem::DetailsClose(span) => {
                 if let Some(Frame::Details { span: open, .. }) = self.stack.last_mut() {
                     open.end = span.end;
@@ -962,6 +981,38 @@ impl Builder<'_, '_> {
                 Ok(())
             }
         }
+    }
+
+    /// A `<summary>`: the title of the `<details>` it opens, or else ordinary HTML (handled
+    /// per `--html`, like an inline `<summary>`) around its text.
+    fn apply_summary(&mut self, summary: Summary) -> Result<(), Diagnostic> {
+        let Summary {
+            title,
+            span,
+            open,
+            close,
+        } = summary;
+        let title = strip_controls_reported(&title, "a <summary>", &span, self.cx);
+        let title = collapse_whitespace(&title);
+        if let Some(Frame::Details {
+            title: slot,
+            awaiting_summary,
+            ..
+        }) = self.stack.last_mut()
+            && *awaiting_summary
+        {
+            *awaiting_summary = false;
+            *slot = (!title.is_empty()).then_some(title);
+            return Ok(());
+        }
+        let mut inline = InlineBuilder::new();
+        inline.unknown_html(&open.0, open.1, self.cx)?;
+        inline.text(&title, span.clone(), false, self.cx);
+        if let Some((raw, close_span)) = close {
+            inline.unknown_html(&raw, close_span, self.cx)?;
+        }
+        let content = inline.finish(self.cx);
+        self.add_block(Block::Paragraph { content, span })
     }
 
     fn finish(mut self) -> Result<Parsed, Diagnostic> {
@@ -1019,9 +1070,22 @@ struct HtmlScan {
     inline: InlineBuilder,
     /// Source offset of the first non-blank content of the current paragraph.
     para_start: Option<usize>,
-    /// The `<summary>` title being collected, and where it started.
-    summary: Option<(String, usize)>,
+    /// The `<summary>` being collected.
+    summary: Option<OpenSummary>,
+    /// `para_start` when a `<script>` or `<style>` element opened under `--html drop`. It is
+    /// restored when the element closes, so its dropped content does not start a paragraph.
+    raw_para_start: Option<usize>,
     last_end: usize,
+}
+
+/// A `<summary>` whose closing tag has not been seen yet.
+#[derive(Debug)]
+struct OpenSummary {
+    title: String,
+    /// Source offset of the opening tag.
+    at: usize,
+    /// The opening tag.
+    open: (String, Span),
 }
 
 impl HtmlScan {
@@ -1038,6 +1102,7 @@ impl HtmlScan {
             inline: InlineBuilder::new(),
             para_start: None,
             summary: None,
+            raw_para_start: None,
             last_end: 0,
         }
     }
@@ -1052,8 +1117,8 @@ impl HtmlScan {
 
     /// Text between tags: entities are decoded and newlines are whitespace, as in HTML.
     fn text(&mut self, text: &str, start: usize, cx: &Cx<'_>) {
-        if let Some((title, _)) = self.summary.as_mut() {
-            title.push_str(&decode_entities(text));
+        if let Some(summary) = self.summary.as_mut() {
+            summary.title.push_str(&decode_entities(text));
             return;
         }
         let mut offset = start;
@@ -1090,39 +1155,52 @@ impl HtmlScan {
         cx: &mut Cx<'_>,
     ) -> Result<(), Diagnostic> {
         let span = self.to_src(start)..self.to_src(end.saturating_sub(1)) + 1;
+        if self.inline.in_raw_text() {
+            // Inside `<script>`/`<style>` (`--html drop`), only its closing tag counts.
+            if self.inline.closes_raw_text(tag) {
+                self.inline.unknown_tag(tag, raw, span, cx)?;
+                self.para_start = self.raw_para_start.take();
+            }
+            return Ok(());
+        }
         let details = cx.opts.extensions.details;
         let kind = classify(tag, details);
-        if let Some((title, at)) = self.summary.as_mut() {
+        if let Some(summary) = self.summary.as_mut() {
             // Inside <summary>, tags are removed; <br> is a space.
             match kind {
                 Recognised::SummaryClose => {
-                    let title = std::mem::take(title);
-                    let at = *at;
-                    self.summary = None;
-                    items.push(HtmlItem::Summary(title, at..span.end));
+                    if let Some(open) = self.summary.take() {
+                        items.push(HtmlItem::Summary(Summary {
+                            title: open.title,
+                            span: open.at..span.end,
+                            open: open.open,
+                            close: Some((raw.to_owned(), span)),
+                        }));
+                    }
                 }
-                Recognised::Br => title.push(' '),
+                Recognised::Br => summary.title.push(' '),
+                Recognised::Unknown => summary_tag(raw, &span, cx)?,
                 Recognised::OpenMark { .. }
                 | Recognised::CloseMark { .. }
                 | Recognised::Empty
                 | Recognised::Comment
                 | Recognised::DetailsOpen
                 | Recognised::DetailsClose
-                | Recognised::SummaryOpen
-                | Recognised::Unknown => {}
+                | Recognised::SummaryOpen => {}
             }
             return Ok(());
         }
         match kind {
             Recognised::Comment | Recognised::Empty | Recognised::SummaryClose => {}
             Recognised::Br => self.inline.hard_break(cx),
-            Recognised::OpenMark { name, mark } => self.inline.open_html(name, mark, cx),
-            Recognised::CloseMark { name } => {
-                if !self.inline.close_html(&name, cx) {
+            Recognised::OpenMark { name, mark } => self.inline.open_html(name, mark, &span, cx),
+            Recognised::CloseMark { name } => match self.inline.close_html(&name, cx) {
+                Closed::Mark => {}
+                Closed::Literal | Closed::NotOpen => {
                     self.para_start.get_or_insert(span.start);
                     self.inline.unknown_html(raw, span, cx)?;
                 }
-            }
+            },
             Recognised::DetailsOpen => {
                 self.flush(span.start, items, cx);
                 items.push(HtmlItem::DetailsOpen(span));
@@ -1133,7 +1211,11 @@ impl HtmlScan {
             }
             Recognised::SummaryOpen => {
                 self.flush(span.start, items, cx);
-                self.summary = Some((String::new(), span.start));
+                self.summary = Some(OpenSummary {
+                    title: String::new(),
+                    at: span.start,
+                    open: (raw.to_owned(), span),
+                });
             }
             Recognised::Unknown => {
                 if !details && matches!(tag, HtmlTag::Open { name, .. } if name == "details") {
@@ -1143,8 +1225,13 @@ impl HtmlScan {
                         &span,
                     );
                 }
-                self.para_start.get_or_insert(span.start);
-                self.inline.unknown_html(raw, span, cx)?;
+                let before = self.para_start;
+                match self.inline.unknown_tag(tag, raw, span.clone(), cx)? {
+                    Unknown::RawTextOpened => self.raw_para_start = before,
+                    Unknown::Reported | Unknown::RawTextClosed => {
+                        self.para_start.get_or_insert(span.start);
+                    }
+                }
             }
         }
         Ok(())
@@ -1162,21 +1249,46 @@ impl HtmlScan {
 
     fn finish(mut self, items: &mut Vec<HtmlItem>, cx: &Cx<'_>) {
         let end = self.to_src(self.last_end);
-        if let Some((title, at)) = self.summary.take() {
-            items.push(HtmlItem::Summary(title, at..end));
+        if let Some(open) = self.summary.take() {
+            items.push(HtmlItem::Summary(Summary {
+                title: open.title,
+                span: open.at..end,
+                open: open.open,
+                close: None,
+            }));
         }
         self.flush(end, items, cx);
     }
 }
 
+/// An unrecognised tag inside `<summary>`: an expand title is plain text, so the tag is removed
+/// (`W_HTML_DROPPED`), or the conversion fails under `--html error`.
+fn summary_tag(raw: &str, span: &Span, cx: &mut Cx<'_>) -> Result<(), Diagnostic> {
+    let shown = truncate(raw.trim(), 60);
+    if cx.opts.html == HtmlPolicy::Error {
+        return Err(cx.diag(
+            Code::Lossy,
+            format!("HTML '{shown}' inside <summary> has no ADF equivalent (--html error)"),
+            span,
+        ));
+    }
+    cx.warn(
+        Code::HtmlDropped,
+        format!("HTML '{shown}' inside <summary> was removed; an expand title is plain text"),
+        span,
+    );
+    Ok(())
+}
+
 /// The inline builder that receives inline events at the top of the stack. A tight list item
-/// gets an implicit paragraph on its first inline event.
+/// gets an implicit paragraph on its first inline event, and so does a `<details>` opened in
+/// one (by an HTML block that ends on the same line, such as `<!-- x --><details>`).
 fn inline_of<'s>(stack: &'s mut [Frame], span: &Span) -> Option<&'s mut InlineBuilder> {
     match stack.last_mut()? {
         Frame::Paragraph { inline, .. }
         | Frame::Heading { inline, .. }
         | Frame::Cell { inline } => Some(inline),
-        Frame::Item { implicit, .. } => {
+        Frame::Item { implicit, .. } | Frame::Details { implicit, .. } => {
             let (inline, implicit_span) =
                 implicit.get_or_insert_with(|| (InlineBuilder::new(), span.clone()));
             implicit_span.end = implicit_span.end.max(span.end);
@@ -1187,12 +1299,25 @@ fn inline_of<'s>(stack: &'s mut [Frame], span: &Span) -> Option<&'s mut InlineBu
         | Frame::Quote { .. }
         | Frame::Footnote { .. }
         | Frame::Box { .. }
-        | Frame::Details { .. }
         | Frame::Code { .. }
         | Frame::Html { .. }
         | Frame::Table { .. }
         | Frame::Row { .. } => None,
     }
+}
+
+/// A footnote label as pulldown-cmark compares them (Unicode case folding: `[^SS]` refers to
+/// `[^ß]`), so references and definitions agree on numbers. Lowercasing alone would not match
+/// such labels. Folding is approximated per character as lower(upper(lower(c))), which equals
+/// full case folding for the characters where the two differ (`ß`, `ẞ`, `ſ`, ligatures, final
+/// sigma, Greek iota subscripts…).
+fn fold_label(label: &str) -> String {
+    label
+        .chars()
+        .flat_map(char::to_lowercase)
+        .flat_map(char::to_uppercase)
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn panel_type(kind: BlockQuoteKind) -> PanelType {

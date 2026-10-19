@@ -3,7 +3,8 @@
 use serde_json::{Value, json};
 
 use crate::adf::model::{
-    Date, Emoji, Href, Inline, InlineCard, Mention, NonEmptyString, Status, StatusColor,
+    ALLOWED_URL_FORMS, Date, Emoji, Href, Inline, InlineCard, Mention, NonEmptyString, Status,
+    StatusColor,
 };
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{Extensions, Target};
@@ -195,9 +196,9 @@ fn card(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
         ));
     }
     let url = Href::parse(label).ok_or_else(|| {
-        invalid(
-            "adf:card labels must be an allowed URL (http, https, mailto, tel, ftp, /path, #anchor)",
-        )
+        invalid(format!(
+            "adf:card labels must be an allowed URL ({ALLOWED_URL_FORMS})"
+        ))
     })?;
     Ok(Inline::InlineCard(InlineCard { url }))
 }

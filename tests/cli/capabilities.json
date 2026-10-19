@@ -477,7 +477,7 @@
       "code": "W_MARK_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code)."
+      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code), or an image title was dropped (--images external)."
     },
     {
       "code": "W_HEADING_DEMOTED",
@@ -507,7 +507,7 @@
       "code": "W_HTML_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "Raw HTML was dropped (--html drop)."
+      "summary": "Raw HTML was dropped (--html drop), or an unrecognised tag was removed from an expand title."
     },
     {
       "code": "W_IMAGE_AS_LINK",
@@ -525,7 +525,7 @@
       "code": "W_UNSAFE_URL",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "A link target is not an allowed URL (http, https, mailto, tel, ftp, /path, #anchor) and became plain text."
+      "summary": "A link target is not an allowed URL (http, https, ftp, ftps, mailto, tel, /path, #anchor) and became plain text."
     },
     {
       "code": "W_CONTROL_CHAR",

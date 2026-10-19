@@ -73,15 +73,15 @@ codes! {
     Invariant         = "E_INVARIANT",         Error, 4, "The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema.";
     Lossy             = "E_LOSSY",             Error, 5, "The conversion would lose information and --strict (or --html error) is set.";
     // --- warnings: Markdown -> ADF ------------------------------------------------------------
-    MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code).";
+    MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code), or an image title was dropped (--images external).";
     HeadingDemoted    = "W_HEADING_DEMOTED",    Warning, 0, "A heading inside a list item or quote became a bold paragraph.";
     BlockHoisted      = "W_BLOCK_HOISTED",      Warning, 0, "A block was moved out of a container that cannot hold it (for example a table inside a list).";
     BlockFlattened    = "W_BLOCK_FLATTENED",    Warning, 0, "A nested container was merged into its parent (for example a quote inside a quote).";
     HtmlAsText        = "W_HTML_AS_TEXT",       Warning, 0, "Raw HTML without an ADF equivalent was kept as literal text.";
-    HtmlDropped       = "W_HTML_DROPPED",       Warning, 0, "Raw HTML was dropped (--html drop).";
+    HtmlDropped       = "W_HTML_DROPPED",       Warning, 0, "Raw HTML was dropped (--html drop), or an unrecognised tag was removed from an expand title.";
     ImageAsLink       = "W_IMAGE_AS_LINK",      Warning, 0, "An image became a link; ADF images need media uploaded to Jira/Confluence.";
     ImageDropped      = "W_IMAGE_DROPPED",      Warning, 0, "An image was dropped (--images drop).";
-    UnsafeUrl         = "W_UNSAFE_URL",         Warning, 0, "A link target is not an allowed URL (http, https, mailto, tel, ftp, /path, #anchor) and became plain text.";
+    UnsafeUrl         = "W_UNSAFE_URL",         Warning, 0, "A link target is not an allowed URL (http, https, ftp, ftps, mailto, tel, /path, #anchor) and became plain text.";
     ControlChar       = "W_CONTROL_CHAR",       Warning, 0, "Control characters were removed from text.";
     TableCellDropped  = "W_TABLE_CELL_DROPPED", Warning, 0, "Table cells beyond the header row's width were dropped.";
     FootnoteFlattened = "W_FOOTNOTE_FLATTENED", Warning, 0, "Footnotes became superscript numbers plus a numbered list at the end; ADF has no footnotes.";

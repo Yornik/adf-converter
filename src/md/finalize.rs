@@ -37,6 +37,34 @@ pub(crate) fn split_media(toks: Vec<Tok>) -> Vec<Segment> {
     out
 }
 
+/// Whether the last token is text ending in a space or tab.
+pub(crate) fn ends_with_space(toks: &[Tok]) -> bool {
+    matches!(toks.last(), Some(Tok::Text { text, .. }) if text.ends_with([' ', '\t']))
+}
+
+/// Removes leading spaces and tabs written literally in the source (entity-encoded ones are
+/// kept, as at the edge of a block).
+pub(crate) fn trim_leading_space(toks: &mut Vec<Tok>) {
+    let mut empty = 0;
+    for tok in toks.iter_mut() {
+        match tok {
+            Tok::Text {
+                text, trim: true, ..
+            } => {
+                let cut = text.len() - text.trim_start_matches([' ', '\t']).len();
+                if cut == text.len() {
+                    empty += 1;
+                } else {
+                    text.drain(..cut);
+                    break;
+                }
+            }
+            Tok::Text { .. } | Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => break,
+        }
+    }
+    toks.drain(..empty);
+}
+
 /// Adds `strong` to all non-code text (heading demotion, flattened titles).
 pub(crate) fn embolden(toks: &mut [Tok]) {
     for tok in toks {

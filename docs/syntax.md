@@ -35,8 +35,8 @@ document disagree, that's a bug.
 | `<details><summary>T</summary>` … `</details>` | `expand` / `nestedExpand` `{title}` | ADF extension `details`. |
 | `::: cell` … `:::` | 1×1 `table` used as a box | ADF extension `cells`. |
 | ```` ```adf ```` with ADF JSON | the JSON, spliced in | ADF extension `raw-adf`. |
-| `[^1]` footnotes | superscript number + `rule` + numbered list at the end | ADF has no footnotes; `W_FOOTNOTE_FLATTENED`. |
-| Leading `---` YAML front matter | removed | `W_FRONT_MATTER_DROPPED`. |
+| `[^1]` footnotes | superscript number + `rule` + numbered list at the end | ADF has no footnotes; `W_FOOTNOTE_FLATTENED`. Labels match case-insensitively, with Unicode case folding (`[^SS]` refers to `[^ß]`), as in GFM. |
+| Leading `---` YAML front matter | removed | `W_FRONT_MATTER_DROPPED`, located at the removed lines. Only when it reads as YAML: the first line inside is `key: value`, and every other non-blank line before the closing `---` (or `...`) is a key, an indented line or a `- ` item. Otherwise (prose, headings, fences, tables) the `---` is a rule and the lines are Markdown. |
 | HTML block | see [HTML](#html) | |
 
 ### Inline
@@ -48,21 +48,21 @@ document disagree, that's a bug.
 | `***both***` | `em` + `strong` | |
 | `~~strike~~` / `~strike~` | `strike` | |
 | `` `code` `` (any number of backticks) | `code` | `code` combines **only** with `link`. Other marks around code are dropped: `W_MARK_DROPPED`. Empty code spans are skipped. |
-| `[text](url "title")`, reference links | `link` `{href, title}` | `title` only if non-empty. `href` must pass the [URL allowlist](#url-allowlist); otherwise the text is kept without a link, `W_UNSAFE_URL`. Empty link text → the URL is used as text. |
+| `[text](url "title")`, reference links | `link` `{href, title}` | `title` only if non-empty. `href` must pass the [URL allowlist](#url-allowlist); otherwise the text is kept without a link, `W_UNSAFE_URL`. Empty link text → the URL is used as text. Link text of only spaces (`[ ](url)`) is kept, even at the edge of a block. |
 | `<https://x>`, `<a@b.c>` | `link` | Email → `mailto:`. |
 | Bare `https://x`, `www.x.com` (GFM) | `link` | `www.` gets `http://`. Only URLs that appear literally in the source are linked, so `https\://x` stays text. |
-| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`; `--images drop` → removed, `W_IMAGE_DROPPED`. |
+| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`, after the paragraph, heading or cell text (which keeps one space where the image was); external media has no title, so a title is dropped with `W_MARK_DROPPED`. `--images drop` → removed, `W_IMAGE_DROPPED`. Alt text is plain: line breaks (`<br>` too) become spaces. |
 | `<u>` / `<ins>` | `underline` | |
 | `<s>` / `<del>` / `<strike>` | `strike` | |
 | `<strong>` / `<b>`, `<em>` / `<i>` | `strong`, `em` | Used by ADF → Markdown when `**`/`*` would not parse. |
-| `<sub>`, `<sup>` | `subsup` `{type: sub/sup}` | |
-| `<span style="color: #RRGGBB">` | `textColor` | Only 6-digit hex. |
+| `<sub>`, `<sup>` | `subsup` `{type: sub/sup}` | Text takes one `subsup`: `<sup>` inside `<sub>` (or the reverse) keeps the inner one, `W_MARK_DROPPED`. |
+| `<span style="color: #RRGGBB">` | `textColor` | Only 6-digit hex. Any other `<span>` is [unrecognised HTML](#html); its `</span>` does not end a recognised span around it. |
 | `<span style="background-color: #RRGGBB">` | `backgroundColor` | Only 6-digit hex. |
 | `<kbd>` | `code` | |
 | `<br>` | `hardBreak` | |
 | `<!-- comment -->` | removed | Silent: comments are invisible in rendered Markdown. |
 | Backslash escapes, entities (`&amp;`, `&#32;`) | decoded to literal text | A decoded `\n` becomes a `hardBreak`. |
-| Control characters (except tab) | removed | `W_CONTROL_CHAR`. |
+| Control characters (except tab) | removed | `W_CONTROL_CHAR`, also in attributes: link and image titles, code block languages, `<summary>` titles, alt text and `adf:` labels. |
 
 Adjacent text with the same marks is merged. Marks are emitted in Atlassian's canonical order:
 link, em, strong, textColor, backgroundColor, strike, subsup, underline, code.
@@ -91,19 +91,15 @@ GitHub alert syntax: the first line of a blockquote is `[!KIND]` (case-insensiti
 | `[!WARNING]` | `warning` |
 | `[!CAUTION]` | `error` |
 
-A panel can contain paragraphs, headings, lists, task lists, code blocks and rules. Other blocks
-inside one are repaired by the [container rules](#container-rules):
-- a table or a quote is [hoisted](#container-rules): the panel is split around it
-  (`W_BLOCK_HOISTED`);
-- a `<details>` block is flattened to a bold title and its content, inside the panel
-  (`W_BLOCK_FLATTENED`; see [Expand](#expand-details));
-- a nested alert becomes a plain quote, which is then hoisted (see below).
-
-Panels can only be placed in the document, an expand, a nested expand, or a table cell. Anywhere
-else (a list item, a quote, another panel), the alert is converted as a plain blockquote, with
-`W_BLOCK_FLATTENED`. That quote then follows the quote rules: in a quote it is merged into the
-outer quote, and in a list item or a panel it is hoisted (`W_BLOCK_HOISTED`). An empty alert holds
-one empty paragraph.
+A panel can contain paragraphs, headings, lists, task lists, code blocks and rules. A table, a
+quote or another alert inside one is [hoisted](#container-rules): the panel is split around it
+(`W_BLOCK_HOISTED`). A `<details>` block inside one is flattened to a bold title and its content,
+inside the panel (`W_BLOCK_FLATTENED`; see [Expand](#expand-details)). Panels can only be placed
+in the document, an expand, a nested expand, or a table cell. An alert in a list item, a task item
+or another panel is hoisted (`W_BLOCK_HOISTED`) and becomes a panel where it lands, so a warning
+under a numbered step becomes a panel between the parts of the list. An alert inside a quote, or
+hoisted into one, is merged into the quote as plain content, with `W_BLOCK_FLATTENED`. An empty
+alert holds one empty paragraph.
 
 #### Expand (`<details>`)
 
@@ -118,7 +114,10 @@ Markdown content, separated from the tags by blank lines (as on GitHub).
 
 - In the document → `expand` `{title}`. Inside an `expand` or a table cell → `nestedExpand`.
   `attrs` is always emitted, as `{}` when there is no `<summary>`.
-- The summary is plain text (tags inside it are removed, entities decoded).
+- The summary is plain text (tags inside it are removed, `<br>` is a space, entities are
+  decoded). Unrecognised tags in it (`<code>`, `<img>`) are reported with `W_HTML_DROPPED`, or
+  fail the conversion with `--html error`. A `<summary>` outside `<details>` is ordinary
+  [HTML](#html).
 - In containers that cannot hold an expand (list item, quote, panel, nested expand), the block is
   flattened: the title becomes a bold paragraph followed by the content, with `W_BLOCK_FLATTENED`.
 - An empty body becomes one empty paragraph.
@@ -154,7 +153,9 @@ The escape hatch for anything Markdown cannot express:
 
 - The content is one JSON object (a block node) or an array of block nodes.
 - The nodes are spliced in unchanged, after checking they are valid ADF in that position. If they
-  are not, the conversion fails with `E_RAW_ADF` (exit 3) and the fence's location.
+  are not, the conversion fails with `E_RAW_ADF` (exit 3) and the fence's location. That includes
+  a task or decision `localId` that an earlier ```` ```adf ```` block already uses; generated task
+  list IDs never reuse one.
 - Inline nodes are not supported here.
 
 #### Inline extensions (`adf:` links)
@@ -175,6 +176,9 @@ label.
 - An unknown kind (`adf:foo/…`) keeps the label as plain text, with `W_UNKNOWN_EXTENSION`.
 - These nodes cannot carry marks. Formatting around them (for example `**[@A](adf:mention/x)**`)
   is dropped, with `W_MARK_DROPPED`.
+- The label is plain text: a line break in it (a hard break, `<br>`, or a soft break with
+  `--softbreak hardbreak`) is a space. An external image in it (`--images external`) is moved
+  after the node, with `W_BLOCK_HOISTED`.
 
 ### Tables
 
@@ -208,7 +212,7 @@ label.
 | `--html` | Unrecognised HTML (block or inline) |
 |---|---|
 | `text` (default) | Kept as literal text, `W_HTML_AS_TEXT`. |
-| `drop` | Removed, `W_HTML_DROPPED`. |
+| `drop` | Removed, `W_HTML_DROPPED`. The text between the tags stays, except inside `<script>` and `<style>`, which are removed with their content up to the closing tag (browsers never show it). |
 | `error` | Conversion fails, `E_LOSSY`. |
 
 The tags listed in [Inline](#inline), `<details>`/`<summary>` (when the `details` extension is
@@ -221,15 +225,14 @@ ADF restricts which blocks may appear where. When a block is not allowed in its 
 1. **Demote**: a heading in a list item or quote → bold paragraph (`W_HEADING_DEMOTED`).
 2. **Flatten**:
    - a quote inside a quote → merged into the outer quote;
-   - an alert or `<details>` where a panel or expand is not allowed → converted as described
-     above. The quote an alert becomes is then merged (in a quote) or hoisted (in a list item or
-     a panel) like any other quote.
+   - an alert in a quote, or `<details>` where an expand is not allowed → converted as
+     described above.
 
    Both report `W_BLOCK_FLATTENED`.
 3. **Convert**: an expand inside an expand or a table cell becomes a `nestedExpand`, without a
    warning.
-4. **Hoist**: for anything else (a table in a list, a rule in a quote, a quote in a list item or
-   a panel, a table in a panel or a box cell…):
+4. **Hoist**: for anything else (a table in a list, a rule in a quote, a quote in a list item, an
+   alert in a list item or a panel, a table in a box cell…):
    - the container is closed before the block;
    - the block is placed in the nearest ancestor that allows it;
    - the container is reopened afterwards for the remaining content. A reopened ordered list
@@ -253,8 +256,9 @@ Allowed children, from the schema:
 
 Links and smart links must use `http://`, `https://`, `ftp://`, `ftps://`, `mailto:`, `tel:`, a
 root-relative path (`/browse/PROJ-1`) or an anchor (`#section`). Everything else (for example
-`javascript:`, `data:`, relative paths, protocol-relative `//host`) becomes plain text, with
-`W_UNSAFE_URL`. This is a strict subset of Atlassian's own `isSafeUrl`.
+`javascript:`, `data:`, relative paths, protocol-relative `//host`, and `/\host`, which browsers
+also read as another host) becomes plain text, with `W_UNSAFE_URL`. This is a strict subset of
+Atlassian's own `isSafeUrl`.
 
 ### Rules the converter always enforces
 

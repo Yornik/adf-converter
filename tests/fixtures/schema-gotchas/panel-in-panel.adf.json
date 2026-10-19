@@ -20,7 +20,10 @@
       ]
     },
     {
-      "type": "blockquote",
+      "type": "panel",
+      "attrs": {
+        "panelType": "error"
+      },
       "content": [
         {
           "type": "paragraph",
