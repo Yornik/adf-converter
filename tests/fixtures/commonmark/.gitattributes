@@ -1,0 +1,3 @@
+# Stored verbatim: these fixtures test CRLF and BOM handling.
+line-endings-crlf.md -text
+byte-order-mark.md -text

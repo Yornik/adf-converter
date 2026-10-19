@@ -1,0 +1,5 @@
+- item
+
+  ```sh
+  allowed here
+  ```
