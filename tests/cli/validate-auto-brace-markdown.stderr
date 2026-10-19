@@ -1,0 +1,2 @@
+-:1:4: error[E_INPUT_JSON]: invalid JSON: key must be a string
+-: invalid ADF for jira: 1 error, 0 warnings

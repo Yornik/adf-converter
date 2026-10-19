@@ -40,11 +40,14 @@ Optional tools:
   for the licence and advisory checks; `scripts/check.sh` runs it when it is installed.
 - [uv](https://docs.astral.sh/uv/) to run the skill validator and the workflow linter:
   `uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf` (the `skills-ref`
-  package installs a command named `agentskills`) and `uvx zizmor .github/workflows`.
+  package installs a command named `agentskills`) and `uvx zizmor@1.31.1 .github/workflows` (the
+  version CI uses).
+- [jq](https://jqlang.org/) and uv for `scripts/contract.sh`, and
+  [shellcheck](https://www.shellcheck.net/) and [actionlint](https://github.com/rhysd/actionlint)
+  (CI uses 1.7.12) for the other CI checks below.
 - A nightly toolchain and `cargo-fuzz` for the fuzz targets; see `fuzz/README.md`.
 
-`scripts/check.sh` runs the core checks of CI (which also tests on Linux, macOS and Windows,
-renders every fixture with the release binary, and lints the workflows):
+`scripts/check.sh` runs the core checks of CI:
 
 ```sh
 cargo fmt --all --check
@@ -52,6 +55,19 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 cargo deny --locked check          # only if cargo-deny is installed
+```
+
+CI also tests on Linux, macOS and Windows, and runs these jobs, which `scripts/check.sh` does not
+(all of them feed the required `ci-ok` check):
+
+```sh
+# contract: converts every fixture with the release binary and checks the results with an
+# independent JSON Schema validator
+cargo build --locked --release && scripts/contract.sh target/release/adf
+# workflows: lints the scripts and workflows
+shellcheck --external-sources scripts/*.sh
+actionlint
+uvx zizmor@1.31.1 .github/workflows
 ```
 
 ## Workflow
@@ -84,8 +100,10 @@ release; don't edit it by hand.
 | `feat:` | `feat: add --images drop` | minor (0.4.1 → 0.5.0), listed under Features |
 | `perf:` | `perf: avoid re-parsing raw adf blocks` | patch, listed under Performance Improvements |
 | `revert:` | `revert: feat: add --images drop` | patch, listed under Reverts |
+| `docs:` | `docs: fix the Confluence recipe` | patch, listed under Documentation (`docs/` and the skill ship in every release zip) |
+| `deps:` | `deps: bump the cargo-minor-patch group with 2 updates` | patch, listed under Dependencies (Dependabot's prefix for Rust dependency updates) |
 | `feat!:`, `fix!:` (any type with `!`) | `feat!: rename the jira-field envelope` | major (1.4.0 → 2.0.0), listed under Breaking Changes |
-| `docs:`, `test:`, `refactor:`, `build:`, `ci:`, `chore:`, `style:` | `docs: fix the Confluence recipe` | no release on their own, not in the changelog |
+| `test:`, `refactor:`, `build:`, `ci:`, `chore:`, `style:` | `test: cover tables in box cells` | no release on their own, not in the changelog |
 
 - Use the imperative mood and lower case after the colon: `fix: reject …`, not `Fixed …`.
 - A scope is optional: `feat(md): …`, `fix(validate): …`.

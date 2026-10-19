@@ -5,8 +5,11 @@ versioning:
 - **additions** (new flags, codes, JSON fields) are minor changes;
 - **renames, removals and behaviour changes** are breaking.
 
-Machine-readable JSON documents carry `"schema_version": 1`. Their JSON Schemas ship in
-`schemas/*.v1.json` and are printed by `adf schema …`.
+The JSON diagnostics and the documents of `validate --json`, `capabilities --json` and
+`examples --json` carry `"schema_version": 1`. The first three have JSON Schemas, which ship in
+`schemas/*.v1.json` and are printed by `adf schema …`; `examples --json` has none.
+`version --json` has neither a `schema_version` nor a schema (its shape is
+[below](#version---json)).
 
 ## Commands
 
@@ -16,7 +19,8 @@ adf convert [INPUT|-] [-o PATH] [--from md|adf] [-e ENVELOPE] [--field NAME]
             [--softbreak space|hardbreak] [--html text|drop|error]
             [--images link|external|drop] [--extensions all|none|LIST]
             [--md-flavor roundtrip|plain] [--error-format auto|text|json] [-q] [--no-color]
-adf validate [INPUT|-] [--from md|adf] [-e ENVELOPE] [--field NAME] [-t …] [--strict] [--json]
+adf validate [INPUT|-] [--from auto|md|adf] [-e ENVELOPE] [--field NAME] [-t …] [--strict]
+             [--json] [--softbreak …] [--html …] [--images …] [--extensions …]
 adf capabilities [--json]
 adf examples [FEATURE] [--json]
 adf schema adf|diagnostic|capabilities|validate-report
@@ -25,7 +29,9 @@ adf completions bash|zsh|fish|powershell|elvish
 adf version [--json]            (also: adf --version)
 ```
 
-There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
+`--error-format`, `-q/--quiet` and `--no-color` are global: every command accepts them (see
+[Diagnostics](#diagnostics)). There is no default subcommand: `adf FILE` is a usage error
+(`E_USAGE`, exit 2).
 
 ### `convert`
 
@@ -48,9 +54,13 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
 
 ### `validate`
 
-- **`--from adf`** (default for `validate` when the input parses as JSON): checks the document
-  against the vendored ADF schema, the target rules and the invariants. Every problem is reported
-  with a JSON Pointer. Exit code 4 if anything fails.
+- **`--from auto`** (default): ADF if the first character that is not whitespace is `{`,
+  Markdown otherwise. Markdown that starts with `{` (Jira wiki `{code}`, a `{{template}}`) is
+  therefore read as JSON and fails with `E_INPUT_JSON`; pass `--from md` for it.
+- **`--from adf`**: checks the document against the vendored ADF schema, the target rules and the
+  invariants. The input may be a bare document or any [envelope](#envelopes); `-e` is not
+  allowed (exit 2), because the envelope is detected. Every problem is reported with a JSON
+  Pointer. Exit code 4 if anything fails.
 - **`--from md`**: a dry run of `convert`. It reports every warning the conversion would produce.
   Exit code 0, or 5 with `--strict` if there are warnings.
 - **`--json`**: writes a report to stdout:
@@ -60,31 +70,43 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
    "adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[<diagnostic>…],"warnings":[<diagnostic>…]}
   ```
 
-  `envelope` is the detected (adf) or requested (md) envelope.
-- Without `--json`, diagnostics go to stderr, followed by a one-line summary.
+  `envelope` is the detected (adf) or requested (md) envelope, or `null` when the input could
+  not be read or holds no ADF document. When the input cannot be read, `from` is `adf` unless
+  `--from md` was given.
+- Without `--json`, diagnostics go to stderr. With the text format (`--error-format text`, or
+  `auto` on a terminal), a one-line summary follows them, for example
+  `comment.json: valid ADF for jira, envelope doc: 0 errors, 0 warnings`. The JSON format has no
+  summary line, so a valid document without warnings prints nothing.
 
 ### `capabilities --json`
 
-Describes what this build supports, so agents can discover features instead of guessing:
+Describes what this build supports, so agents can discover features instead of guessing. An
+abridged example (`…` marks left-out entries and fields; `schemas/capabilities.v1.json` has the
+full shape):
 
 ```json
 {"schema_version":1,"version":"0.1.0","adf_schema":"@atlaskit/adf-schema@57.7.18",
  "directions":["md->adf","adf->md"],
- "envelopes":[{"name":"jira-comment","shape":"{\"body\":DOC}","endpoint":"POST /rest/api/3/issue/{key}/comment"}…],
+ "envelopes":[{"name":"jira-comment","shape":"{\"body\":DOC}","endpoint":"POST /rest/api/3/issue/{key}/comment, …","default_target":"jira","requires_field":false}…],
  "targets":["jira","confluence"],
- "features":[{"name":"tables","kind":"gfm","syntax":"| a | b |","adf":["table","tableRow","tableHeader","tableCell"]}…],
- "extensions":[{"name":"alerts","syntax":"> [!NOTE]","adf":["panel"],"default":true}…],
- "exit_codes":{"0":"ok","1":"internal error",…},
- "diagnostic_codes":[{"code":"W_IMAGE_AS_LINK","severity":"warning","summary":"…"}…],
+ "features":[{"name":"tables","kind":"gfm","syntax":"| a | b |","adf":["table","tableRow","tableHeader","tableCell","paragraph","alignment"]}…],
+ "extensions":[{"name":"alerts","syntax":"> [!NOTE] / …","adf":["panel"],"default":true}…],
+ "exit_codes":{"0":"ok (warnings may have been printed)","1":"internal error (a bug in adf)",…},
+ "diagnostic_codes":[{"code":"W_IMAGE_AS_LINK","severity":"warning","exit_code":0,"summary":"…"}…],
  "limits":{"max_input_bytes":4194304,"max_nesting_depth":64,"jira_field_char_limit":32767}}
 ```
+
+`limits` holds the input size, the Markdown nesting depth and Jira's field size. The other limits
+(the table-cell budget and the nesting depth of ADF input) are listed under [Limits](#limits).
 
 Without `--json`, a readable summary is printed.
 
 ### `examples [FEATURE] [--json]`
 
-Prints curated Markdown → ADF examples, one per feature, taken from the test fixtures. With
-`FEATURE`, prints only that feature.
+Prints curated Markdown → ADF examples, one per feature. The Markdown of each example is built
+into the binary, and the ADF is produced by converting it when the command runs, so it is what
+this version outputs. With `FEATURE`, prints only that feature; the full list is long, so agents
+should ask for one feature at a time.
 
 ### `schema NAME`
 
@@ -145,8 +167,10 @@ stdout carries **only** the result. Diagnostics always go to **stderr**.
 **JSON**: one object per line.
 
 ```json
-{"schema_version":1,"severity":"warning","code":"W_IMAGE_AS_LINK","message":"Image converted to a link; ADF images need uploaded media","location":{"file":"comment.md","line":12,"column":3,"end_line":12,"end_column":41},"hint":"Use --images external to embed by URL, or attach the file in Jira","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_image_as_link"}
+{"schema_version":1,"severity":"warning","code":"W_IMAGE_AS_LINK","message":"Image converted to a link; ADF images need media uploaded to Jira or Confluence","location":{"file":"comment.md","line":12,"column":3,"end_line":12,"end_column":41},"hint":"Use --images external to embed it by URL, or attach the file in Jira","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_image_as_link"}
 ```
+
+Scripts should match on `code`; `message` and `hint` are written for people.
 
 - Errors have `"severity":"error"` and an extra `"exit_code"`.
 - `location` fields are optional:
@@ -209,7 +233,15 @@ included in `adf capabilities --json`.
 | <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. |
 | <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. |
 | <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown. |
-| <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | A construct is not supported by the target product and was replaced by a fallback. |
+| <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | Reserved: a construct is not supported by the target product and was replaced by a fallback. This version never emits it: Markdown cannot produce a construct a target rejects, and raw ADF that the target rejects fails with `E_RAW_ADF` instead. |
+
+### Warnings: document checks
+
+`convert` (Markdown → ADF) checks the document it writes, and `validate` checks every document,
+from Markdown or ADF input alike:
+
+| Code | Meaning |
+|---|---|
 | <a id="w_size_limit"></a>`W_SIZE_LIMIT` | The output is larger than Jira's 32,767-character field limit and may be rejected. |
 | <a id="w_empty_document"></a>`W_EMPTY_DOCUMENT` | The document is empty; Jira rejects empty comment bodies. |
 
@@ -218,7 +250,7 @@ included in `adf capabilities --json`.
 | Code | Meaning |
 |---|---|
 | <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. |
-| <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours). |
+| <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
 
 ## Environment variables

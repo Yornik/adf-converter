@@ -165,7 +165,7 @@ pub(crate) struct ValidateArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
 
-    /// Input format; auto: ADF when the input is a JSON object, else Markdown
+    /// Input format; auto: ADF when the input starts with `{`, else Markdown
     #[arg(long, value_enum, default_value_t = ValidateFrom::Auto)]
     pub from: ValidateFrom,
 

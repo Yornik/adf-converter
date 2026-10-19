@@ -155,9 +155,9 @@ fn orphan_files() -> Vec<String> {
 }
 
 /// Every Markdown → ADF warning code is triggered by at least one fixture (`lossy/` has one per
-/// code). `W_NODE_NOT_IN_TARGET`, `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` are not required here:
-/// they may come from output validation in the CLI rather than from `md_to_adf`, and are covered
-/// by the CLI cases.
+/// code). `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` are not required here: they may come from output
+/// validation in the CLI rather than from `md_to_adf`, and are covered by `tests/cli.rs` and the
+/// CLI cases. `W_NODE_NOT_IN_TARGET` is reserved and never emitted (see docs/cli-contract.md).
 #[test]
 fn every_markdown_warning_is_covered_by_a_fixture() {
     use adf_converter::Code;
