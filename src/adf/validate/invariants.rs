@@ -88,7 +88,7 @@ impl Walker<'_> {
         self.marks(node, pointer, blocked);
         match ty {
             "listItem" => {
-                self.first_child(node, pointer, &["paragraph"], "a list item", "a paragraph")
+                self.first_child(node, pointer, &["paragraph"], "a list item", "a paragraph");
             }
             "taskList" => self.first_child(
                 node,
