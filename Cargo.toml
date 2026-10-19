@@ -37,7 +37,6 @@ pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 # preserve_order keeps "type" first and makes output follow construction order, not key order.
 serde_json = { version = "1", features = ["preserve_order", "unbounded_depth"] }
-thiserror = "2"
 
 [dev-dependencies]
 proptest = "1.12"
