@@ -10,8 +10,13 @@ fixes. Please check that a problem still happens with it before reporting.
 Report vulnerabilities **privately** through GitHub's private vulnerability reporting: open the
 repository's **Security** tab and choose **Report a vulnerability**
 (<https://github.com/Yornik/adf-converter/security/advisories/new>). Please don't open a public
-issue, discussion or pull request for a vulnerability. If that button is not available, open an
-issue that only asks for a private contact, without any details of the problem.
+issue, discussion or pull request for a vulnerability.
+
+If that button is not available (the **Security vulnerability** link in the issue chooser leads to
+the same form), ask for a private contact in a public issue that contains **no details of the
+problem**: choose the **Bug report** form, set the title to `Security contact request`, write
+`n/a` in every required text field, pick any target product and tick the required confirmation.
+I will reply in the issue with a way to send the report privately.
 
 Include, if you can:
 

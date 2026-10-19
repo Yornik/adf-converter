@@ -17,6 +17,7 @@ State as read with read-only `gh api` calls on 2026-10-19:
 | Default `GITHUB_TOKEN` permissions | read | read (keep) |
 | Allow GitHub Actions to create and approve pull requests | on | on, unless `RELEASE_PLEASE_TOKEN` is set (see below) |
 | Rulesets | none | branch ruleset and tag ruleset |
+| `release` deployment environment (used by the publish job) | does not exist | exists, deployment branches limited to `main`; optionally you as required reviewer |
 | Private vulnerability reporting | off | on |
 | Dependabot alerts / security updates | off / off | on / on |
 | CodeQL | not configured | default setup |
@@ -118,6 +119,36 @@ EOF
 The `ci-ok` and `conventional-title` checks must have run at least once (open any PR) before
 GitHub suggests them in the UI. If you rename either job, update the ruleset.
 
+### The `release` environment
+
+The `publish` job in `release.yml` is the only job with `contents: write`, `id-token: write` and
+`attestations: write`, and it runs in the deployment environment `release`. If that environment
+does not exist, the first release run creates it **without any protection**, so create it
+before the first release.
+
+**Settings → Environments → New environment** `release`:
+
+- "Deployment branches and tags": **Selected branches and tags**, with the branch rule `main`.
+  Use a branch rule, not a tag pattern such as `v*`: the publish job runs in the workflow run
+  started by the push to `main` (its ref is `refs/heads/main`), not in a tag push, so a tag-only
+  rule would block every release.
+- Optional: "Required reviewers" with yourself, so the publish job waits for your approval after
+  the build. Leave "Prevent self-review" off, or you cannot approve your own release.
+- No environment secrets are needed; the job uses only `GITHUB_TOKEN`.
+
+```sh
+gh api -X PUT repos/Yornik/adf-converter/environments/release --input - <<'EOF'
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+EOF
+gh api -X POST repos/Yornik/adf-converter/environments/release/deployment-branch-policies \
+  -f name=main -f type=branch
+gh api repos/Yornik/adf-converter/environments/release/deployment-branch-policies   # check
+```
+
+To add yourself as a required reviewer from the command line, add
+`"reviewers": [{"type": "User", "id": <your user id>}]` to the `PUT` body (`gh api user --jq .id`
+prints the ID).
+
 ### Security features
 
 **Settings → Advanced Security** (or "Code security"): turn on private vulnerability reporting,
@@ -182,7 +213,9 @@ Conventional Commit messages on `main` (see
 4. The next release-please run creates the tag `vX.Y.Z` and the GitHub release. `release.yml`
    then builds the six zips, checks that the tag matches the `Cargo.toml` version, smoke-tests
    each binary on its native runner, uploads the zips and `SHA256SUMS`, creates the build
-   provenance attestation, and publishes the release.
+   provenance attestation, and publishes the release. If the
+   [`release` environment](#the-release-environment) has a required reviewer, approve the
+   publish job in the Actions tab first.
 5. Verify the published release (below).
 
 If the build or publish job fails, re-run the failed jobs from the Actions tab. If the problem

@@ -22,7 +22,11 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 cargo deny --locked check
 uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf   # the skills-ref package's CLI is `agentskills`
-uvx zizmor .github/workflows
+# CI jobs that scripts/check.sh does not run (all feed the required `ci-ok` check):
+cargo build --locked --release && scripts/contract.sh target/release/adf   # `contract`; needs jq and uv
+shellcheck --external-sources scripts/*.sh         # `workflows`
+actionlint                                         # `workflows` (CI: 1.7.12)
+uvx zizmor@1.31.1 .github/workflows                # `workflows`; same zizmor version as CI
 ```
 
 ## Layout
@@ -121,7 +125,9 @@ Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or
 ## Git & PRs
 
 - Use Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`, `build:`,
-  `ci:`, `chore:`). release-please turns them into the changelog and the next version.
+  `ci:`, `chore:`, and `deps:` for Rust dependency updates). release-please turns them into the
+  changelog and the next version: `feat` bumps the minor version; `fix`, `perf`, `docs`, `deps`
+  and `revert` bump the patch version; the others don't release (see CONTRIBUTING.md).
 - PRs are squash-merged and the PR title becomes the commit message, so the title must be a
   Conventional Commit too (the `conventional-title` check enforces it).
 - Never push to `main`. Work on a branch; keep PRs small and focused.
