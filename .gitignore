@@ -6,3 +6,4 @@
 CLAUDE.local.md
 *.profraw
 .DS_Store
+/.claude/worktrees/
