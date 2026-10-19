@@ -150,7 +150,23 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
     match node.ty {
         "text" => {
             let style = parse_marks(node, cx);
-            push_text(node.text.unwrap_or(""), &style, atoms);
+            let text = node.text.unwrap_or("");
+            match &style.link {
+                // Plain: a link whose text is its URL reads best as an autolink.
+                Some(link)
+                    if !cx.roundtrip
+                        && link.title.is_none()
+                        && link.href == text
+                        && style == link_only(&style)
+                        && is_autolink_safe(text) =>
+                {
+                    atoms.push(Atom::Raw {
+                        text: format!("<{text}>"),
+                        style: Style::default(),
+                    });
+                }
+                _ => push_text(text, &style, atoms),
+            }
         }
         "hardBreak" => atoms.push(Atom::Break),
         "mention" => {
@@ -286,7 +302,12 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                     });
                 }
                 (Some(url), false) => atoms.push(Atom::Raw {
-                    text: url.to_owned(),
+                    text: if url.chars().any(|c| "*_~`[]<>|\\".contains(c)) && is_autolink_safe(url)
+                    {
+                        format!("<{url}>")
+                    } else {
+                        url.to_owned()
+                    },
                     style: Style::default(),
                 }),
                 (None, true) => {
@@ -311,6 +332,30 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
         }
     }
     Ok(())
+}
+
+/// `style` reduced to its link mark.
+fn link_only(style: &Style) -> Style {
+    Style {
+        link: style.link.clone(),
+        ..Style::default()
+    }
+}
+
+/// A URL that can be written as a CommonMark autolink `<…>` (absolute URI, no spaces or angle
+/// brackets; backslash escapes do not work inside autolinks).
+fn is_autolink_safe(url: &str) -> bool {
+    let scheme_ok = url.split_once(':').is_some_and(|(scheme, _)| {
+        (2..=32).contains(&scheme.len())
+            && scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+            && scheme
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '.' | '-'))
+    });
+    scheme_ok
+        && !url
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || matches!(c, '<' | '>' | '\\'))
 }
 
 /// Splits text at `\n` into text atoms and breaks.

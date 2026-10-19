@@ -320,7 +320,10 @@ fn heading(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
                 "a heading level outside 1-6 has no Markdown form",
             ));
         }
-        (None, false) => 6,
+        (None, false) => {
+            let raw = node.attr("level").and_then(serde_json::Value::as_u64);
+            u8::try_from(raw.unwrap_or(1).clamp(1, 6)).unwrap_or(1)
+        }
     };
     cx.drop_block_marks(node);
     cx.drop_attrs(node, &["level"], &[]);

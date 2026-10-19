@@ -426,7 +426,30 @@ fn links_with_titles_and_awkward_urls() {
     );
     assert_eq!(
         plain(json!([p(&[link("https://e.com", "https://e.com")])])),
-        "[https://e.com](https://e.com)\n"
+        "<https://e.com>\n"
+    );
+    // Not an autolink when other marks or a different text are involved.
+    assert_eq!(
+        plain(json!([p(&[link("site", "https://e.com")])])),
+        "[site](https://e.com)\n"
+    );
+}
+
+#[test]
+fn plain_cards_and_headings() {
+    assert_eq!(
+        plain(json!([p(&[
+            json!({"type": "inlineCard", "attrs": {"url": "https://e.com/a*b"}})
+        ])])),
+        "<https://e.com/a*b>\n"
+    );
+    assert_eq!(
+        plain(json!([{"type": "heading", "attrs": {"level": 9}, "content": [t("deep")]}])),
+        "###### deep\n"
+    );
+    assert!(
+        md(json!([{"type": "heading", "attrs": {"level": 9}, "content": [t("deep")]}]))
+            .starts_with("```adf\n")
     );
 }
 
