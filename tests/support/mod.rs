@@ -408,12 +408,26 @@ pub fn adf_to_markdown(doc: &Value, flavor: MdFlavor) -> Result<(String, Vec<Dia
         .map_err(|d| format!("adf_to_md failed:\n  {}", render_diagnostics(&d.0)))
 }
 
+/// The options roundtrip Markdown is read back with: `options`' target and policies, but every
+/// ADF extension (the roundtrip syntax is written with them: `> [!TIP]`, `::: cell`, raw
+/// ```` ```adf ```` blocks…) and `--images external` (`![alt](url)` is an external image). ADF →
+/// Markdown cannot know which options produced `x`; a panel spliced in from raw ADF with
+/// `--extensions raw-adf` is still written as an alert.
+pub fn read_back_options(options: &MdToAdfOptions) -> MdToAdfOptions {
+    MdToAdfOptions {
+        extensions: Extensions::all(),
+        images: ImagePolicy::External,
+        ..options.clone()
+    }
+}
+
 /// Checks the round-trip guarantee for a document produced by Markdown → ADF:
-/// `normalize(md_to_adf(adf_to_md(x))) == normalize(x)`, and that the Markdown is a fixed point
-/// (`adf_to_md` of the result gives the same Markdown). Returns a failure report.
+/// `normalize(md_to_adf(adf_to_md(x))) == normalize(x)` (read back with
+/// [`read_back_options`]), and that the Markdown is a fixed point (`adf_to_md` of the result gives
+/// the same Markdown). Returns a failure report.
 pub fn check_round_trip(x: &Value, options: &MdToAdfOptions) -> Result<(), String> {
     let (markdown, _) = adf_to_markdown(x, MdFlavor::Roundtrip)?;
-    let (y, _) = md_to_value(&markdown, options).map_err(|e| {
+    let (y, _) = md_to_value(&markdown, &read_back_options(options)).map_err(|e| {
         format!(
             "{e}\n\nMarkdown from adf_to_md:\n{}",
             excerpt(&markdown, 80)
