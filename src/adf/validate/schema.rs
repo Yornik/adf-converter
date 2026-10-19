@@ -552,7 +552,9 @@ impl Explainer<'_> {
     fn not_allowed(&mut self, pointer: &str, ty: &str, candidates: &[DefId], parent: Option<&str>) {
         let shown = code(ty);
         if !self.engine.known_types.contains(ty) {
-            let message = if STAGE0_NODES.contains(&ty) {
+            let message = if ty.is_empty() {
+                "this node has an empty `type`".to_owned()
+            } else if STAGE0_NODES.contains(&ty) {
                 format!(
                     "{shown} is an experimental (stage-0) ADF node that is not in the published schema"
                 )
@@ -791,7 +793,12 @@ fn unknown_keys(unexpected: &[String], path: &str, node: &Value, ty: &str) -> St
                 names.push("…".to_owned());
             }
             let (owner, what) = owner(path, node, ty);
-            format!("{owner} has unknown {what}s: {}", names.join(", "))
+            let what = match what {
+                "property" => "properties",
+                "attribute" => "attributes",
+                _ => "keys",
+            };
+            format!("{owner} has unknown {what}: {}", names.join(", "))
         }
     }
 }
@@ -1247,6 +1254,37 @@ mod tests {
                 "/version".to_owned(),
                 "property `version` of `doc` has an invalid value 2; expected 1".to_owned()
             )]
+        );
+    }
+
+    #[test]
+    fn unknown_keys() {
+        let value = json!({"type":"doc","version":1,"extra":true,"content":[
+            {"type":"heading","attrs":{"level":1,"color":"red"}},
+            {"type":"paragraph","content":[{"type":"text","text":"x","marks":[
+                {"type":"link","attrs":{"href":"https://a.b","target":"_blank"}}]}]},
+            {"type":""}
+        ]});
+        assert_eq!(
+            issues(&value),
+            [
+                (
+                    String::new(),
+                    "`doc` has unknown properties: `extra`".to_owned()
+                ),
+                (
+                    "/content/0/attrs".to_owned(),
+                    "`heading` has unknown attributes: `color`".to_owned()
+                ),
+                (
+                    "/content/1/content/0/marks/0/attrs".to_owned(),
+                    "the `link` mark has unknown attributes: `target`".to_owned()
+                ),
+                (
+                    "/content/2".to_owned(),
+                    "this node has an empty `type`".to_owned()
+                ),
+            ]
         );
     }
 
