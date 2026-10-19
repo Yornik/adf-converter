@@ -84,6 +84,34 @@ jobs:
       - name: cargo test
         run: cargo test --locked --all-features
 
+  msrv:
+    name: msrv
+    # Every other job uses rust-toolchain.toml, which Dependabot moves forward. This one keeps
+    # checking the oldest Rust that `rust-version` in Cargo.toml (and the README's
+    # `cargo install --locked` instructions) promise, including the MSRV of locked dependencies.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the rust-version toolchain from Cargo.toml
+        id: msrv
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\([0-9.]*\)"$/\1/p' Cargo.toml)
+          if [[ ! $msrv =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::cannot read rust-version from Cargo.toml (got '$msrv')"
+            exit 1
+          fi
+          rustup toolchain install "$msrv" --profile minimal
+          echo "msrv=$msrv" >>"$GITHUB_OUTPUT"
+      # `+toolchain` overrides rust-toolchain.toml.
+      - name: cargo check with rust-version
+        env:
+          MSRV: ${{ steps.msrv.outputs.msrv }}
+        run: cargo "+$MSRV" check --locked --all-features
+
   supply-chain:
     name: supply-chain
     runs-on: ubuntu-24.04
@@ -216,7 +244,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [lint, test, supply-chain, dependency-review, contract, workflows, schema-drift]
+    needs: [lint, test, msrv, supply-chain, dependency-review, contract, workflows, schema-drift]
     runs-on: ubuntu-24.04
     permissions: {}
     steps:

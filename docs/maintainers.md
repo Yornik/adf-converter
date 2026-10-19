@@ -248,6 +248,9 @@ images, and the exact size limit. To check them:
   with a version comment. A `deps:` PR releases a patch version; if it only bumps
   dev-dependencies (`proptest`, `trycmd`), retitle it `test(deps): …` first, since the binary
   does not change. Updates of the fuzz workspace arrive as `chore(deps):` and never release.
+  A Rust toolchain PR does not change the MSRV: the `msrv` CI job keeps checking `rust-version`
+  from `Cargo.toml`. If a dependency update needs a newer Rust, raise `rust-version` and the
+  "With Rust 1.99 or later" line in `README.md` together.
 - **ADF schema drift.** The scheduled CI run validates all goldens against the latest published
   `@atlaskit/adf-schema`; a failure there means the schema changed. To update the vendored copy,
   replace `schemas/adf/full.json` with the new published file (unmodified), update
