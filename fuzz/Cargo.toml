@@ -1,0 +1,50 @@
+[package]
+name = "adf-converter-fuzz"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+publish = false
+description = "cargo-fuzz targets for adf-converter (not part of the main build)"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+adf-converter = { path = ".." }
+libfuzzer-sys = "0.4"
+serde_json = { version = "1", features = ["preserve_order"] }
+
+# Its own workspace, so `cargo build` in the repository root never builds the fuzz targets.
+[workspace]
+members = ["."]
+
+[lib]
+name = "adf_fuzz"
+path = "src/lib.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "md_to_adf"
+path = "fuzz_targets/md_to_adf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "adf_to_md"
+path = "fuzz_targets/adf_to_md.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1
