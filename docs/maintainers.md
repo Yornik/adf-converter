@@ -176,7 +176,10 @@ Conventional Commit messages on `main` (see
    version in `Cargo.toml` and `Cargo.lock` and adds the changelog entry.
 2. Review the release PR: the version number, the changelog wording, and whether
    `THIRD_PARTY_NOTICES.md` still matches `Cargo.lock` (Dependabot updates change crate versions;
-   regenerate the list in a normal PR as described in that file).
+   regenerate the list in a normal PR as described in that file). The PR must also bump the
+   `adf-converter` version in `fuzz/Cargo.lock` (the `extra-files` entry in
+   `release-please-config.json`; its jsonpath needs `@.name.value`, because release-please's TOML
+   parser wraps every value in an object).
 3. Check that the `Release` workflow is green on the latest `main` commit: every push to `main`
    dry-runs the six release builds, smoke tests and packaging, and a failure there would
    otherwise only show up after the tag exists. Then get CI to run on the release PR (see

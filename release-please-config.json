@@ -25,7 +25,14 @@
   "packages": {
     ".": {
       "package-name": "adf-converter",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "toml",
+          "path": "fuzz/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value=='adf-converter')].version"
+        }
+      ]
     }
   }
 }
