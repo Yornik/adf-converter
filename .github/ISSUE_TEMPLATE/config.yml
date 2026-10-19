@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Jira or Confluence product problem
+    url: https://support.atlassian.com/
+    about: >-
+      How Jira or Confluence render content, or how their APIs behave. This project is not
+      affiliated with Atlassian; please report product problems to Atlassian Support.
+  - name: Security vulnerability
+    url: https://github.com/Yornik/adf-converter/security/advisories/new
+    about: Report vulnerabilities privately through GitHub Security Advisories, never in a public issue.
