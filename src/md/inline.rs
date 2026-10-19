@@ -94,7 +94,16 @@ struct MarkStack {
     in_link: u32,
     /// Open images whose alt text is captured instead of emitted.
     capturing: u32,
+    /// Open HTML tag frames (bounded by [`MAX_HTML_FRAMES`]).
+    html: usize,
+    /// Open HTML tag frames per tag name (at most one entry per recognised tag).
+    html_names: Vec<(String, usize)>,
 }
+
+/// Most HTML tag frames open at once in one block. Closing a tag searches the open frames, so
+/// this keeps pathological input (thousands of unclosed tags) linear; real documents never get
+/// close.
+const MAX_HTML_FRAMES: usize = 256;
 
 /// Values a new frame contributes.
 #[derive(Debug, Default)]
@@ -158,7 +167,14 @@ impl MarkStack {
                     self.capturing += 1;
                 }
             }
-            FrameKind::Em | FrameKind::Strong | FrameKind::Strike | FrameKind::Html(_) => {}
+            FrameKind::Html(name) => {
+                self.html += 1;
+                match self.html_names.iter_mut().find(|(n, _)| n == name) {
+                    Some((_, count)) => *count += 1,
+                    None => self.html_names.push((name.clone(), 1)),
+                }
+            }
+            FrameKind::Em | FrameKind::Strong | FrameKind::Strike => {}
         }
         self.frames.push(Frame { id, kind, adds });
     }
@@ -198,7 +214,13 @@ impl MarkStack {
                     self.capturing = self.capturing.saturating_sub(1);
                 }
             }
-            FrameKind::Em | FrameKind::Strong | FrameKind::Strike | FrameKind::Html(_) => {}
+            FrameKind::Html(name) => {
+                self.html = self.html.saturating_sub(1);
+                if let Some((_, count)) = self.html_names.iter_mut().find(|(n, _)| n == name) {
+                    *count = count.saturating_sub(1);
+                }
+            }
+            FrameKind::Em | FrameKind::Strong | FrameKind::Strike => {}
         }
         Some(frame)
     }
@@ -345,8 +367,10 @@ impl InlineBuilder {
                 }
             }
         }
-        // Emit pieces split at link boundaries and segment boundaries.
+        // Emit pieces split at link boundaries and segment boundaries. Pieces and segments are
+        // both in buffer order, so one cursor over the segments keeps this linear.
         let mut pos = 0;
+        let mut seg_cursor = 0;
         let mut cut_iter = cuts.into_iter().peekable();
         while pos < pending.text.len() {
             let (end, link) = match cut_iter.peek() {
@@ -358,18 +382,37 @@ impl InlineBuilder {
                 Some((start, _, _)) => (*start, None),
                 None => (pending.text.len(), None),
             };
-            self.emit_range(&pending, pos, end, link);
+            self.emit_range(&pending, pos, end, link, &mut seg_cursor);
             pos = end;
         }
     }
 
-    /// Emits buffer bytes `start..end` as text tokens, one per source segment.
-    fn emit_range(&mut self, pending: &Pending, start: usize, end: usize, link: Option<Link>) {
+    /// Emits buffer bytes `start..end` as text tokens, one per source segment. `cursor` is the
+    /// index of the first segment that may overlap `start..`; it is advanced past segments
+    /// that end before `end`.
+    fn emit_range(
+        &mut self,
+        pending: &Pending,
+        start: usize,
+        end: usize,
+        link: Option<Link>,
+        cursor: &mut usize,
+    ) {
         let mut marks = pending.marks.clone();
         if link.is_some() {
             marks.fmt.link = link;
         }
-        for seg in &pending.segs {
+        while pending
+            .segs
+            .get(*cursor)
+            .is_some_and(|s| s.buf_end <= start)
+        {
+            *cursor += 1;
+        }
+        for seg in pending.segs.get(*cursor..).unwrap_or_default() {
+            if seg.buf_start >= end {
+                break;
+            }
             let a = seg.buf_start.max(start);
             let b = seg.buf_end.min(end);
             if a >= b {
@@ -830,8 +873,12 @@ impl InlineBuilder {
         }
     }
 
-    /// Opens a recognised HTML mark frame.
+    /// Opens a recognised HTML mark frame. Beyond [`MAX_HTML_FRAMES`] open tags the tag is
+    /// ignored.
     pub(crate) fn open_html(&mut self, name: String, mark: HtmlMark, cx: &Cx<'_>) {
+        if self.stack.html >= MAX_HTML_FRAMES {
+            return;
+        }
         self.flush(cx);
         let mut contrib = Contrib::default();
         match mark {
@@ -851,6 +898,14 @@ impl InlineBuilder {
 
     /// Closes the innermost open HTML frame named `name`; `false` if there is none.
     pub(crate) fn close_html(&mut self, name: &str, cx: &Cx<'_>) -> bool {
+        let open = self
+            .stack
+            .html_names
+            .iter()
+            .any(|(n, count)| n == name && *count > 0);
+        if !open {
+            return false;
+        }
         let Some(index) = self
             .stack
             .frames
@@ -989,9 +1044,10 @@ fn find_autolinks(text: &str) -> Vec<(usize, usize, Href)> {
 /// only exists after unescaping (`https\://x`) is not linked.
 fn literal_contiguous(segs: &[Seg], start: usize, end: usize) -> bool {
     let mut prev_end: Option<usize> = None;
-    for seg in segs {
-        if seg.buf_end <= start || seg.buf_start >= end {
-            continue;
+    let first = segs.partition_point(|s| s.buf_end <= start);
+    for seg in segs.get(first..).unwrap_or_default() {
+        if seg.buf_start >= end {
+            break;
         }
         if !seg.literal {
             return false;

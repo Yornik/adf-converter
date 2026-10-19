@@ -1331,6 +1331,17 @@ fn large_inputs_stay_fast() {
             "details",
             fill("<details><summary>s</summary>x</details>\n"),
         ),
+        // Many text events and URLs in one buffer (brackets split text events).
+        ("split urls", fill("https://example.com/[x ")),
+        // Many unclosed tags, then many unmatched and matched closing tags.
+        (
+            "unclosed tags",
+            "<u>".repeat(max / 8) + &"</b></u>".repeat(max / 16),
+        ),
+        (
+            "closers under deep emphasis",
+            "*a ".repeat(max / 16) + &"</u>".repeat(max / 8) + &" a*".repeat(max / 16),
+        ),
     ];
     for (name, md) in cases {
         let start = std::time::Instant::now();
