@@ -694,6 +694,16 @@ fn task_lists() {
 }
 
 #[test]
+fn empty_nested_task_list_adds_nothing() {
+    // Found by `arbitrary::never_fails_and_is_well_formed`.
+    let content = json!([{"type": "taskList", "attrs": {}, "content": [
+        {"type": "text", "text": "", "marks": []},
+        {"type": "taskList", "attrs": {}, "content": []}
+    ]}]);
+    assert_eq!(plain(content), "- [ ]\n");
+}
+
+#[test]
 fn code_blocks() {
     assert_eq!(
         md(
