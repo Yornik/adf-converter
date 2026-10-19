@@ -61,11 +61,29 @@ fn schema_validator() -> &'static jsonschema::Validator {
 }
 
 /// Errors from the vendored ADF JSON schema (draft-04), each as `pointer: message`.
+///
+/// The verdict comes from `jsonschema`'s `is_valid`, independent of the crate. The messages come
+/// from the crate's linear validator: `jsonschema`'s `iter_errors` takes exponential time and
+/// memory on nested invalid ADF (a few hundred bytes can need tens of GB), so it is never used.
 pub fn schema_errors(doc: &Value) -> Vec<String> {
-    schema_validator()
-        .iter_errors(doc)
-        .map(|e| format!("{}: {e}", pointer_or_root(e.instance_path().as_str())))
-        .collect()
+    if schema_validator().is_valid(doc) {
+        return Vec::new();
+    }
+    let mut errors: Vec<String> = adf_converter::validate_adf(doc, Target::Jira)
+        .into_iter()
+        .filter(|d| d.code == adf_converter::Code::Schema)
+        .map(|d| {
+            let pointer = d.location.and_then(|l| l.pointer).unwrap_or_default();
+            format!("{}: {}", pointer_or_root(&pointer), d.message)
+        })
+        .collect();
+    if errors.is_empty() {
+        errors.push(
+            "(root): jsonschema rejects the document but adf's validator reports no schema error"
+                .to_owned(),
+        );
+    }
+    errors
 }
 
 /// Errors (not warnings) from the crate's own validator for `target`.

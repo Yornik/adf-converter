@@ -1509,10 +1509,15 @@ mod tests {
             ],
         };
         let value = doc.to_value().unwrap();
-        let errors: Vec<String> = validator
-            .iter_errors(&value)
-            .map(|e| format!("{} at {}", e, e.instance_path()))
-            .collect();
+        // `is_valid` only: `iter_errors` is exponential on nested invalid ADF.
+        let errors: Vec<String> = if validator.is_valid(&value) {
+            Vec::new()
+        } else {
+            crate::adf::validate::validate(&value, crate::Target::Jira)
+                .into_iter()
+                .map(|d| d.to_string())
+                .collect()
+        };
         assert!(
             errors.is_empty(),
             "{errors:#?}\n{}",

@@ -1,7 +1,5 @@
 //! ADF extensions to Markdown: `adf:` inline links and ```` ```adf ```` raw blocks.
 
-use std::sync::OnceLock;
-
 use serde_json::{Value, json};
 
 use crate::adf::model::{
@@ -252,7 +250,13 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 
 /// Parses the body of a ```` ```adf ```` block: one JSON object or a non-empty array of objects.
 pub(crate) fn parse_raw(body: &str) -> Result<Vec<Value>, String> {
-    let value: Value = serde_json::from_str(body).map_err(|e| format!("invalid JSON: {e}"))?;
+    let max_depth = crate::Limits::default().max_json_depth();
+    let value = crate::json::parse_bounded(body, max_depth).map_err(|e| match e {
+        crate::json::JsonError::TooDeep { .. } => {
+            format!("the JSON nests deeper than {max_depth} levels")
+        }
+        crate::json::JsonError::Syntax(e) => format!("invalid JSON: {e}"),
+    })?;
     let nodes = match value {
         Value::Array(items) => items,
         object @ Value::Object(_) => vec![object],
@@ -344,64 +348,53 @@ impl RawPlace {
     }
 }
 
-fn adf_validator() -> Result<&'static jsonschema::Validator, String> {
-    static VALIDATOR: OnceLock<Result<jsonschema::Validator, String>> = OnceLock::new();
-    VALIDATOR
-        .get_or_init(|| {
-            let schema: Value = serde_json::from_str(crate::ADF_SCHEMA_JSON)
-                .map_err(|e| format!("the embedded ADF schema is not valid JSON: {e}"))?;
-            jsonschema::draft4::new(&schema)
-                .map_err(|e| format!("the embedded ADF schema does not compile: {e}"))
-        })
-        .as_ref()
-        .map_err(Clone::clone)
-}
-
 /// Checks that `nodes` are valid ADF in `place`. The error describes the first problem, with a
 /// JSON Pointer relative to the block's own JSON.
+///
+/// Uses the crate's own validator (schema, target rules and invariants). Never call
+/// `jsonschema`'s `iter_errors` on untrusted input: on this schema's nested `anyOf`s its time and
+/// memory grow exponentially with nesting depth (a 200-byte block reached tens of GB).
 pub(crate) fn validate_raw(nodes: &[Value], place: RawPlace, target: Target) -> Result<(), String> {
-    let validator = adf_validator()?;
     let (doc, prefix) = place.wrap(nodes);
     let pointer = |path: &str| relative_pointer(path, &prefix, place, nodes.len());
-    if let Some(error) = validator.iter_errors(&doc).next() {
-        let Some(relative) = pointer(&error.instance_path().to_string()) else {
-            // The container itself rejects the nodes: they are not allowed there.
-            let types: Vec<&str> = nodes
-                .iter()
-                .filter_map(|n| n.get("type").and_then(Value::as_str))
-                .collect();
-            return Err(format!(
-                "not valid ADF in {}: {} cannot be placed there",
-                place.describe(),
-                truncate(&types.join(", "), 80)
-            ));
-        };
+    let Some(error) = crate::adf::validate::validate(&doc, target)
+        .into_iter()
+        .find(Diagnostic::is_error)
+    else {
+        return Ok(());
+    };
+    let path = error
+        .location
+        .as_ref()
+        .and_then(|l| l.pointer.clone())
+        .unwrap_or_default();
+    let Some(relative) = pointer(&path) else {
+        // The container itself rejects the nodes: they are not allowed there.
+        let types: Vec<&str> = nodes
+            .iter()
+            .filter_map(|n| n.get("type").and_then(Value::as_str))
+            .collect();
+        return Err(format!(
+            "not valid ADF in {}: {} cannot be placed there",
+            place.describe(),
+            truncate(&types.join(", "), 80)
+        ));
+    };
+    if error.code == Code::Schema {
         return Err(format!(
             "not valid ADF in {}{}: {}",
             place.describe(),
             at(&relative),
-            truncate(&error.to_string(), 200)
+            truncate(&error.message, 200)
         ));
     }
-    // The target's rules and the invariants beyond the schema (the same check the CLI applies
-    // to the whole output). Only problems inside the spliced nodes count.
-    let problem = crate::adf::validate::validate(&doc, target)
-        .into_iter()
-        .filter(Diagnostic::is_error)
-        .find_map(|d| {
-            let path = d.location.as_ref().and_then(|l| l.pointer.clone())?;
-            pointer(&path).map(|relative| (relative, d))
-        });
-    if let Some((relative, d)) = problem {
-        return Err(format!(
-            "invalid for {}{}: {} ({})",
-            target.as_str(),
-            at(&relative),
-            truncate(&d.message, 200),
-            d.code
-        ));
-    }
-    Ok(())
+    Err(format!(
+        "invalid for {}{}: {} ({})",
+        target.as_str(),
+        at(&relative),
+        truncate(&error.message, 200),
+        error.code
+    ))
 }
 
 /// ` (at /pointer)`, or nothing for the node itself.

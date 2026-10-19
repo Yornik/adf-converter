@@ -24,11 +24,26 @@ fn validator() -> &'static jsonschema::Validator {
     })
 }
 
-fn assert_schema_valid(value: &Value) {
-    let errors: Vec<String> = validator()
-        .iter_errors(value)
-        .map(|e| format!("{e} at {}", e.instance_path()))
+/// Schema errors of `value`: the verdict comes from `jsonschema`'s `is_valid` (independent of the
+/// crate), the messages from the crate's linear validator. Never use `iter_errors` here: on
+/// nested invalid ADF it takes exponential time and memory.
+fn schema_errors(value: &Value) -> Vec<String> {
+    if validator().is_valid(value) {
+        return Vec::new();
+    }
+    let mut errors: Vec<String> = crate::adf::validate::validate(value, crate::Target::Jira)
+        .into_iter()
+        .filter(|d| d.code == Code::Schema)
+        .map(|d| format!("{} at {:?}", d.message, d.location.and_then(|l| l.pointer)))
         .collect();
+    if errors.is_empty() {
+        errors.push("jsonschema rejects the document but the crate's validator does not".into());
+    }
+    errors
+}
+
+fn assert_schema_valid(value: &Value) {
+    let errors = schema_errors(value);
     assert!(
         errors.is_empty(),
         "{errors:#?}\n{}",
@@ -1786,10 +1801,7 @@ fn random_fragment_documents_are_always_valid() {
             Ok(conversion) => {
                 ok += 1;
                 let value = conversion.output.to_value().unwrap();
-                let errors: Vec<String> = validator()
-                    .iter_errors(&value)
-                    .map(|e| format!("{e} at {}", e.instance_path()))
-                    .collect();
+                let errors = schema_errors(&value);
                 assert!(errors.is_empty(), "{md:?}\n{errors:#?}");
                 for w in &conversion.warnings {
                     assert!(
@@ -1806,4 +1818,33 @@ fn random_fragment_documents_are_always_valid() {
     }
     // Most documents must convert; only misplaced ```adf blocks may fail.
     assert!(ok * 10 >= cases * 7, "only {ok} of {cases} converted");
+}
+
+/// Regression: a raw `adf` block holding a few levels of nested lists with one empty text node
+/// made `jsonschema`'s `iter_errors` grow memory ~3× per level (depth 8 ≈ 40 GB; it crashed the
+/// developer's machine). The block must now fail fast with `E_RAW_ADF`. Depth 4 keeps even a
+/// regressed build under ~0.5 GB, so only depth 4 is tested; `tests/source_lints.rs` stops the
+/// API from coming back.
+#[test]
+fn deep_invalid_raw_adf_blocks_fail_fast() {
+    for depth in [4] {
+        let mut node = json!({"type": "paragraph", "content": [{"type": "text", "text": ""}]});
+        for _ in 0..depth {
+            node = json!({"type": "bulletList", "content": [{"type": "listItem", "content": [{"type": "paragraph"}, node]}]});
+        }
+        let md = format!("```adf\n{node}\n```\n");
+        let start = std::time::Instant::now();
+        let err = super::to_adf(&md, &MdToAdfOptions::default()).unwrap_err();
+        assert_eq!(err.0[0].code, Code::RawAdf, "{err}");
+        assert!(
+            err.0[0].message.contains("not valid ADF"),
+            "{}",
+            err.0[0].message
+        );
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(1),
+            "depth {depth} took {:?}",
+            start.elapsed()
+        );
+    }
 }
