@@ -73,7 +73,8 @@ anything, but conventional messages make review easier.
 
 [release-please](https://github.com/googleapis/release-please) reads these messages on `main`. It
 keeps a release PR open that bumps the version and updates `CHANGELOG.md`; merging that PR tags
-the release and publishes the binaries.
+the release and publishes the binaries. release-please creates `CHANGELOG.md` with the first
+release; don't edit it by hand.
 
 | Type | Example | Effect on the next release |
 |---|---|---|
