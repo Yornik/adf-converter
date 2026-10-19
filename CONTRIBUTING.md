@@ -39,8 +39,8 @@ Optional tools:
 - [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) (`cargo install --locked cargo-deny`)
   for the licence and advisory checks; `scripts/check.sh` runs it when it is installed.
 - [uv](https://docs.astral.sh/uv/) to run the skill validator and the workflow linter:
-  `uvx --from skills-ref==0.1.1 skills-ref validate skills/markdown-to-adf` and
-  `uvx zizmor .github/workflows`.
+  `uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf` (the `skills-ref`
+  package installs a command named `agentskills`) and `uvx zizmor .github/workflows`.
 - A nightly toolchain and `cargo-fuzz` for the fuzz targets; see `fuzz/README.md`.
 
 `scripts/check.sh` runs what CI runs on every pull request:

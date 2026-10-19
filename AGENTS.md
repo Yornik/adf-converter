@@ -21,7 +21,7 @@ cargo fmt --all
 cargo clippy --locked --all-targets --all-features -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 cargo deny --locked check
-uvx --from skills-ref==0.1.1 skills-ref validate skills/markdown-to-adf
+uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf   # the skills-ref package's CLI is `agentskills`
 uvx zizmor .github/workflows
 ```
 
