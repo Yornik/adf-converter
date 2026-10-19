@@ -41,13 +41,24 @@ pub(crate) fn no_color_env() -> bool {
 
 /// Writes `bytes` to `path` atomically: the data goes to a new temporary file next to `path`,
 /// which is then renamed over it. On any error the temporary file is removed and `path` is left
-/// untouched.
+/// untouched. A replaced regular file keeps its permission bits.
+///
+/// An existing `path` that cannot be replaced by a rename is written in place instead (see
+/// `writes_in_place`): `/dev/null`, `/dev/stdout`, FIFOs, the `/dev/fd/N` of a process
+/// substitution.
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    if path.is_dir() {
+    let existing = fs::metadata(path).ok();
+    if existing.as_ref().is_some_and(fs::Metadata::is_dir) {
         return Err(io::Error::new(
             io::ErrorKind::IsADirectory,
             "is a directory",
         ));
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|metadata| writes_in_place(path, metadata))
+    {
+        return write_in_place(path, bytes);
     }
     let Some(name) = path.file_name() else {
         return Err(io::Error::new(
@@ -75,11 +86,39 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     };
     let written = file.write_all(bytes).and_then(|()| file.sync_all());
     drop(file);
-    let result = written.and_then(|()| fs::rename(&temp, path));
+    // Keep the mode of the file being replaced (a private 0600 file must not become 0644).
+    let result = written
+        .and_then(|()| match &existing {
+            Some(metadata) => fs::set_permissions(&temp, metadata.permissions()),
+            None => Ok(()),
+        })
+        .and_then(|()| fs::rename(&temp, path));
     if result.is_err() {
         let _ = fs::remove_file(&temp);
     }
     result
+}
+
+/// Whether an existing `path` (with `metadata`, symlinks followed) is written in place instead of
+/// replaced: anything but a regular file (a device such as `/dev/null`, a FIFO, a socket, a
+/// terminal), and any name under `/dev` or `/proc` (`/dev/stdout`, `/dev/fd/N`), whose
+/// directory cannot hold a temporary file and whose entry must never be replaced.
+fn writes_in_place(path: &Path, metadata: &fs::Metadata) -> bool {
+    !metadata.is_file()
+        || is_device_name(path)
+        || fs::canonicalize(path).is_ok_and(|real| is_device_name(&real))
+}
+
+fn is_device_name(path: &Path) -> bool {
+    path.starts_with("/dev") || path.starts_with("/proc")
+}
+
+/// Writes to an existing special file. Appends, so a regular file reached through `/dev/fd/N`
+/// (`3>>log`) is never overwritten from the start.
+fn write_in_place(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = OpenOptions::new().append(true).open(path)?;
+    file.write_all(bytes)?;
+    file.flush()
 }
 
 /// A short, platform-independent description of an I/O error (the OS message differs between
@@ -127,6 +166,49 @@ mod tests {
         write_atomic(&path, b"two").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"two");
         assert_eq!(entries(&dir), ["out.json"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replacing_keeps_the_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_dir("mode");
+        let path = dir.join("private.json");
+        fs::write(&path, b"secret").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        write_atomic(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert_eq!(entries(&dir), ["private.json"]);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// `/dev/null` and `/dev/fd/N` cannot be replaced by a rename; they are written in place.
+    #[cfg(unix)]
+    #[test]
+    fn special_files_are_written_in_place() {
+        use std::os::fd::AsRawFd;
+        write_atomic(Path::new("/dev/null"), b"discarded").unwrap();
+        let dir = temp_dir("devfd");
+        let target = dir.join("fd.txt");
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&target)
+            .unwrap();
+        let fd_path = PathBuf::from(format!("/dev/fd/{}", file.as_raw_fd()));
+        write_atomic(&fd_path, b"through the descriptor").unwrap();
+        drop(file);
+        assert_eq!(fs::read(&target).unwrap(), b"through the descriptor");
+        assert_eq!(entries(&dir), ["fd.txt"]);
+        // /dev/null is still the device, not a regular file renamed over it.
+        assert!(std::os::unix::fs::FileTypeExt::is_char_device(
+            &fs::metadata("/dev/null").unwrap().file_type()
+        ));
         fs::remove_dir_all(&dir).unwrap();
     }
 

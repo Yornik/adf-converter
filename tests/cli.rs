@@ -195,6 +195,27 @@ fn output_to_a_directory_is_an_output_error() {
     fs::remove_dir_all(&dir).unwrap();
 }
 
+/// Special files cannot be replaced by a rename; `-o` writes them in place.
+#[cfg(unix)]
+#[test]
+fn output_to_special_files() {
+    let output = adf(
+        &["convert", "--from", "adf", "-o", "/dev/null"],
+        VALID_DOC.as_bytes(),
+        None,
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"");
+    assert_eq!(output.stderr, b"");
+    let output = adf(
+        &["convert", "--from", "adf", "-o", "/dev/stdout"],
+        VALID_DOC.as_bytes(),
+        None,
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"x\n");
+}
+
 #[test]
 fn closed_stdout_exits_quietly() {
     // The ADF schema is larger than a pipe buffer, so adf is still writing when the pipe closes.

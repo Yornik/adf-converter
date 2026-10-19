@@ -34,8 +34,14 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
 - **`--from md`** (default): Markdown → ADF.
 - **`--from adf`**: ADF → Markdown. The input may be a bare document or any
   [envelope](#envelopes). `-e` is not allowed with `--from adf` (exit 2).
-- **`-o PATH`**: write to a file, atomically (temporary file in the same directory, then rename).
-  Nothing is written if the conversion fails.
+- **`-o PATH`**: write to a file, atomically (temporary file in the same directory, then rename),
+  so the directory must be writable. Nothing is written if the conversion fails.
+  - Replacing an existing file keeps its permission bits (not its owner or ACLs). A symbolic link
+    at `PATH` is replaced by a regular file (the file it pointed to is unchanged), and a hard link
+    is detached from the file's other names.
+  - An existing `PATH` that is not a regular file, or that lies under `/dev` or `/proc`, is opened
+    and appended to directly, without a temporary file: `/dev/null`, `/dev/stdout`, a FIFO, the
+    `/dev/fd/N` of a process substitution `>(…)`.
 - **Output format.** Pretty JSON when stdout is a terminal, compact otherwise. Files are compact
   unless `--pretty` is given. `--pretty` and `--compact` override. Markdown output always ends with
   exactly one newline.
