@@ -245,7 +245,9 @@ images, and the exact size limit. To check them:
 
 - **Dependabot PRs** (actions, cargo, Rust toolchain): read the changelog of each update, let CI
   run, and squash-merge with a Conventional Commit title. Action pins must stay full commit SHAs
-  with a version comment.
+  with a version comment. A `deps:` PR releases a patch version; if it only bumps
+  dev-dependencies (`proptest`, `trycmd`), retitle it `test(deps): …` first, since the binary
+  does not change. Updates of the fuzz workspace arrive as `chore(deps):` and never release.
 - **ADF schema drift.** The scheduled CI run validates all goldens against the latest published
   `@atlaskit/adf-schema`; a failure there means the schema changed. To update the vendored copy,
   replace `schemas/adf/full.json` with the new published file (unmodified), update
