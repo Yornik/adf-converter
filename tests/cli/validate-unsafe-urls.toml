@@ -1,0 +1,5 @@
+# Smart links in the JSON-LD `data` form and external media must pass the URL allowlist too.
+bin.name = "adf"
+args = ["validate", "-t", "confluence", "--error-format", "text"]
+status.code = 4
+binary = true

@@ -1,0 +1,7 @@
+E_INPUT_TOO_DEEP (error, exit code 3)
+
+The input nests deeper than the nesting limit.
+
+What to do: Flatten the nesting: Markdown may nest 64 containers (lists, quotes, cells, expands), ADF input 512 levels of JSON arrays and objects.
+
+Docs: https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_too_deep

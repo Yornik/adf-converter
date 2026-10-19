@@ -1,0 +1,5 @@
+# An empty --field is rejected for ADF input too.
+bin.name = "adf"
+args = ["validate", "--field", ""]
+status.code = 2
+binary = true

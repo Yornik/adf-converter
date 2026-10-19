@@ -40,8 +40,14 @@ adf version [--json]            (also: adf --version)
 - **`--from md`** (default): Markdown → ADF.
 - **`--from adf`**: ADF → Markdown. The input may be a bare document or any
   [envelope](#envelopes). `-e` is not allowed with `--from adf` (exit 2).
-- **`-o PATH`**: write to a file, atomically (temporary file in the same directory, then rename).
-  Nothing is written if the conversion fails.
+- **`-o PATH`**: write to a file, atomically (temporary file in the same directory, then rename),
+  so the directory must be writable. Nothing is written if the conversion fails.
+  - Replacing an existing file keeps its permission bits (not its owner or ACLs). A symbolic link
+    at `PATH` is replaced by a regular file (the file it pointed to is unchanged), and a hard link
+    is detached from the file's other names.
+  - An existing `PATH` that is not a regular file, or that lies under `/dev` or `/proc`, is opened
+    and appended to directly, without a temporary file: `/dev/null`, `/dev/stdout`, a FIFO, the
+    `/dev/fd/N` of a process substitution `>(…)`.
 - **Output format.** Pretty JSON when stdout is a terminal, compact otherwise. Files are compact
   unless `--pretty` is given. `--pretty` and `--compact` override. Markdown output always ends with
   exactly one newline.
@@ -51,6 +57,10 @@ adf version [--json]            (also: adf --version)
   for `-e confluence` and `jira` otherwise.
 - **Self-check.** Output is checked before it is written (schema, target rules, invariants). If
   `adf`'s own output fails that check, it reports `E_INTERNAL` (exit 1), because that is a bug.
+- **Options of the other direction** are accepted and have no effect. With `--from adf`: `-t`,
+  `--pretty`, `--compact` and the Markdown options (`--softbreak`, `--html`, `--images`,
+  `--extensions`). With Markdown input: `--md-flavor`. Likewise `validate` ignores the Markdown
+  options when it checks ADF.
 
 ### `validate`
 
@@ -59,10 +69,10 @@ adf version [--json]            (also: adf --version)
   therefore read as JSON and fails with `E_INPUT_JSON`; pass `--from md` for it.
 - **`--from adf`**: checks the document against the vendored ADF schema, the target rules and the
   invariants. The input may be a bare document or any [envelope](#envelopes); `-e` is not
-  allowed (exit 2), because the envelope is detected. Every problem is reported with a JSON
-  Pointer. Exit code 4 if anything fails.
-- **`--from md`**: a dry run of `convert`. It reports every warning the conversion would produce.
-  Exit code 0, or 5 with `--strict` if there are warnings.
+  allowed (exit 2), because the envelope is detected. Problems are reported with a JSON Pointer,
+  at most 100 of each code (see [Diagnostics](#diagnostics)). Exit code 4 if anything fails.
+- **`--from md`**: a dry run of `convert`. It reports the warnings the conversion would produce,
+  at most 100 of each code. Exit code 0, or 5 with `--strict` if there are warnings.
 - **`--json`**: writes a report to stdout:
 
   ```json
@@ -75,8 +85,9 @@ adf version [--json]            (also: adf --version)
   `--from md` was given.
 - Without `--json`, diagnostics go to stderr. With the text format (`--error-format text`, or
   `auto` on a terminal), a one-line summary follows them, for example
-  `comment.json: valid ADF for jira, envelope doc: 0 errors, 0 warnings`. The JSON format has no
-  summary line, so a valid document without warnings prints nothing.
+  `comment.json: valid ADF for jira, envelope doc: 0 errors, 0 warnings`. Its error and warning
+  counts include the diagnostics that were not listed. The JSON format has no summary line, so a
+  valid document without warnings prints nothing.
 
 ### `capabilities --json`
 
@@ -144,6 +155,11 @@ Unknown topic: exit 2.
 
 Anything else fails with `E_INPUT_NOT_ADF` (exit 3).
 
+`--field NAME` is accepted only where it selects something: with `-e jira-field` for Markdown
+input, and with ADF input that has a `fields` object (step 3). Anywhere else, including Markdown
+input without `-e` and ADF input detected by steps 1, 2, 4 or 5, it is a usage error (`E_USAGE`,
+exit 2) instead of being ignored. An empty name is a usage error too.
+
 ## Exit codes
 
 | Code | Meaning | Retry? |
@@ -178,11 +194,23 @@ Scripts should match on `code`; `message` and `hint` are written for people.
   - `line`, `column`: 1-based, columns count characters;
   - `end_line`, `end_column`;
   - `byte_offset`: invalid UTF-8;
-  - `pointer`: a JSON Pointer into the ADF document.
+  - `pointer`: a JSON Pointer (RFC 6901) into the input: the document's position in its
+    [envelope](#envelopes), then the path inside the document (`/body/content/0`). A Confluence
+    body holds the document as a JSON *string* (`/value`, `/body/atlas_doc_format/value`); the
+    segments after it address the JSON parsed from that string
+    (`/value/content/0/content/0/text`), so a generic resolver must parse the string first.
 - `hint` is optional.
 
 **Text**: `comment.md:12:3: warning[W_IMAGE_AS_LINK]: message (hint: …)`. For ADF locations:
 `doc.json#/content/0: error[E_SCHEMA]: …`.
+
+**At most 100 per code.** Every command lists at most 100 diagnostics of each code, in document
+order, so a document with thousands of problems cannot flood stderr (or an agent's context). The
+rest of a code are replaced by one diagnostic of the same code and severity, without a
+`pointer`, `line` or `column`, right after the last one listed:
+`"message":"150 more E_SCHEMA errors were not listed"`. In a `validate --json` report it is in
+`errors` or `warnings` like any other diagnostic. The exit code is unchanged: the first error is
+always listed.
 
 **Other switches:**
 - `-q/--quiet` suppresses warnings. Errors are always printed, and exit codes are unchanged.
@@ -257,7 +285,7 @@ from Markdown or ADF input alike:
 
 | Variable | Effect |
 |---|---|
-| `ADF_ERROR_FORMAT` | Default for `--error-format` (`auto`, `text`, `json`). |
+| `ADF_ERROR_FORMAT` | Default for `--error-format` (`auto`, `text`, `json`; ASCII case and surrounding spaces are ignored). Unset or empty means `auto`. `--error-format` overrides it. Any other value is a usage error (`E_USAGE`, exit 2) that names the variable, unless `--error-format` is given. |
 | `NO_COLOR` | Disables colour. |
 
 No other environment variables are read. `adf` never reads config files and never makes network
@@ -271,6 +299,7 @@ requests.
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
+| Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
 
 GFM pads every table row to the header width, so a few kilobytes of Markdown can describe
 millions of cells. `adf` estimates the padded size with a linear scan before parsing, and fails

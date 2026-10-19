@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--field only applies to ADF input with a `fields` object, but this input is a bare document","hint":"Drop --field, or pass the Jira issue (GET /rest/api/3/issue/KEY) that holds the field","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

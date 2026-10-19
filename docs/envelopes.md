@@ -137,8 +137,10 @@ Anything else fails with `E_INPUT_NOT_ADF` (exit 3). That includes a Jira field 
 example `jq '.comments[0]' comments.json`.
 
 Diagnostics for ADF input locate problems with a JSON Pointer into your input, starting at the
-document's position: `/body/content/0` is the first block of a comment. `adf validate --json`
-reports the detected envelope in its `envelope` field.
+document's position: `/body/content/0` is the first block of a comment. In a Confluence body the
+document is a JSON string, and the segments after `/value` point into the parsed string:
+`/value/content/0` is `.value | fromjson | .content[0]` in jq. `adf validate --json` reports the
+detected envelope in its `envelope` field.
 
 `adf convert --from adf` does not accept `-e` (exit 2): the input is unwrapped automatically,
 and the output is Markdown.

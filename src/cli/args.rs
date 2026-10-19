@@ -25,9 +25,12 @@ Unofficial community tool; not affiliated with or endorsed by Atlassian. Jira an
 trademarks of Atlassian.";
 
 /// Convert Markdown to Atlassian Document Format (ADF) JSON for Jira and Confluence, and back.
+// `bin_name` is fixed so that usage lines say `adf` whatever argv[0] is (`adf.exe` on Windows, a
+// full path, a renamed copy): `--help` and `E_USAGE` hints are the same on every platform.
 #[derive(Debug, Parser)]
 #[command(
     name = "adf",
+    bin_name = "adf",
     version,
     after_help = AFTER_HELP,
     term_width = 100,
@@ -44,17 +47,12 @@ pub(crate) struct Cli {
 #[derive(Debug, Args)]
 #[command(next_help_heading = "Global options")]
 pub(crate) struct GlobalArgs {
-    /// How diagnostics are printed on stderr [env: ADF_ERROR_FORMAT]
-    #[arg(
-        long,
-        value_enum,
-        env = "ADF_ERROR_FORMAT",
-        hide_env = true,
-        default_value_t = ErrorFormat::Auto,
-        global = true,
-        value_name = "FORMAT"
-    )]
-    pub error_format: ErrorFormat,
+    /// How diagnostics are printed on stderr [default: auto] [env: ADF_ERROR_FORMAT]
+    // Not clap's `env`: clap would validate the variable as if it were the flag, so an empty or
+    // invalid value broke every command (even with the flag given) and blamed the flag. `None`
+    // means "not given"; `report::env_error_format` resolves the variable.
+    #[arg(long, value_enum, global = true, value_name = "FORMAT")]
+    pub error_format: Option<ErrorFormat>,
 
     /// Do not print warnings (errors are always printed; exit codes are unchanged)
     #[arg(short, long, global = true)]
@@ -438,7 +436,7 @@ mod tests {
         ])
         .unwrap();
         assert!(cli.global.quiet);
-        assert_eq!(cli.global.error_format, ErrorFormat::Json);
+        assert_eq!(cli.global.error_format, Some(ErrorFormat::Json));
         let Command::Convert(args) = cli.command else {
             panic!("expected convert");
         };
@@ -446,6 +444,27 @@ mod tests {
         assert_eq!(args.target, TargetArg::Confluence);
         assert_eq!(args.markdown.softbreak, SoftBreakArg::HardBreak);
         assert!(args.markdown.extensions.alerts && !args.markdown.extensions.details);
+    }
+
+    /// Windows starts the binary as `…\adf.exe`; usage lines must still say `adf`.
+    #[test]
+    fn usage_names_the_binary_adf_whatever_argv0_is() {
+        for argv0 in [r"C:\tools\adf.exe", "/usr/local/bin/adf-0.1", "adf.exe"] {
+            let help = Cli::try_parse_from([argv0, "--help"])
+                .unwrap_err()
+                .render()
+                .to_string();
+            assert!(help.contains("Usage: adf [OPTIONS] <COMMAND>"), "{help}");
+            let usage = Cli::try_parse_from([argv0, "convert", "--bogus"])
+                .unwrap_err()
+                .render()
+                .to_string();
+            assert!(usage.contains("Usage: adf convert [OPTIONS]"), "{usage}");
+            assert!(
+                !usage.contains(".exe") && !usage.contains("adf-0.1"),
+                "{usage}"
+            );
+        }
     }
 
     #[test]

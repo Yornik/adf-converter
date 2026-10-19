@@ -6,7 +6,13 @@ warnings (`W_…`) describe something that was repaired or lost, and the command
 the installed version, and `adf explain codes` lists all codes.
 
 Locations: Markdown input has `line` and `column` (1-based); ADF input has a JSON `pointer` such
-as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
+as `/body/content/2`; invalid UTF-8 has a `byte_offset`. In a Confluence body the document is a
+JSON string, so in `/value/content/0` the part after `/value` points into the parsed string
+(`jq '.value | fromjson | .content[0]'`).
+
+At most 100 diagnostics of each code are listed. The rest of a code are counted in one more
+diagnostic of that code without a location ("150 more E_SCHEMA errors were not listed"): fix the
+listed problems and run again.
 
 ## Exit codes
 
@@ -24,7 +30,7 @@ as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 | Code | Exit | Meaning | Fix |
 |---|---|---|---|
 | `E_INTERNAL` | 1 | A bug in `adf`. Its own output failed its self-check, or it crashed. | Don't retry. Simplify the construct near the reported location, and tell the user; a minimal invented input reproducing it belongs in a bug report. |
-| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, an unknown `--extensions` name. |
+| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, `--field` where it selects nothing (Markdown without `-e jira-field`, or ADF input without a `fields` object), an unknown `--extensions` name. |
 | `E_INPUT_READ` | 3 | The input file or stdin could not be read. | Check the path and permissions. Pass `-` to read stdin. |
 | `E_INPUT_ENCODING` | 3 | The input is not valid UTF-8; `byte_offset` points at the first bad byte. | Save the file as UTF-8 (for example `iconv -f WINDOWS-1252 -t UTF-8 in.md > out.md`). |
 | `E_INPUT_TOO_LARGE` | 3 | The input is larger than 4 MiB, or its tables would have more than 100,000 cells in total (short rows are padded to the header width, so a wide header with many short rows counts fully). | Split the content; Jira would reject a body that large anyway. Attach big logs and data tables as files. |
@@ -35,7 +41,7 @@ as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 | `E_OUTPUT_WRITE` | 3 | The `-o` file could not be written. | Check that the directory exists and is writable, and that there is disk space. Nothing was written. |
 | `E_SCHEMA` | 4 | The ADF document does not match the ADF JSON schema, for example an empty text node, or bold on inline code; `pointer` shows where. | Don't patch the JSON. Regenerate it from Markdown with `adf convert`, or convert it to Markdown (`--from adf`) and back. |
 | `E_TARGET` | 4 | The document uses a node, mark or attribute the target product does not accept (for example `fontSize`, layouts or extensions in Jira). | Remove the construct, or check that `-t`/`-e` match where you post. Regenerate from Markdown. |
-| `E_INVARIANT` | 4 | The document breaks a rule Jira or Confluence enforce beyond the schema: a list item that doesn't start with a paragraph, duplicate task `localId`s, a ragged table, an empty `marks` array. | Regenerate from Markdown; `adf convert` always produces documents that satisfy these rules. |
+| `E_INVARIANT` | 4 | The document breaks a rule Jira or Confluence enforce beyond the schema: a list item that starts with something other than a paragraph, code block or image (for example a nested list), duplicate task `localId`s, a ragged table, an empty `marks` array, or a link, smart link or external image URL that is not allowed. | Regenerate from Markdown; `adf convert` always produces documents that satisfy these rules. |
 | `E_LOSSY` | 5 | `--strict` is set (or `--html error`) and the conversion would lose something. | Read the warnings reported with it and fix the Markdown so they go away. Drop `--strict` only if the user accepts the loss. |
 
 ## Warnings: Markdown → ADF

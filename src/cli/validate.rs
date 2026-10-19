@@ -5,13 +5,14 @@ use serde::Serialize;
 use super::Outcome;
 use super::args::{ValidateArgs, ValidateFrom};
 use super::convert::{
-    markdown_options, markdown_pipeline, parse_and_unwrap, parse_envelope, prefix_pointers,
-    read_input, resolve_target, strict_failure,
+    check_adf_field, check_field_used, markdown_options, markdown_pipeline, parse_and_unwrap,
+    parse_envelope, prefix_pointers, read_input, resolve_target, strict_failure,
 };
 use super::report::DiagnosticJson;
 use crate::adf::envelope::Envelope;
 use crate::catalog::ADF_SCHEMA;
-use crate::diagnostics::{Code, Diagnostic};
+use crate::diagnostics::{Code, Diagnostic, cap_per_code, reported_count};
+use crate::limits::MAX_LISTED_PER_CODE;
 use crate::options::Target;
 
 /// The `validate --json` report (`schemas/validate-report.v1.json`).
@@ -38,17 +39,22 @@ struct Checked {
 
 /// Runs `adf validate`.
 pub(crate) fn run(args: &ValidateArgs) -> Outcome {
-    let checked = match check(args) {
+    let mut checked = match check(args) {
         Ok(checked) => checked,
         Err(outcome) => return *outcome,
     };
+    // At most 100 of each code are listed (in the report too); the counts include the rest.
+    checked.diagnostics = cap_per_code(
+        std::mem::take(&mut checked.diagnostics),
+        MAX_LISTED_PER_CODE,
+    );
     let exit = checked
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.is_error())
         .map_or(0, |error| error.code.exit_code());
-    let errors = checked.diagnostics.iter().filter(|d| d.is_error()).count();
-    let warnings = checked.diagnostics.len() - errors;
+    let errors = reported_count(checked.diagnostics.iter().filter(|d| d.is_error()));
+    let warnings = reported_count(checked.diagnostics.iter().filter(|d| !d.is_error()));
 
     if args.json {
         let label = checked.label.as_deref();
@@ -124,7 +130,9 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                 "Drop -e, or use --from md to validate a Markdown conversion",
             )));
         }
-        let unwrapped = match parse_and_unwrap(&input.text, args.envelope.field.as_deref()) {
+        let field = args.envelope.field.as_deref();
+        check_adf_field(field)?;
+        let unwrapped = match parse_and_unwrap(&input.text, field) {
             Ok(unwrapped) => unwrapped,
             Err(diagnostic) => {
                 return Ok(Checked {
@@ -136,6 +144,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                 });
             }
         };
+        check_field_used(field, &unwrapped)?;
         let target = resolve_target(args.target, &unwrapped.envelope);
         let mut diagnostics = prefix_pointers(
             crate::validate_adf(&unwrapped.doc, target),

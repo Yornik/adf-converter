@@ -195,6 +195,27 @@ fn output_to_a_directory_is_an_output_error() {
     fs::remove_dir_all(&dir).unwrap();
 }
 
+/// Special files cannot be replaced by a rename; `-o` writes them in place.
+#[cfg(unix)]
+#[test]
+fn output_to_special_files() {
+    let output = adf(
+        &["convert", "--from", "adf", "-o", "/dev/null"],
+        VALID_DOC.as_bytes(),
+        None,
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"");
+    assert_eq!(output.stderr, b"");
+    let output = adf(
+        &["convert", "--from", "adf", "-o", "/dev/stdout"],
+        VALID_DOC.as_bytes(),
+        None,
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"x\n");
+}
+
 #[test]
 fn closed_stdout_exits_quietly() {
     // The ADF schema is larger than a pipe buffer, so adf is still writing when the pipe closes.
@@ -268,6 +289,97 @@ fn error_format_from_the_environment() {
     assert!(output.stderr.starts_with(b"{\"schema_version\":1,"));
 }
 
+/// Runs `adf` with `ADF_ERROR_FORMAT=value` on an empty document (one `W_EMPTY_DOCUMENT`).
+fn with_error_format_env(value: &str, args: &[&str]) -> Output {
+    let mut child = Command::new(bin())
+        .args(args)
+        .env("ADF_ERROR_FORMAT", value)
+        .env_remove("NO_COLOR")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn adf");
+    // adf may exit without reading stdin (`--help`, usage errors); ignore a closed pipe.
+    let _ = child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(br#"{"type":"doc","version":1,"content":[]}"#);
+    child.wait_with_output().expect("wait for adf")
+}
+
+#[test]
+fn error_format_environment_values() {
+    let json_warning = |output: &Output| {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert_eq!(codes(output), ["W_EMPTY_DOCUMENT"]);
+    };
+    let text_warning = |output: &Output| {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        let stderr = String::from_utf8(output.stderr.clone()).unwrap();
+        assert!(
+            stderr.starts_with("-#/content: warning[W_EMPTY_DOCUMENT]"),
+            "{stderr}"
+        );
+    };
+    // Empty is unset: `auto`, which is JSON because stderr is a pipe.
+    json_warning(&with_error_format_env("", &["validate"]));
+    json_warning(&with_error_format_env("  ", &["validate"]));
+    // Case and surrounding spaces are ignored.
+    text_warning(&with_error_format_env(" TEXT ", &["validate"]));
+    json_warning(&with_error_format_env("Json", &["validate"]));
+    // An invalid value names the variable, not the flag the user never typed.
+    let output = with_error_format_env("yaml", &["validate"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let lines = stderr_lines(&output);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0]["code"], "E_USAGE");
+    let message = lines[0]["message"].as_str().unwrap();
+    assert!(
+        message.contains("ADF_ERROR_FORMAT") && message.contains("\"yaml\""),
+        "{message}"
+    );
+    assert!(!message.contains("--error-format"), "{message}");
+    // The flag overrides the variable, before or after the command.
+    text_warning(&with_error_format_env(
+        "yaml",
+        &["--error-format", "text", "validate"],
+    ));
+    json_warning(&with_error_format_env(
+        "",
+        &["validate", "--error-format", "json"],
+    ));
+    // Help still works.
+    let output = with_error_format_env("yaml", &["--help"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+}
+
+/// The `validate` summary line starts with the file name; control characters in it must not reach
+/// the terminal (the diagnostic lines were already sanitised).
+#[cfg(unix)]
+#[test]
+fn validate_summary_line_is_sanitized() {
+    let dir = scratch("summary-escape");
+    let name = "x\u{1b}[2Jy\nz.json";
+    fs::write(dir.join(name), r#"{"type":"doc","version":1,"content":[]}"#).unwrap();
+    let output = adf(
+        &["--error-format", "text", "validate", name],
+        b"",
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(!stderr.contains('\u{1b}'), "{stderr:?}");
+    let lines: Vec<&str> = stderr.lines().collect();
+    assert_eq!(lines.len(), 2, "{stderr:?}");
+    assert!(
+        lines[1].starts_with("x [2Jy z.json: valid ADF for jira"),
+        "{stderr:?}"
+    );
+    fs::remove_dir_all(&dir).unwrap();
+}
+
 #[test]
 fn no_color_is_plain_text() {
     // Colour is only used on a terminal; with a pipe the text is plain either way.
@@ -312,6 +424,11 @@ fn json_outputs_match_their_schemas() {
         ),
         (r#"{"fields":{"description":null}}"#.to_owned(), 3),
         ("{not json".to_owned(), 3),
+        // More than 100 errors: the report ends with a summary of the unlisted ones.
+        (
+            fs::read_to_string("tests/cli/validate-many-errors.stdin").unwrap(),
+            4,
+        ),
     ] {
         let output = adf(&["validate", "--json"], input.as_bytes(), None);
         assert_eq!(output.status.code(), Some(code), "{input}");

@@ -7,9 +7,9 @@
 //!    explained node by node (see the `schema` submodule) instead of as raw `anyOf` noise.
 //! 2. **Target** (`E_TARGET`): nodes, marks and attributes the product does not accept
 //!    ([`crate::adf::targets`]).
-//! 3. **Invariants** (`E_INVARIANT`): list items start with a paragraph, unique non-empty task
-//!    `localId`s, rectangular tables, no duplicate or empty marks, integer levels, allowed link
-//!    URLs, no `null` attributes.
+//! 3. **Invariants** (`E_INVARIANT`): list items do not start with a nested list, unique
+//!    non-empty task `localId`s, rectangular tables, no duplicate or empty marks, integer levels,
+//!    allowed link, smart-link and external media URLs, no `null` attributes.
 //!
 //! Plus two warnings: `W_EMPTY_DOCUMENT` and (Jira only) `W_SIZE_LIMIT`.
 
@@ -17,12 +17,13 @@ mod invariants;
 mod schema;
 
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
-use crate::diagnostics::{Code, Diagnostic, Location};
-use crate::limits::{DEFAULT_MAX_DEPTH, JIRA_FIELD_CHAR_LIMIT};
+use crate::adf::targets;
+use crate::diagnostics::{self, Code, Diagnostic, Location};
+use crate::limits::{DEFAULT_MAX_DEPTH, JIRA_FIELD_CHAR_LIMIT, MAX_LISTED_PER_CODE};
 use crate::options::Target;
 
 /// Documents nested deeper than this (in JSON objects and arrays) are rejected with
@@ -37,6 +38,10 @@ pub const MAX_JSON_DEPTH: usize = DEFAULT_MAX_DEPTH * 8;
 ///
 /// Errors come first, in document order, then warnings. A document nested deeper than
 /// [`MAX_JSON_DEPTH`] gives a single `E_INPUT_TOO_DEEP`.
+///
+/// At most [`MAX_LISTED_PER_CODE`] errors of each code are listed; the rest are counted and
+/// summarised by one [`diagnostics::omitted`] error per code, after the listed errors. Memory
+/// therefore stays bounded however many problems the document has.
 pub fn validate(doc: &Value, target: Target) -> Vec<Diagnostic> {
     if json_depth_exceeds(doc, MAX_JSON_DEPTH) {
         return vec![
@@ -44,20 +49,27 @@ pub fn validate(doc: &Value, target: Target) -> Vec<Diagnostic> {
                 Code::InputTooDeep,
                 format!("the document nests deeper than {MAX_JSON_DEPTH} JSON levels"),
             )
-            .at(Location::pointer("")),
+            .at(Location::pointer(""))
+            .with_hint(crate::limits::json_depth_hint(MAX_JSON_DEPTH)),
         ];
     }
 
     let mut errors = Vec::new();
+    let mut omitted: BTreeMap<Code, usize> = BTreeMap::new();
     match schema::engine() {
         Ok(engine) => {
-            for issue in engine.check(doc) {
+            let rejected: Vec<&str> = targets::rejected_nodes(target).collect();
+            let checked = engine.check(doc, &rejected, MAX_LISTED_PER_CODE);
+            for issue in checked.issues {
                 let mut diagnostic = Diagnostic::new(Code::Schema, issue.message)
                     .at(Location::pointer(issue.pointer));
                 if let Some(hint) = issue.hint {
                     diagnostic = diagnostic.with_hint(hint);
                 }
                 errors.push(diagnostic);
+            }
+            if checked.omitted > 0 {
+                omitted.insert(Code::Schema, checked.omitted);
             }
         }
         Err(reason) => errors.push(Diagnostic::new(
@@ -66,13 +78,24 @@ pub fn validate(doc: &Value, target: Target) -> Vec<Diagnostic> {
         )),
     }
     let schema_pointers: BTreeSet<String> = errors.iter().filter_map(pointer_of).collect();
-    errors.extend(invariants::check(
+    let found = invariants::check(
         doc,
         target,
         DEFAULT_MAX_DEPTH * 4,
         &schema_pointers,
-    ));
+        MAX_LISTED_PER_CODE,
+    );
+    errors.extend(found.diagnostics);
+    for (code, count) in found.omitted {
+        let total = omitted.entry(code).or_default();
+        *total = total.saturating_add(count);
+    }
     errors.sort_by(compare_diagnostics);
+    errors.extend(
+        omitted
+            .into_iter()
+            .map(|(code, count)| diagnostics::omitted(code, count)),
+    );
 
     let mut warnings = Vec::new();
     if is_empty_document(doc) {
@@ -295,6 +318,18 @@ mod tests {
             ),
             (
                 doc(
+                    json!([{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"data":{"@type":"Document","url":"javascript:alert(1)"}}}]}]),
+                ),
+                vec![(Code::Invariant, "/content/0/content/0/attrs/data/url")],
+            ),
+            (
+                doc(
+                    json!([{"type":"mediaSingle","attrs":{"layout":"center"},"content":[{"type":"media","attrs":{"type":"external","url":"javascript:alert(1)"}}]}]),
+                ),
+                vec![(Code::Invariant, "/content/0/content/0/attrs/url")],
+            ),
+            (
+                doc(
                     json!([{"type":"paragraph","content":[{"type":"text","text":"x"}],"marks":[{"type":"fontSize","attrs":{"fontSize":"small"}}]}]),
                 ),
                 vec![(Code::Target, "/content/0/marks/0")],
@@ -330,6 +365,51 @@ mod tests {
                 (Code::Schema, "/content/2/content/0/text".to_owned()),
                 (Code::Schema, "/content/10/content/0/text".to_owned())
             ]
+        );
+    }
+
+    /// At most 100 errors of each code are listed; one summary per code counts the rest.
+    #[test]
+    fn errors_are_capped_per_code_and_counted() {
+        use crate::diagnostics::{omitted_count, reported_count};
+        let texts: Vec<Value> = (0..250)
+            .map(|_| json!({"type":"text","text":"","marks":[]}))
+            .collect();
+        let value = doc(json!([{"type":"paragraph","content":texts}]));
+        let found = validate(&value, Target::Jira);
+        for code in [Code::Schema, Code::Invariant] {
+            let of_code = || found.iter().filter(move |d| d.code == code);
+            let listed = of_code().filter(|d| omitted_count(d).is_none()).count();
+            assert_eq!(listed, MAX_LISTED_PER_CODE, "{code}");
+            assert_eq!(reported_count(of_code()), 250, "{code}");
+        }
+        assert_eq!(found.len(), 2 * MAX_LISTED_PER_CODE + 2);
+        // The summaries follow the listed errors, which keep document order.
+        assert!(
+            found[..2 * MAX_LISTED_PER_CODE]
+                .iter()
+                .all(|d| omitted_count(d).is_none())
+        );
+        assert_eq!(
+            found.last().map(|d| d.message.as_str()),
+            Some("150 more E_INVARIANT errors were not listed")
+        );
+    }
+
+    /// The memory blow-up: thousands of bad children deep in nested lists, each reported with a
+    /// pointer as long as the nesting. Only the first 100 are built.
+    #[test]
+    fn deep_documents_with_many_errors_stay_small() {
+        let bad: Vec<Value> = (0..2_000).map(|_| json!(1)).collect();
+        let mut node = json!({"type":"paragraph","content":bad});
+        for _ in 0..120 {
+            node = json!({"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph"}, node]}]});
+        }
+        let found = validate(&doc(json!([node])), Target::Jira);
+        assert_eq!(found.len(), MAX_LISTED_PER_CODE + 1, "{:?}", found.last());
+        assert_eq!(
+            found.last().map(|d| d.message.as_str()),
+            Some("1900 more E_SCHEMA errors were not listed")
         );
     }
 

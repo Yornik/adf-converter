@@ -14,7 +14,7 @@ use crate::adf::model::{
     BlockquoteChild, BulletList, Doc, DocBlock, ExpandChild, ListItem, ListItemChild,
     NestedExpandChild, OrderedList, PanelChild, Table, TableCellChild,
 };
-use crate::diagnostics::{Code, Diagnostic, Diagnostics};
+use crate::diagnostics::{self, Code, Diagnostic, Diagnostics, omitted_count, reported_count};
 use crate::limits::Limits;
 use crate::options::{AdfToMdOptions, MdToAdfOptions, Target};
 
@@ -67,14 +67,21 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
             "Drop -e; use --field NAME to pick a Jira field",
         );
     }
+    let field = args.envelope.field.as_deref();
+    if let Err(outcome) = check_adf_field(field) {
+        return *outcome;
+    }
     let input = match read_input(args.input.as_deref(), "convert") {
         Ok(input) => input,
         Err(outcome) => return *outcome,
     };
-    let unwrapped = match parse_and_unwrap(&input.text, args.envelope.field.as_deref()) {
+    let unwrapped = match parse_and_unwrap(&input.text, field) {
         Ok(unwrapped) => unwrapped,
         Err(diagnostic) => return Outcome::failed(vec![diagnostic], Some(input.label)),
     };
+    if let Err(outcome) = check_field_used(field, &unwrapped) {
+        return *outcome;
+    }
     let opts = AdfToMdOptions {
         flavor: args.md_flavor.into(),
         limits: Limits::default(),
@@ -104,11 +111,52 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
     }
 }
 
+/// `--field NAME` with ADF input must name a field (non-empty, no control characters).
+pub(crate) fn check_adf_field(field: Option<&str>) -> Result<(), Box<Outcome>> {
+    match field.map(envelope::check_field_name) {
+        Some(Err(message)) => Err(Box::new(Outcome::usage(
+            &message,
+            "Pass the name of a Jira field, for example --field customfield_10010",
+        ))),
+        Some(Ok(())) | None => Ok(()),
+    }
+}
+
+/// `--field` only selects an entry of a `fields` object. With any other ADF input it would be
+/// ignored, and another document converted than the one asked for, so that is a usage error.
+pub(crate) fn check_field_used(
+    field: Option<&str>,
+    unwrapped: &envelope::Unwrapped,
+) -> Result<(), Box<Outcome>> {
+    if field.is_none() {
+        return Ok(());
+    }
+    let what = match unwrapped.envelope {
+        Envelope::JiraDescription | Envelope::JiraField(_) => return Ok(()),
+        Envelope::Doc => "a bare document",
+        Envelope::JiraComment => "a Jira comment ({\"body\": …})",
+        Envelope::Confluence => "a Confluence body",
+    };
+    Err(Box::new(Outcome::usage(
+        &format!(
+            "--field only applies to ADF input with a `fields` object, but this input is {what}"
+        ),
+        "Drop --field, or pass the Jira issue (GET /rest/api/3/issue/KEY) that holds the field",
+    )))
+}
+
 /// Parses `-e`/`--field` into an envelope (usage error on failure).
 pub(crate) fn parse_envelope(
     envelope: Option<EnvelopeArg>,
     field: Option<&str>,
 ) -> Result<Envelope, Box<Outcome>> {
+    if envelope.is_none() && field.is_some() {
+        // Without -e the envelope is the bare document; don't blame an -e the user never typed.
+        return Err(Box::new(Outcome::usage(
+            "--field needs -e jira-field when the input is Markdown",
+            "Add -e jira-field to wrap the document in that field, or use --from adf to read a field of a Jira issue",
+        )));
+    }
     let name = envelope.map_or("doc", EnvelopeArg::name);
     Envelope::parse(name, field).map_err(|message| {
         Box::new(Outcome::usage(
@@ -271,8 +319,16 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
     let (mut out, errors): (Vec<Diagnostic>, Vec<Diagnostic>) = errors
         .into_iter()
         .partition(|error| matches!(error.code, Code::InputTooDeep | Code::Internal));
+    // Errors the validator counted but did not list (it lists at most 100 per code) have no
+    // location; they are ours unless every listed error lies in a raw block.
+    let (summaries, errors): (Vec<Diagnostic>, Vec<Diagnostic>) = errors
+        .into_iter()
+        .partition(|error| omitted_count(error).is_some());
+    let unlisted = reported_count(&summaries);
     let (raw_errors, own_errors): (Vec<Diagnostic>, Vec<Diagnostic>) =
         errors.into_iter().partition(in_raw);
+    let raw_unlisted = if own_errors.is_empty() { unlisted } else { 0 };
+    let own_unlisted = unlisted - raw_unlisted;
     if !own_errors.is_empty() {
         let mut details: Vec<String> = own_errors
             .iter()
@@ -287,8 +343,9 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
                 format!("{}{at}: {}", error.code, error.message)
             })
             .collect();
-        if own_errors.len() > details.len() {
-            details.push(format!("and {} more", own_errors.len() - details.len()));
+        let more = own_errors.len() - details.len() + own_unlisted;
+        if more > 0 {
+            details.push(format!("and {more} more"));
         }
         out.push(
             Diagnostic::new(
@@ -311,6 +368,9 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
         diagnostic.location = error.location;
         diagnostic.hint = error.hint;
         out.push(diagnostic);
+    }
+    if raw_unlisted > 0 {
+        out.push(diagnostics::omitted(Code::RawAdf, raw_unlisted));
     }
     out
 }
@@ -653,6 +713,28 @@ mod tests {
         let out = self_check_failure(deep, &raw, Target::Jira);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].code, Code::InputTooDeep);
+    }
+
+    /// The validator lists at most 100 errors per code and summarises the rest without a
+    /// location; the summary must not be mistaken for a bug in adf.
+    #[test]
+    fn self_check_attributes_unlisted_errors() {
+        let raw = vec!["/content/1".to_owned()];
+        let inner = |i: usize| {
+            Diagnostic::new(Code::Schema, "inner")
+                .at(Location::pointer(format!("/content/1/content/{i}")))
+        };
+        let errors = vec![inner(0), inner(1), diagnostics::omitted(Code::Schema, 7)];
+        let out = self_check_failure(errors, &raw, Target::Jira);
+        assert_eq!(codes(&out), [Code::RawAdf, Code::RawAdf, Code::RawAdf]);
+        assert_eq!(omitted_count(&out[2]), Some(7));
+        // With an error of our own among the listed ones, the rest count towards the bug report.
+        let own = Diagnostic::new(Code::Schema, "bad").at(Location::pointer("/content/0"));
+        let errors = vec![own, inner(0), diagnostics::omitted(Code::Schema, 7)];
+        let out = self_check_failure(errors, &raw, Target::Jira);
+        assert_eq!(codes(&out), [Code::Internal, Code::RawAdf]);
+        let hint = out[0].hint.as_deref().unwrap();
+        assert!(hint.contains("and 7 more"), "{hint}");
     }
 
     /// A successful converter result, shaped like `md_to_adf`'s.

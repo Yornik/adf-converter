@@ -1,0 +1,5 @@
+# A missing argument is named in the message; its possible values are in the hint.
+bin.name = "adf"
+args = ["completions", "--error-format", "text"]
+status.code = 2
+binary = true

@@ -25,30 +25,43 @@ const LOCAL_ID_NODES: &[&str] = &[
     "decisionItem",
 ];
 
-/// Smart-link nodes whose `url` must pass the URL allowlist.
+/// Smart-link nodes whose `url` (or JSON-LD `data.url`) must pass the URL allowlist.
 const CARD_NODES: &[&str] = &["inlineCard", "blockCard", "embedCard"];
 
 const URL_HINT: &str =
     "Use an http(s), ftp(s), mailto: or tel: URL, a /root-relative path or a #anchor";
 
+/// What [`check`] found.
+#[derive(Debug, Default)]
+pub(crate) struct Found {
+    /// At most `limit` diagnostics of each code, in document order.
+    pub diagnostics: Vec<Diagnostic>,
+    /// How many more of each code there are (counted, not built).
+    pub omitted: BTreeMap<Code, usize>,
+}
+
 /// Runs the target and invariant checks. `schema_pointers` are locations the schema layer already
-/// reported; `null` attributes there are not reported twice.
+/// reported; `null` attributes there are not reported twice. At most `limit` diagnostics of each
+/// code are kept; the rest are counted.
 pub(crate) fn check(
     doc: &Value,
     target: Target,
     max_depth: usize,
     schema_pointers: &BTreeSet<String>,
-) -> Vec<Diagnostic> {
+    limit: usize,
+) -> Found {
     let mut walker = Walker {
         target,
         max_depth,
         schema_pointers,
         local_ids: BTreeMap::new(),
-        out: Vec::new(),
+        limit,
+        listed: BTreeMap::new(),
+        found: Found::default(),
     };
     let mut pointer = String::new();
     walker.node(doc, &mut pointer, 0, false);
-    walker.out
+    walker.found
 }
 
 struct Walker<'a> {
@@ -57,17 +70,39 @@ struct Walker<'a> {
     schema_pointers: &'a BTreeSet<String>,
     /// `localId` → pointer of its first use.
     local_ids: BTreeMap<String, String>,
-    out: Vec<Diagnostic>,
+    /// The most diagnostics kept per code.
+    limit: usize,
+    /// How many diagnostics of each code are kept.
+    listed: BTreeMap<Code, usize>,
+    found: Found,
 }
 
 impl Walker<'_> {
+    /// Keeps `diagnostic`, or only counts it once `limit` of its code are kept.
+    fn push(&mut self, diagnostic: Diagnostic) {
+        let listed = self.listed.entry(diagnostic.code).or_default();
+        if *listed < self.limit {
+            *listed += 1;
+            self.found.diagnostics.push(diagnostic);
+        } else {
+            let omitted = self.found.omitted.entry(diagnostic.code).or_default();
+            *omitted = omitted.saturating_add(1);
+        }
+    }
+
+    fn push_all(&mut self, diagnostics: Vec<Diagnostic>) {
+        for diagnostic in diagnostics {
+            self.push(diagnostic);
+        }
+    }
+
     fn invariant(&mut self, pointer: String, message: String, hint: Option<&str>) {
         let mut diagnostic =
             Diagnostic::new(Code::Invariant, message).at(Location::pointer(pointer));
         if let Some(hint) = hint {
             diagnostic = diagnostic.with_hint(hint);
         }
-        self.out.push(diagnostic);
+        self.push(diagnostic);
     }
 
     /// Checks one node and its subtree. `blocked` is set inside a node the target rejects, so
@@ -82,14 +117,22 @@ impl Walker<'_> {
         let ty = node.get("type").and_then(Value::as_str).unwrap_or("");
         let mut blocked = blocked;
         if !blocked && !ty.is_empty() {
-            blocked = targets::check_node(self.target, ty, node, pointer, &mut self.out);
+            let mut rejected = Vec::new();
+            blocked = targets::check_node(self.target, ty, node, pointer, &mut rejected);
+            self.push_all(rejected);
         }
         self.attrs(node, ty, pointer);
         self.marks(node, pointer, blocked);
         match ty {
-            "listItem" => {
-                self.first_child(node, pointer, &["paragraph"], "a list item", "a paragraph");
-            }
+            // The editors write an image-only or code-only bullet as a list item that starts
+            // with the mediaSingle or codeBlock; only a nested list first is rejected.
+            "listItem" => self.first_child(
+                node,
+                pointer,
+                &["paragraph", "codeBlock", "mediaSingle"],
+                "a list item",
+                "a paragraph, `codeBlock` or `mediaSingle`",
+            ),
             "taskList" => self.first_child(
                 node,
                 pointer,
@@ -100,6 +143,7 @@ impl Walker<'_> {
             "heading" => self.integer_attr(node, pointer, "level"),
             "orderedList" => self.integer_attr(node, pointer, "order"),
             "table" => self.table(node, pointer),
+            "media" => self.media_url(node, pointer),
             _ => {}
         }
         if LOCAL_ID_NODES.contains(&ty) {
@@ -152,6 +196,9 @@ impl Walker<'_> {
 
     /// Mark rules: no empty `marks`, no duplicate mark types, safe link targets, no `null`
     /// attributes, and the target's mark blocklist.
+    ///
+    /// `annotation` marks are not exclusive (overlapping inline comments put several on one text
+    /// node), so only two annotations with the same `id` are duplicates.
     fn marks(&mut self, node: &Map<String, Value>, pointer: &str, blocked: bool) {
         let Some(marks) = node.get("marks").and_then(Value::as_array) else {
             return;
@@ -164,17 +211,26 @@ impl Walker<'_> {
             );
             return;
         }
-        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let mut seen: BTreeSet<(&str, Option<&str>)> = BTreeSet::new();
         for (index, mark) in marks.iter().enumerate() {
             let at = format!("{pointer}/marks/{index}");
             let Some(mark_type) = mark.get("type").and_then(Value::as_str) else {
                 continue;
             };
-            if !seen.insert(mark_type) {
-                let message = if mark_type == "subsup" {
-                    "a node can have only one `subsup` mark (sub or sup)".to_owned()
-                } else {
-                    format!("duplicate {} mark", code(mark_type))
+            let id = (mark_type == "annotation")
+                .then(|| mark.pointer("/attrs/id").and_then(Value::as_str))
+                .flatten();
+            if !seen.insert((mark_type, id)) {
+                let message = match (mark_type, id) {
+                    ("subsup", _) => {
+                        "a node can have only one `subsup` mark (sub or sup)".to_owned()
+                    }
+                    (_, Some(id)) => format!(
+                        "duplicate {} mark with id {}",
+                        code(mark_type),
+                        preview(&Value::from(id))
+                    ),
+                    _ => format!("duplicate {} mark", code(mark_type)),
                 };
                 self.invariant(
                     at.clone(),
@@ -183,7 +239,9 @@ impl Walker<'_> {
                 );
             }
             if !blocked {
-                targets::check_mark(self.target, mark_type, &at, &mut self.out);
+                let mut rejected = Vec::new();
+                targets::check_mark(self.target, mark_type, &at, &mut rejected);
+                self.push_all(rejected);
             }
             let Some(attrs) = mark.get("attrs").and_then(Value::as_object) else {
                 continue;
@@ -293,20 +351,44 @@ impl Walker<'_> {
         }
     }
 
-    /// Smart links must use an allowed URL.
+    /// Smart links must use an allowed URL, in the `url` form and in the JSON-LD `data` form
+    /// (the smart-card renderer links to `data.url`).
     fn card_url(&mut self, node: &Map<String, Value>, ty: &str, pointer: &str) {
-        let Some(url) = node
-            .get("attrs")
-            .and_then(|attrs| attrs.get("url"))
-            .and_then(Value::as_str)
-        else {
+        let Some(attrs) = node.get("attrs") else {
             return;
         };
+        if let Some(url) = attrs.get("url").and_then(Value::as_str) {
+            self.allowed_url(url, format!("{pointer}/attrs/url"), &format!("`{ty}` URL"));
+        }
+        if let Some(url) = attrs.pointer("/data/url").and_then(Value::as_str) {
+            self.allowed_url(
+                url,
+                format!("{pointer}/attrs/data/url"),
+                &format!("`{ty}` data URL"),
+            );
+        }
+    }
+
+    /// External media (`"type": "external"`) must use an allowed URL, as Markdown images must.
+    fn media_url(&mut self, node: &Map<String, Value>, pointer: &str) {
+        let Some(attrs) = node.get("attrs") else {
+            return;
+        };
+        if attrs.get("type").and_then(Value::as_str) != Some("external") {
+            return;
+        }
+        if let Some(url) = attrs.get("url").and_then(Value::as_str) {
+            self.allowed_url(url, format!("{pointer}/attrs/url"), "external `media` URL");
+        }
+    }
+
+    /// Reports `url` (at `at`) unless it passes the URL allowlist.
+    fn allowed_url(&mut self, url: &str, at: String, what: &str) {
         if Href::parse(url).is_none() {
             self.invariant(
-                format!("{pointer}/attrs/url"),
+                at,
                 format!(
-                    "`{ty}` URL {} is not an allowed URL",
+                    "{what} {} is not an allowed URL",
                     preview(&Value::from(url))
                 ),
                 Some(URL_HINT),
@@ -410,7 +492,8 @@ mod tests {
     const NONE: Vec<(Code, String, String)> = Vec::new();
 
     fn run(doc: &Value, target: Target) -> Vec<(Code, String, String)> {
-        check(doc, target, 64, &BTreeSet::new())
+        check(doc, target, 64, &BTreeSet::new(), usize::MAX)
+            .diagnostics
             .into_iter()
             .map(|d| {
                 (
@@ -433,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn list_item_must_start_with_paragraph() {
+    fn list_item_must_not_start_with_a_list() {
         let value = doc(
             json!([{"type":"bulletList","content":[{"type":"listItem","content":[
             {"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph"}]}]}]}]}]),
@@ -443,7 +526,36 @@ mod tests {
             [(
                 Code::Invariant,
                 "/content/0/content/0/content/0".to_owned(),
-                "a list item must start with a paragraph, not `bulletList`".to_owned()
+                "a list item must start with a paragraph, `codeBlock` or `mediaSingle`, not `bulletList`".to_owned()
+            )]
+        );
+    }
+
+    /// The Atlassian editors write an image-only or code-only bullet like this.
+    #[test]
+    fn list_item_may_start_with_code_or_an_image() {
+        let value = doc(json!([{"type":"bulletList","content":[
+            {"type":"listItem","content":[{"type":"codeBlock","content":[{"type":"text","text":"make"}]}]},
+            {"type":"listItem","content":[{"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                {"type":"media","attrs":{"type":"file","id":"abc","collection":"c"}}]}]}
+        ]}]));
+        assert_eq!(run(&value, Target::Jira), NONE);
+        assert_eq!(run(&value, Target::Confluence), NONE);
+    }
+
+    #[test]
+    fn overlapping_annotations_are_not_duplicates() {
+        let annotation = |id: &str| json!({"type":"annotation","attrs":{"id":id,"annotationType":"inlineComment"}});
+        let value = doc(json!([{"type":"paragraph","content":[
+            {"type":"text","text":"overlap","marks":[annotation("c1"), annotation("c2")]},
+            {"type":"text","text":"twice","marks":[annotation("c1"), {"type":"strong"}, annotation("c1")]}
+        ]}]));
+        assert_eq!(
+            run(&value, Target::Confluence),
+            [(
+                Code::Invariant,
+                "/content/0/content/1/marks/2".to_owned(),
+                "duplicate `annotation` mark with id \"c1\"".to_owned()
             )]
         );
     }
@@ -568,6 +680,44 @@ mod tests {
         );
     }
 
+    /// Smart links in the JSON-LD `data` form and external media are checked too.
+    #[test]
+    fn unsafe_card_data_and_media_urls() {
+        let media = |url: &str| {
+            json!({"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                {"type":"media","attrs":{"type":"external","url":url}}]})
+        };
+        let value = doc(json!([
+            {"type":"paragraph","content":[
+                {"type":"inlineCard","attrs":{"data":{"@type":"Document","url":"javascript:alert(document.domain)","name":"Click me"}}},
+                {"type":"inlineCard","attrs":{"data":{"@type":"Document","url":"https://example.com/a"}}}
+            ]},
+            {"type":"blockCard","attrs":{"data":{"url":"javascript:alert(2)"}}},
+            media("javascript:alert(1)"),
+            media("https://example.com/a.png"),
+            {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                {"type":"media","attrs":{"type":"file","id":"javascript:x","collection":"c"}}]}
+        ]));
+        let found = run(&value, Target::Confluence);
+        let pointers: Vec<&str> = found.iter().map(|f| f.1.as_str()).collect();
+        assert_eq!(
+            pointers,
+            [
+                "/content/0/content/0/attrs/data/url",
+                "/content/1/attrs/data/url",
+                "/content/2/content/0/attrs/url"
+            ]
+        );
+        assert_eq!(
+            found[0].2,
+            "`inlineCard` data URL \"javascript:alert(document.domain)\" is not an allowed URL"
+        );
+        assert_eq!(
+            found[2].2,
+            "external `media` URL \"javascript:alert(1)\" is not an allowed URL"
+        );
+    }
+
     #[test]
     fn null_attributes_and_integers() {
         let value = doc(json!([
@@ -590,7 +740,7 @@ mod tests {
         );
         // Already reported by the schema layer: not repeated.
         let schema: BTreeSet<String> = ["/content/0/attrs/language".to_owned()].into();
-        let found = check(&value, Target::Confluence, 64, &schema);
+        let found = check(&value, Target::Confluence, 64, &schema, usize::MAX).diagnostics;
         assert_eq!(found.len(), 3);
     }
 

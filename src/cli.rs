@@ -18,13 +18,14 @@ use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::Parser;
 use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser};
 
 use args::{Cli, Command};
 use report::Reporter;
 
-use crate::diagnostics::{Code, Diagnostic, Location};
+use crate::diagnostics::{Code, Diagnostic, Location, cap_per_code};
+use crate::limits::MAX_LISTED_PER_CODE;
 
 /// Stack size of the thread that runs a command. The converters and validators recurse only to
 /// bounded depths, but those bounds (64 containers, 512 JSON levels) need more than the 1 MiB main
@@ -132,11 +133,16 @@ pub fn install_panic_hook() {
 
 fn run_args(args: Vec<OsString>) -> u8 {
     match Cli::try_parse_from(args) {
-        Ok(cli) => {
-            let reporter = Reporter::from_args(&cli.global);
-            let outcome = dispatch(&cli.command);
-            finish(outcome, reporter)
-        }
+        Ok(cli) => match Reporter::from_args(&cli.global) {
+            Ok(reporter) => {
+                let outcome = dispatch(&cli.command);
+                finish(outcome, reporter)
+            }
+            Err((reporter, diagnostic)) => {
+                reporter.emit(&[diagnostic], None);
+                Code::Usage.exit_code()
+            }
+        },
         Err(err) => clap_error(&err),
     }
 }
@@ -192,14 +198,15 @@ fn usage_diagnostic(err: &clap::Error) -> Diagnostic {
         err.kind(),
         ErrorKind::MissingSubcommand | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
     );
-    let message = if missing {
-        "a command is required"
-    } else {
-        message
-    };
-    let hint = if missing {
-        "Commands: convert, validate, capabilities, examples, schema, explain, completions, version; see `adf --help`".to_owned()
-    } else if rest.is_empty() {
+    if missing {
+        return Diagnostic::new(Code::Usage, "a command is required").with_hint(
+            "Commands: convert, validate, capabilities, examples, schema, explain, completions, version; see `adf --help`",
+        );
+    }
+    if err.kind() == ErrorKind::MissingRequiredArgument {
+        return missing_argument(&rest);
+    }
+    let hint = if rest.is_empty() {
         "See `adf --help`".to_owned()
     } else {
         rest.iter()
@@ -208,6 +215,64 @@ fn usage_diagnostic(err: &clap::Error) -> Diagnostic {
             .join(" ")
     };
     Diagnostic::new(Code::Usage, message).with_hint(hint)
+}
+
+/// A missing required argument. clap puts the argument names on the lines after its header
+/// ("the following required arguments were not provided:"); they belong in the message, and the
+/// values the argument accepts in the hint.
+fn missing_argument(rest: &[&str]) -> Diagnostic {
+    let usage_at = rest
+        .iter()
+        .position(|line| line.starts_with("Usage:"))
+        .unwrap_or(rest.len());
+    let (names, after) = rest.split_at_checked(usage_at).unwrap_or((rest, &[]));
+    let message = match names {
+        [] => "a required argument is missing".to_owned(),
+        [name] => format!("missing required argument {name}"),
+        _ => format!("missing required arguments {}", names.join(", ")),
+    };
+    let command = after
+        .first()
+        .and_then(|usage| usage.split_whitespace().nth(2))
+        .and_then(|name| Cli::command().find_subcommand(name).cloned());
+    let mut sentences: Vec<String> = Vec::new();
+    if let Some(command) = &command {
+        for name in names {
+            if let Some(accepted) = accepted_values(command, name) {
+                sentences.push(hint_sentence(&accepted));
+            }
+        }
+    }
+    sentences.extend(after.iter().map(|line| hint_sentence(line)));
+    let hint = if sentences.is_empty() {
+        "See `adf --help`".to_owned()
+    } else {
+        sentences.join(" ")
+    };
+    Diagnostic::new(Code::Usage, message).with_hint(hint)
+}
+
+/// What the argument rendered as `name` (`<SHELL>`) of `command` accepts: its possible values, or
+/// else its help text.
+fn accepted_values(command: &clap::Command, name: &str) -> Option<String> {
+    let arg = command.get_arguments().find(|arg| {
+        let value_name = arg
+            .get_value_names()
+            .and_then(|names| names.first())
+            .map_or_else(|| arg.get_id().as_str().to_uppercase(), ToString::to_string);
+        format!("<{value_name}>") == name
+    })?;
+    let values: Vec<String> = arg
+        .get_possible_values()
+        .iter()
+        .filter(|value| !value.is_hide_set())
+        .map(|value| value.get_name().to_owned())
+        .collect();
+    if values.is_empty() {
+        arg.get_help().map(|help| format!("{name}: {help}"))
+    } else {
+        Some(format!("Possible values: {}", values.join(", ")))
+    }
 }
 
 /// Turns one of clap's continuation lines (`[possible values: …]`, `tip: …`, `Usage: …`) into a
@@ -228,10 +293,12 @@ fn hint_sentence(line: &str) -> String {
     sentence
 }
 
-/// Prints the diagnostics, writes the result (to the output file atomically, or to stdout) and
-/// returns the exit code. A closed stdout (`adf … | head`) is not an error.
+/// Prints the diagnostics (at most [`MAX_LISTED_PER_CODE`] of each code, then a summary), writes
+/// the result (to the output file atomically, or to stdout) and returns the exit code. A closed
+/// stdout (`adf … | head`) is not an error.
 fn finish(outcome: Outcome, reporter: Reporter) -> u8 {
-    reporter.emit(&outcome.diagnostics, outcome.label.as_deref());
+    let diagnostics = cap_per_code(outcome.diagnostics, MAX_LISTED_PER_CODE);
+    reporter.emit(&diagnostics, outcome.label.as_deref());
     let mut exit = outcome.exit;
     if !outcome.stdout.is_empty() {
         match outcome
@@ -278,7 +345,8 @@ fn finish(outcome: Outcome, reporter: Reporter) -> u8 {
     if let Some(summary) = outcome.summary
         && reporter.format == report::Format::Text
     {
-        output::stderr(&format!("{summary}\n"));
+        // The summary starts with the input file name, which may contain control characters.
+        output::stderr(&format!("{}\n", report::sanitize(&summary)));
     }
     exit
 }
@@ -310,6 +378,35 @@ mod tests {
         assert_eq!(
             target.hint.as_deref(),
             Some("Possible values: auto, jira, confluence. For more information, try '--help'.")
+        );
+    }
+
+    /// The missing argument belongs in the message, and what it accepts in the hint.
+    #[test]
+    fn missing_arguments_are_named() {
+        let schema = usage(&["adf", "schema"]);
+        assert_eq!(schema.message, "missing required argument <NAME>");
+        assert_eq!(
+            schema.hint.as_deref(),
+            Some(
+                "Possible values: adf, diagnostic, capabilities, validate-report. Usage: adf schema <NAME>. For more information, try '--help'."
+            )
+        );
+        let completions = usage(&["adf", "completions"]);
+        assert_eq!(completions.message, "missing required argument <SHELL>");
+        let hint = completions.hint.unwrap();
+        assert!(
+            hint.starts_with("Possible values: bash, elvish, fish, powershell, zsh."),
+            "{hint}"
+        );
+        let explain = usage(&["adf", "--error-format", "json", "explain"]);
+        assert_eq!(explain.message, "missing required argument <TOPIC>");
+        let hint = explain.hint.unwrap();
+        assert!(
+            hint.starts_with(
+                "<TOPIC>: exit-codes, envelopes, syntax, codes, or a code such as W_IMAGE_AS_LINK."
+            ),
+            "{hint}"
         );
     }
 

@@ -28,6 +28,23 @@ pub const MAX_TABLE_CELLS: usize = 100_000;
 /// `W_SIZE_LIMIT`.
 pub const JIRA_FIELD_CHAR_LIMIT: usize = 32_767;
 
+/// At most this many diagnostics of one code are listed (in document order); the rest are
+/// counted and summarised by one diagnostic of the same code, "N more … were not listed" (see
+/// [`crate::diagnostics::cap_per_code`]).
+///
+/// Every byte of a crafted document can be a separate problem, and each problem carries a JSON
+/// Pointer as long as the nesting depth: without a cap, 4 MiB of ADF produced millions of
+/// diagnostics, gigabytes of memory and hundreds of MB of stderr. The validator stops recording
+/// at this limit and only counts the rest.
+pub const MAX_LISTED_PER_CODE: usize = 100;
+
+/// The hint of `E_INPUT_TOO_DEEP` for JSON (ADF) input deeper than `max_json_depth` levels.
+pub(crate) fn json_depth_hint(max_json_depth: usize) -> String {
+    format!(
+        "Flatten the document: ADF input may nest at most {max_json_depth} levels of JSON arrays and objects"
+    )
+}
+
 /// Limits applied to one conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {

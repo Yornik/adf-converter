@@ -126,6 +126,7 @@ pub(crate) fn parse_json(text: &str) -> Result<Value, Diagnostic> {
                 byte_offset: Some(offset),
                 ..Location::default()
             })
+            .with_hint(crate::limits::json_depth_hint(max_depth))
         }
         crate::json::JsonError::Syntax(err) => {
             let message = err.to_string();

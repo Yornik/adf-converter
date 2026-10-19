@@ -199,6 +199,98 @@ impl fmt::Display for Diagnostic {
     }
 }
 
+/// The hint of every "N more … were not listed" summary; [`omitted_count`] recognises summaries
+/// by it.
+const OMITTED_HINT: &str =
+    "Only the first diagnostics of each code are listed; fix them and run again to see the rest";
+
+/// The summary that stands for `count` diagnostics of `code` that were not listed: same code
+/// and severity, no location. See [`cap_per_code`].
+pub fn omitted(code: Code, count: usize) -> Diagnostic {
+    Diagnostic::new(code, omitted_message(code, count)).with_hint(OMITTED_HINT)
+}
+
+fn omitted_message(code: Code, count: usize) -> String {
+    let noun = match (code.severity(), count) {
+        (Severity::Error, 1) => "error was",
+        (Severity::Error, _) => "errors were",
+        (Severity::Warning, 1) => "warning was",
+        (Severity::Warning, _) => "warnings were",
+    };
+    format!("{count} more {code} {noun} not listed")
+}
+
+/// How many diagnostics `diagnostic` stands for if it is an [`omitted`] summary.
+pub fn omitted_count(diagnostic: &Diagnostic) -> Option<usize> {
+    if diagnostic.location.is_some() || diagnostic.hint.as_deref() != Some(OMITTED_HINT) {
+        return None;
+    }
+    let (count, _) = diagnostic.message.split_once(' ')?;
+    let count: usize = count.parse().ok()?;
+    (diagnostic.message == omitted_message(diagnostic.code, count)).then_some(count)
+}
+
+/// How many problems `diagnostics` report: a summary counts for the diagnostics it stands for.
+pub fn reported_count<'a>(diagnostics: impl IntoIterator<Item = &'a Diagnostic>) -> usize {
+    diagnostics
+        .into_iter()
+        .map(|diagnostic| omitted_count(diagnostic).unwrap_or(1))
+        .fold(0, usize::saturating_add)
+}
+
+/// Keeps at most `limit` diagnostics of each code, in order. The others of a code are replaced by
+/// one [`omitted`] summary right after the last one kept; summaries already in the list are merged
+/// into it. The first error is always kept, so the exit code does not change.
+pub fn cap_per_code(diagnostics: Vec<Diagnostic>, limit: usize) -> Vec<Diagnostic> {
+    use std::collections::BTreeMap;
+    // Pass 1: per code, how many problems are reported in total (summaries count for what they
+    // stand for) and how many diagnostics are listed (not summaries).
+    let mut totals: BTreeMap<Code, (usize, usize)> = BTreeMap::new();
+    for diagnostic in &diagnostics {
+        let entry = totals.entry(diagnostic.code).or_default();
+        let summarised = omitted_count(diagnostic);
+        entry.0 = entry.0.saturating_add(summarised.unwrap_or(1));
+        if summarised.is_none() {
+            entry.1 = entry.1.saturating_add(1);
+        }
+    }
+    let needs_summary = |code: Code| {
+        totals
+            .get(&code)
+            .is_some_and(|&(total, listed)| total > listed.min(limit))
+    };
+    if !totals.keys().any(|&code| needs_summary(code)) {
+        return diagnostics;
+    }
+    // Pass 2: keep the first `limit` of each code; the summary follows the last one kept.
+    let mut kept: BTreeMap<Code, usize> = BTreeMap::new();
+    let mut out = Vec::new();
+    for diagnostic in diagnostics {
+        if omitted_count(&diagnostic).is_some() {
+            continue;
+        }
+        let code = diagnostic.code;
+        let count = kept.entry(code).or_default();
+        if *count >= limit {
+            continue;
+        }
+        *count += 1;
+        let (total, listed) = totals.get(&code).copied().unwrap_or_default();
+        let last_kept = *count == listed.min(limit);
+        out.push(diagnostic);
+        if last_kept && total > *count {
+            out.push(omitted(code, total - *count));
+        }
+    }
+    // Codes that only had summaries (nothing listed) keep one summary, at the end.
+    for (&code, &(total, listed)) in &totals {
+        if listed == 0 && total > 0 {
+            out.push(omitted(code, total));
+        }
+    }
+    out
+}
+
 /// A list of diagnostics returned when an operation fails. Contains at least one error, plus any
 /// warnings collected before the failure.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -309,6 +401,89 @@ fn to_u32(n: usize) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn located(code: Code, index: usize) -> Diagnostic {
+        Diagnostic::new(code, format!("problem {index}"))
+            .at(Location::pointer(format!("/content/{index}")))
+    }
+
+    fn shape(diagnostics: &[Diagnostic]) -> Vec<String> {
+        diagnostics
+            .iter()
+            .map(|d| match omitted_count(d) {
+                Some(count) => format!("{} +{count}", d.code),
+                None => format!("{} {}", d.code, d.message),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn summaries_are_recognised() {
+        let summary = omitted(Code::Schema, 3);
+        assert_eq!(summary.message, "3 more E_SCHEMA errors were not listed");
+        assert_eq!(omitted_count(&summary), Some(3));
+        assert_eq!(
+            omitted(Code::HtmlAsText, 1).message,
+            "1 more W_HTML_AS_TEXT warning was not listed"
+        );
+        let mut located = summary.clone();
+        located.location = Some(Location::pointer("/content"));
+        assert_eq!(omitted_count(&located), None);
+        assert_eq!(
+            omitted_count(&Diagnostic::new(
+                Code::Schema,
+                "3 more E_SCHEMA errors were not listed"
+            )),
+            None
+        );
+        assert_eq!(
+            reported_count(&[located, summary, omitted(Code::Schema, 2)]),
+            6
+        );
+    }
+
+    #[test]
+    fn cap_keeps_the_first_of_each_code_and_summarises_the_rest() {
+        let mut list: Vec<Diagnostic> = (0..5).map(|i| located(Code::HtmlAsText, i)).collect();
+        list.insert(1, located(Code::ImageAsLink, 9));
+        list.push(Diagnostic::new(Code::Lossy, "strict"));
+        assert_eq!(
+            shape(&cap_per_code(list.clone(), 2)),
+            [
+                "W_HTML_AS_TEXT problem 0",
+                "W_IMAGE_AS_LINK problem 9",
+                "W_HTML_AS_TEXT problem 1",
+                "W_HTML_AS_TEXT +3",
+                "E_LOSSY strict",
+            ]
+        );
+        // Nothing to cap: unchanged.
+        assert_eq!(cap_per_code(list.clone(), 5), list);
+    }
+
+    #[test]
+    fn cap_merges_existing_summaries() {
+        let mut list: Vec<Diagnostic> = (0..3).map(|i| located(Code::Schema, i)).collect();
+        list.push(omitted(Code::Schema, 10));
+        list.push(omitted(Code::Invariant, 4));
+        let capped = cap_per_code(list.clone(), 3);
+        assert_eq!(
+            shape(&capped),
+            [
+                "E_SCHEMA problem 0",
+                "E_SCHEMA problem 1",
+                "E_SCHEMA problem 2",
+                "E_SCHEMA +10",
+                "E_INVARIANT +4",
+            ]
+        );
+        // Capping again changes nothing, and a lower limit folds more into the summary.
+        assert_eq!(cap_per_code(capped.clone(), 3), capped);
+        assert_eq!(
+            shape(&cap_per_code(list, 1)),
+            ["E_SCHEMA problem 0", "E_SCHEMA +12", "E_INVARIANT +4"]
+        );
+    }
 
     #[test]
     fn codes_round_trip_and_are_unique() {

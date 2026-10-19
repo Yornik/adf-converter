@@ -1,0 +1,6 @@
+# At most 100 diagnostics of each code are listed; one summary counts the rest, and the summary
+# line counts them all.
+bin.name = "adf"
+args = ["validate", "--error-format", "text"]
+status.code = 4
+binary = true

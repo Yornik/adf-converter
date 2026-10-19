@@ -105,7 +105,7 @@
           "minimum": 0
         },
         "pointer": {
-          "description": "RFC 6901 JSON Pointer into the ADF document (or the input envelope).",
+          "description": "RFC 6901 JSON Pointer into the input: the document's position in its envelope, then the path inside the document. A Confluence body holds the document as a JSON string (/value, /body/atlas_doc_format/value); the segments after it address the JSON parsed from that string.",
           "type": "string",
           "pattern": "^(/([^~/]|~[01])*)*$"
         }

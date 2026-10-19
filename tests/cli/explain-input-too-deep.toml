@@ -1,0 +1,4 @@
+# The advice gives both nesting limits: 64 containers for Markdown, 512 JSON levels for ADF.
+bin.name = "adf"
+args = ["explain", "E_INPUT_TOO_DEEP"]
+binary = true
