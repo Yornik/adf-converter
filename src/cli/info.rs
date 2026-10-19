@@ -181,7 +181,8 @@ pub(crate) fn examples(feature: Option<&str>, json: bool) -> Outcome {
         }
         let _ = writeln!(text, "## {} ({})\n", example.name, example.kind);
         let _ = writeln!(text, "Syntax: {}\n", example.syntax);
-        let _ = writeln!(text, "```markdown\n{}```\n", example.markdown);
+        let fence = fence_for(example.markdown);
+        let _ = writeln!(text, "{fence}markdown\n{}{fence}\n", example.markdown);
         let pretty = serde_json::to_string_pretty(&example.adf).unwrap_or_default();
         let _ = writeln!(text, "```json\n{pretty}\n```");
         if !example.warnings.is_empty() {
@@ -190,6 +191,22 @@ pub(crate) fn examples(feature: Option<&str>, json: bool) -> Outcome {
         }
     }
     text_out(text)
+}
+
+/// A backtick fence longer than any backtick run in `text` (at least three), so the example can
+/// itself contain fenced code.
+fn fence_for(text: &str) -> String {
+    let mut longest = 0;
+    let mut run = 0;
+    for c in text.chars() {
+        if c == '`' {
+            run += 1;
+            longest = longest.max(run);
+        } else {
+            run = 0;
+        }
+    }
+    "`".repeat((longest + 1).max(3))
 }
 
 /// `adf schema NAME`.
@@ -422,5 +439,12 @@ mod tests {
     fn unknown_example_is_a_usage_error() {
         let outcome = examples(Some("nope"), false);
         assert_eq!(outcome.exit, 2);
+    }
+
+    #[test]
+    fn example_fences_outlast_their_content() {
+        assert_eq!(fence_for("plain"), "```");
+        assert_eq!(fence_for("```rust\nx\n```\n"), "````");
+        assert_eq!(fence_for("`a` ````` b"), "``````");
     }
 }

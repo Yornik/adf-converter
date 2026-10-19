@@ -391,6 +391,32 @@ mod tests {
         assert_eq!(validate(&doc(json!([node])), Target::Jira), NONE);
     }
 
+    /// The deepest document that is still checked, invalid at the bottom so every layer recurses
+    /// all the way down, must fit the default 2 MiB stack of a spawned thread (as in this test).
+    #[test]
+    fn deepest_checked_document_fits_a_small_stack() {
+        let mut node = json!({"type":"paragraph","content":[{"type":"text","text":"","marks":[]}]});
+        let mut lists = 0;
+        loop {
+            let deeper = json!({"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph"}, node.clone()]}]});
+            if json_depth_exceeds(&doc(json!([deeper.clone()])), MAX_JSON_DEPTH) {
+                break;
+            }
+            node = deeper;
+            lists += 1;
+        }
+        assert!(lists > 120, "{lists}");
+        let found = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || validate(&doc(json!([node])), Target::Jira))
+            .unwrap()
+            .join()
+            .unwrap();
+        let codes: Vec<Code> = found.iter().map(|d| d.code).collect();
+        // The empty `marks` (…/marks) sorts before the empty text (…/text).
+        assert_eq!(codes, [Code::Invariant, Code::Schema], "{found:#?}");
+    }
+
     #[test]
     fn pointer_order() {
         assert_eq!(
