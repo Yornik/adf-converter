@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--json"]
+status.code = 3
+binary = true

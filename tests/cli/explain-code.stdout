@@ -1,0 +1,7 @@
+W_IMAGE_AS_LINK (warning)
+
+An image became a link; ADF images need media uploaded to Jira/Confluence.
+
+What to do: Upload the image to Jira/Confluence and reference it there, or use --images external to embed it by URL.
+
+Docs: https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_image_as_link

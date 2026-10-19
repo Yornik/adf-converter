@@ -1,0 +1,2 @@
+# Deliberately invalid UTF-8: keep the bytes exactly as committed.
+input-invalid-utf8.stdin -text

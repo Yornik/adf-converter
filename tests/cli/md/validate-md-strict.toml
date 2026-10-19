@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--from", "md", "--strict"]
+status.code = 5
+binary = true

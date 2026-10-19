@@ -1,0 +1,7 @@
+E_SCHEMA (error, exit code 4)
+
+The ADF document does not match the ADF JSON schema.
+
+What to do: Fix the node at the reported JSON Pointer; `adf schema adf` prints the schema.
+
+Docs: https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_schema

@@ -1,0 +1,6 @@
+# Rules beyond the schema: duplicate marks, javascript: links, list items starting with a list,
+# duplicate localIds, ragged tables.
+bin.name = "adf"
+args = ["validate"]
+status.code = 4
+binary = true

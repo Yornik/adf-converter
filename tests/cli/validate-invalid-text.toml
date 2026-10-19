@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--error-format", "text"]
+status.code = 4
+binary = true

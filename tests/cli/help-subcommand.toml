@@ -1,0 +1,4 @@
+# `adf help COMMAND` is the same as `adf COMMAND --help`.
+bin.name = "adf"
+args = ["help", "validate"]
+binary = true

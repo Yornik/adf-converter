@@ -1,0 +1,5 @@
+# Invalid UTF-8 is reported with the byte offset of the first bad byte.
+bin.name = "adf"
+args = ["validate", "--from", "md"]
+status.code = 3
+binary = true

@@ -1,0 +1,20 @@
+## Envelopes
+
+`-e/--envelope` wraps the ADF document for the API you are calling:
+
+| Name | Output | Use with |
+|---|---|---|
+| `doc` (default) | `{"type":"doc","version":1,"content":[…]}` | acli `--body-adf` / `--description-file`, embedding in your own JSON |
+| `jira-comment` | `{"body": DOC}` | `POST /rest/api/3/issue/{key}/comment`, `PUT …/comment/{id}` |
+| `jira-description` | `{"fields": {"description": DOC}}` | `PUT /rest/api/3/issue/{key}` |
+| `jira-field` | `{"fields": {"<NAME>": DOC}}` (requires `--field NAME`, e.g. `customfield_10010`) | `PUT /rest/api/3/issue/{key}` for rich-text custom fields |
+| `confluence` | `{"representation":"atlas_doc_format","value":"<DOC as a JSON string>"}` | the `body` of Confluence v2 `POST /wiki/api/v2/pages`, `/footer-comments` |
+
+**Input detection** with `--from adf`, in order:
+1. `{"type":"doc"}`;
+2. `{"body": DOC}`;
+3. `{"fields": {...}}`: uses `--field NAME`, default `description`;
+4. `{"representation":"atlas_doc_format","value":"…"}`;
+5. `{"body":{"atlas_doc_format":{"value":"…"}}}`.
+
+Anything else fails with `E_INPUT_NOT_ADF` (exit 3).

@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "missing.json"]
+status.code = 3
+binary = true

@@ -1,0 +1,4 @@
+# Input that does not start with `{` is validated as Markdown.
+bin.name = "adf"
+args = ["validate", "--error-format", "text"]
+binary = true

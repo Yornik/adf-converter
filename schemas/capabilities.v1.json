@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Yornik/adf-converter/main/schemas/capabilities.v1.json",
+  "title": "adf capabilities --json, version 1",
+  "description": "What this build of adf supports. See docs/cli-contract.md#capabilities---json.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "version",
+    "adf_schema",
+    "directions",
+    "envelopes",
+    "targets",
+    "features",
+    "extensions",
+    "exit_codes",
+    "diagnostic_codes",
+    "limits"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "version": {
+      "description": "The adf version.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+    },
+    "adf_schema": {
+      "description": "The vendored ADF schema, e.g. @atlaskit/adf-schema@57.7.18.",
+      "type": "string",
+      "pattern": "^@atlaskit/adf-schema@[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "directions": {
+      "type": "array",
+      "items": {
+        "enum": ["md->adf", "adf->md"]
+      },
+      "uniqueItems": true
+    },
+    "envelopes": {
+      "description": "The values of -e/--envelope.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "shape", "endpoint", "default_target", "requires_field"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shape": {
+            "description": "The JSON shape; DOC stands for the ADF document.",
+            "type": "string",
+            "minLength": 1
+          },
+          "endpoint": {
+            "description": "Where the shape is used.",
+            "type": "string",
+            "minLength": 1
+          },
+          "default_target": {
+            "description": "The target used by -t auto.",
+            "enum": ["jira", "confluence"]
+          },
+          "requires_field": {
+            "description": "Whether --field NAME is required.",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "enum": ["jira", "confluence"]
+      },
+      "uniqueItems": true
+    },
+    "features": {
+      "description": "Supported Markdown constructs (docs/syntax.md).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "kind", "syntax", "adf"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "Stable name; `adf examples NAME` shows an example.",
+            "type": "string",
+            "pattern": "^[a-z][a-z-]*$"
+          },
+          "kind": {
+            "enum": ["commonmark", "gfm", "extension"]
+          },
+          "extension": {
+            "description": "The --extensions name (kind extension only).",
+            "type": "string",
+            "minLength": 1
+          },
+          "syntax": {
+            "type": "string",
+            "minLength": 1
+          },
+          "adf": {
+            "description": "ADF node and mark types produced.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "note": {
+            "description": "Lossy or optional behaviour.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "extensions": {
+      "description": "The ADF extensions of --extensions.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "syntax", "adf", "default"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "syntax": {
+            "type": "string"
+          },
+          "adf": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "default": {
+            "description": "Whether it is on without --extensions.",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "exit_codes": {
+      "description": "Process exit code (as a string) to its meaning.",
+      "type": "object",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": ["0", "1", "2", "3", "4", "5"]
+    },
+    "diagnostic_codes": {
+      "description": "Every diagnostic code (`adf explain CODE`).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "exit_code", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[EW]_[A-Z0-9_]+$"
+          },
+          "severity": {
+            "enum": ["error", "warning"]
+          },
+          "exit_code": {
+            "description": "0 for warnings.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": ["max_input_bytes", "max_nesting_depth", "jira_field_char_limit"],
+      "additionalProperties": false,
+      "properties": {
+        "max_input_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_nesting_depth": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "jira_field_char_limit": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

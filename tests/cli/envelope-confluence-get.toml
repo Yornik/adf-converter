@@ -1,0 +1,5 @@
+# Pointers are prefixed with the position of the document in the envelope.
+bin.name = "adf"
+args = ["validate"]
+status.code = 4
+binary = true

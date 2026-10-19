@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["notes.md"]
+status.code = 2
+binary = true

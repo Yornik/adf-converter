@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_SCHEMA","message":"text nodes must not be empty","location":{"file":"-","pointer":"/body/atlas_doc_format/value/content/0/content/0/text"},"hint":"Remove the node or give it some text","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_schema","exit_code":4}

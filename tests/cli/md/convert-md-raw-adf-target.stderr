@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_RAW_ADF","message":"an ```adf block is not valid for jira: `layoutSection` is not accepted by Jira: layouts are a Confluence feature",[..]"exit_code":3}

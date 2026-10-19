@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"unknown topic 'bogus'","hint":"Topics: exit-codes, envelopes, syntax, codes, or a diagnostic code such as W_IMAGE_AS_LINK (see `adf explain codes`)","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

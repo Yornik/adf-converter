@@ -1,0 +1,4 @@
+# --help prints to stdout and exits 0.
+bin.name = "adf"
+args = ["--help"]
+binary = true

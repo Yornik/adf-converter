@@ -1,0 +1,4 @@
+# A valid document: exit 0, nothing on stdout, no diagnostics.
+bin.name = "adf"
+args = ["validate"]
+binary = true

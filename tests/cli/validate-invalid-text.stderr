@@ -1,0 +1,4 @@
+-#/content/0/content/0/marks: error[E_SCHEMA]: the `code` mark can only be combined with `link`, but this text also has `strong` (hint: Split the text into separate nodes, or drop the other marks)
+-#/content/0/content/1/text: error[E_SCHEMA]: text nodes must not be empty (hint: Remove the node or give it some text)
+-#/content/1/content/0: error[E_SCHEMA]: `heading` is not allowed inside `blockquote` (hint: Allowed here: paragraph, orderedList, bulletList, codeBlock, mediaSingle, mediaGroup, extension)
+-: invalid ADF for jira, envelope doc: 3 errors, 0 warnings
