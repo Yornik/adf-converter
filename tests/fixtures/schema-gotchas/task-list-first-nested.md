@@ -1,0 +1,2 @@
+- [ ]
+  - [ ] nested under an empty task

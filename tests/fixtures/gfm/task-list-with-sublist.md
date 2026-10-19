@@ -1,0 +1,4 @@
+- [ ] task with a plain sublist
+  - plain one
+  - plain two
+- [x] next task

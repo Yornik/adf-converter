@@ -1,0 +1,3 @@
+- [ ] **bold** task with `code`
+- [x] task with a [link](https://example.com)
+- [ ] ~~struck~~ task

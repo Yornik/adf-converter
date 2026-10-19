@@ -1,0 +1,5 @@
+> [!NOTE]
+> outer
+>
+> > [!CAUTION]
+> > inner
