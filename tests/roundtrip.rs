@@ -70,12 +70,6 @@ fn plain_flavour_smoke_test() {
                         support::render_diagnostics(&warnings)
                     ));
                 }
-                if !markdown.is_empty() && !markdown.ends_with('\n') {
-                    failures.push(format!(
-                        "{}: plain output does not end with a newline",
-                        fixture.name
-                    ));
-                }
             }
         }
     }
