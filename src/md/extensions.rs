@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 use crate::adf::model::{
     Date, Emoji, Href, Inline, InlineCard, Mention, NonEmptyString, Status, StatusColor,
 };
-use crate::diagnostics::Code;
-use crate::options::Extensions;
+use crate::diagnostics::{Code, Diagnostic};
+use crate::options::{Extensions, Target};
 
 /// The kinds of `adf:` link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -357,48 +357,75 @@ fn adf_validator() -> Result<&'static jsonschema::Validator, String> {
 
 /// Checks that `nodes` are valid ADF in `place`. The error describes the first problem, with a
 /// JSON Pointer relative to the block's own JSON.
-pub(crate) fn validate_raw(nodes: &[Value], place: RawPlace) -> Result<(), String> {
+pub(crate) fn validate_raw(nodes: &[Value], place: RawPlace, target: Target) -> Result<(), String> {
     let validator = adf_validator()?;
     let (doc, prefix) = place.wrap(nodes);
-    let first_index = usize::from(place == RawPlace::ListItem);
-    let Some(error) = validator.iter_errors(&doc).next() else {
-        return Ok(());
-    };
-    let path = error.instance_path().to_string();
-    // The pointer relative to the block's own JSON, if the error is inside one of its nodes.
-    let relative = path.strip_prefix(&prefix).and_then(|rest| {
-        let rest = rest.strip_prefix('/')?;
-        let (index, tail) = rest.split_once('/').unwrap_or((rest, ""));
-        let index: usize = index.parse().ok()?;
-        let index = index.checked_sub(first_index)?;
-        Some(match (nodes.len(), tail.is_empty()) {
-            (1, _) => format!("/{tail}"),
-            (_, true) => format!("/{index}"),
-            (_, false) => format!("/{index}/{tail}"),
-        })
-    });
-    let Some(relative) = relative else {
-        // The container itself rejects the nodes: they are not allowed there.
-        let types: Vec<&str> = nodes
-            .iter()
-            .filter_map(|n| n.get("type").and_then(Value::as_str))
-            .collect();
+    let pointer = |path: &str| relative_pointer(path, &prefix, place, nodes.len());
+    if let Some(error) = validator.iter_errors(&doc).next() {
+        let Some(relative) = pointer(&error.instance_path().to_string()) else {
+            // The container itself rejects the nodes: they are not allowed there.
+            let types: Vec<&str> = nodes
+                .iter()
+                .filter_map(|n| n.get("type").and_then(Value::as_str))
+                .collect();
+            return Err(format!(
+                "not valid ADF in {}: {} cannot be placed there",
+                place.describe(),
+                truncate(&types.join(", "), 80)
+            ));
+        };
         return Err(format!(
-            "not valid ADF in {}: {} cannot be placed there",
+            "not valid ADF in {}{}: {}",
             place.describe(),
-            truncate(&types.join(", "), 80)
+            at(&relative),
+            truncate(&error.to_string(), 200)
         ));
-    };
-    let location = if relative == "/" {
+    }
+    // The target's rules and the invariants beyond the schema (the same check the CLI applies
+    // to the whole output). Only problems inside the spliced nodes count.
+    let problem = crate::adf::validate::validate(&doc, target)
+        .into_iter()
+        .filter(Diagnostic::is_error)
+        .find_map(|d| {
+            let path = d.location.as_ref().and_then(|l| l.pointer.clone())?;
+            pointer(&path).map(|relative| (relative, d))
+        });
+    if let Some((relative, d)) = problem {
+        return Err(format!(
+            "not accepted by {}{}: {}: {}",
+            target.as_str(),
+            at(&relative),
+            d.code,
+            truncate(&d.message, 200)
+        ));
+    }
+    Ok(())
+}
+
+/// ` (at /pointer)`, or nothing for the node itself.
+fn at(relative: &str) -> String {
+    if relative == "/" {
         String::new()
     } else {
         format!(" (at {relative})")
-    };
-    Err(format!(
-        "not valid ADF in {}{location}: {}",
-        place.describe(),
-        truncate(&error.to_string(), 200)
-    ))
+    }
+}
+
+/// Converts a JSON Pointer into the wrapper document to one relative to the block's own JSON
+/// (`/…` for a single node, `/<index>/…` for an array). `None` if it points outside the nodes.
+fn relative_pointer(path: &str, prefix: &str, place: RawPlace, count: usize) -> Option<String> {
+    let first_index = usize::from(place == RawPlace::ListItem);
+    let rest = path.strip_prefix(prefix)?.strip_prefix('/')?;
+    let (index, tail) = rest.split_once('/').unwrap_or((rest, ""));
+    let index = index.parse::<usize>().ok()?.checked_sub(first_index)?;
+    if index >= count {
+        return None;
+    }
+    Some(match (count, tail.is_empty()) {
+        (1, _) => format!("/{tail}"),
+        (_, true) => format!("/{index}"),
+        (_, false) => format!("/{index}/{tail}"),
+    })
 }
 
 /// Shortens `s` to at most `max` characters for messages (diagnostics must not echo big input).
@@ -504,24 +531,24 @@ mod tests {
         assert!(parse_raw("{\"x\":1}").is_err());
         assert!(parse_raw("{").is_err());
         let rule = vec![json!({"type":"rule"})];
-        assert!(validate_raw(&rule, RawPlace::Doc).is_ok());
-        assert!(validate_raw(&rule, RawPlace::Panel).is_ok());
-        let err = validate_raw(&rule, RawPlace::ListItem).unwrap_err();
+        assert!(validate_raw(&rule, RawPlace::Doc, Target::Jira).is_ok());
+        assert!(validate_raw(&rule, RawPlace::Panel, Target::Jira).is_ok());
+        let err = validate_raw(&rule, RawPlace::ListItem, Target::Jira).unwrap_err();
         assert!(err.contains("list item"), "{err}");
-        assert!(validate_raw(&rule, RawPlace::Blockquote).is_err());
+        assert!(validate_raw(&rule, RawPlace::Blockquote, Target::Jira).is_err());
         let table = vec![
             json!({"type":"table","content":[{"type":"tableRow","content":[{"type":"tableCell","content":[{"type":"paragraph"}]}]}]}),
         ];
-        assert!(validate_raw(&table, RawPlace::Doc).is_ok());
-        assert!(validate_raw(&table, RawPlace::TableCell).is_err());
-        assert!(validate_raw(&table, RawPlace::NestedExpand).is_err());
-        assert!(validate_raw(&table, RawPlace::Expand).is_ok());
+        assert!(validate_raw(&table, RawPlace::Doc, Target::Jira).is_ok());
+        assert!(validate_raw(&table, RawPlace::TableCell, Target::Jira).is_err());
+        assert!(validate_raw(&table, RawPlace::NestedExpand, Target::Jira).is_err());
+        assert!(validate_raw(&table, RawPlace::Expand, Target::Jira).is_ok());
         let text = vec![json!({"type":"text","text":"x"})];
-        assert!(validate_raw(&text, RawPlace::Doc).is_err());
+        assert!(validate_raw(&text, RawPlace::Doc, Target::Jira).is_err());
         let bad_attr = vec![
             json!({"type":"panel","attrs":{"panelType":"bogus"},"content":[{"type":"paragraph"}]}),
         ];
-        let err = validate_raw(&bad_attr, RawPlace::Doc).unwrap_err();
+        let err = validate_raw(&bad_attr, RawPlace::Doc, Target::Jira).unwrap_err();
         assert!(err.starts_with("not valid ADF in the document"), "{err}");
     }
 }

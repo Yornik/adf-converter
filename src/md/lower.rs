@@ -546,7 +546,7 @@ impl Lowerer<'_, '_> {
                 }
             },
             Block::Raw { nodes, span } => {
-                if let Err(message) = validate_raw(&nodes, ctx.raw_place()) {
+                if let Err(message) = validate_raw(&nodes, ctx.raw_place(), self.cx.opts.target) {
                     return Err(self.cx.diag(
                         Code::RawAdf,
                         format!("```adf block is {message}"),

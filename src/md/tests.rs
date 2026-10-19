@@ -1186,6 +1186,17 @@ fn box_cell_rules() {
     assert_eq!(codes(&warnings), vec![Code::ExtensionDisabled]);
 }
 
+/// Raw nodes that the schema accepts but the target rejects fail at the fence, rather than in
+/// the CLI's self-check of the whole output. Needs the target rules of `adf::validate` (stream
+/// S3): pending until integration.
+#[test]
+fn raw_adf_blocks_follow_target_rules() {
+    let md = "```adf\n{\"type\":\"codeBlock\",\"attrs\":{\"wrap\":true}}\n```";
+    let err = error_of(md, &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::RawAdf, "{err}");
+    assert!(err.message.contains("jira"), "{}", err.message);
+}
+
 #[test]
 fn raw_adf_blocks() {
     assert_eq!(
