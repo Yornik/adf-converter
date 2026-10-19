@@ -8,12 +8,13 @@ use super::Outcome;
 use super::args::{ConvertArgs, ConvertFrom, EnvelopeArg, MarkdownArgs, TargetArg};
 use super::input::{self, Input};
 use super::output;
+use crate::Conversion;
 use crate::adf::envelope::{self, Envelope};
 use crate::adf::model::{
     BlockquoteChild, BulletList, Doc, DocBlock, ExpandChild, ListItem, ListItemChild,
     NestedExpandChild, OrderedList, PanelChild, Table, TableCellChild,
 };
-use crate::diagnostics::{Code, Diagnostic};
+use crate::diagnostics::{Code, Diagnostic, Diagnostics};
 use crate::limits::Limits;
 use crate::options::{AdfToMdOptions, MdToAdfOptions, Target};
 
@@ -212,7 +213,15 @@ pub(crate) fn markdown_pipeline(
     text: &str,
     opts: &MdToAdfOptions,
 ) -> Result<Converted, Vec<Diagnostic>> {
-    let conversion = crate::md_to_adf(text, opts).map_err(|diagnostics| diagnostics.0)?;
+    self_checked(crate::md_to_adf(text, opts), opts.target)
+}
+
+/// The self-check half of [`markdown_pipeline`], given the converter's result.
+fn self_checked(
+    converted: Result<Conversion<Doc>, Diagnostics>,
+    target: Target,
+) -> Result<Converted, Vec<Diagnostic>> {
+    let conversion = converted.map_err(|diagnostics| diagnostics.0)?;
     let raw = raw_pointers(&conversion.output);
     let mut warnings = conversion.warnings;
     let doc = match conversion.output.to_value() {
@@ -226,12 +235,11 @@ pub(crate) fn markdown_pipeline(
             return Err(all);
         }
     };
-    let (errors, checks): (Vec<Diagnostic>, Vec<Diagnostic>) =
-        crate::validate_adf(&doc, opts.target)
-            .into_iter()
-            .partition(Diagnostic::is_error);
+    let (errors, checks): (Vec<Diagnostic>, Vec<Diagnostic>) = crate::validate_adf(&doc, target)
+        .into_iter()
+        .partition(Diagnostic::is_error);
     if !errors.is_empty() {
-        let mut all = self_check_failure(errors, &raw, opts.target);
+        let mut all = self_check_failure(errors, &raw, target);
         all.append(&mut warnings);
         return Err(all);
     }
@@ -645,6 +653,120 @@ mod tests {
         let out = self_check_failure(deep, &raw, Target::Jira);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].code, Code::InputTooDeep);
+    }
+
+    /// A successful converter result, shaped like `md_to_adf`'s.
+    #[allow(clippy::unnecessary_wraps)]
+    fn converted(
+        content: Vec<DocBlock>,
+        warnings: Vec<Diagnostic>,
+    ) -> Result<Conversion<Doc>, Diagnostics> {
+        Ok(Conversion {
+            output: Doc { content },
+            warnings,
+        })
+    }
+
+    fn paragraph(text: &str) -> DocBlock {
+        DocBlock::Paragraph(AlignedParagraph {
+            content: vec![crate::adf::model::Inline::Text(
+                crate::adf::model::Text::plain(text).unwrap(),
+            )],
+            align: None,
+        })
+    }
+
+    fn codes(diagnostics: &[Diagnostic]) -> Vec<Code> {
+        diagnostics.iter().map(|d| d.code).collect()
+    }
+
+    #[test]
+    fn self_check_passes_valid_output_through() {
+        let warning = Diagnostic::new(Code::ImageAsLink, "image");
+        let out =
+            self_checked(converted(vec![paragraph("x")], vec![warning]), Target::Jira).unwrap();
+        assert_eq!(codes(&out.warnings), [Code::ImageAsLink]);
+        assert_eq!(out.doc["content"][0]["type"], "paragraph");
+    }
+
+    #[test]
+    fn self_check_adds_document_warnings_once() {
+        let out = self_checked(converted(Vec::new(), Vec::new()), Target::Jira).unwrap();
+        assert_eq!(codes(&out.warnings), [Code::EmptyDocument]);
+        let already = Diagnostic::new(Code::EmptyDocument, "from the converter");
+        let out = self_checked(converted(Vec::new(), vec![already]), Target::Jira).unwrap();
+        assert_eq!(codes(&out.warnings), [Code::EmptyDocument]);
+        assert_eq!(out.warnings[0].message, "from the converter");
+    }
+
+    #[test]
+    fn self_check_blames_raw_blocks_on_the_user() {
+        let layout = RawNode(json!({"type":"layoutSection","content":[
+            {"type":"layoutColumn","attrs":{"width":50},"content":[{"type":"paragraph"}]},
+            {"type":"layoutColumn","attrs":{"width":50},"content":[{"type":"paragraph"}]}]}));
+        let result = self_checked(
+            converted(
+                vec![paragraph("x"), DocBlock::Raw(layout.clone())],
+                Vec::new(),
+            ),
+            Target::Jira,
+        );
+        let errors = result.unwrap_err();
+        assert_eq!(codes(&errors), [Code::RawAdf]);
+        assert_eq!(
+            errors[0].location.as_ref().unwrap().pointer.as_deref(),
+            Some("/content/1")
+        );
+        assert!(
+            errors[0].message.contains("layoutSection"),
+            "{}",
+            errors[0].message
+        );
+        // Confluence accepts layouts.
+        let out = self_checked(
+            converted(vec![DocBlock::Raw(layout)], Vec::new()),
+            Target::Confluence,
+        )
+        .unwrap();
+        assert_eq!(out.doc["content"][0]["type"], "layoutSection");
+    }
+
+    #[test]
+    fn self_check_reports_invalid_output_as_a_bug() {
+        use crate::adf::model::{TaskItem, TaskList, TaskState};
+        // The typed model cannot express most mistakes, but it can repeat a localId.
+        let item = TaskItem {
+            local_id: "same".into(),
+            state: TaskState::Todo,
+            content: Vec::new(),
+        };
+        let list = DocBlock::TaskList(TaskList {
+            local_id: "same".into(),
+            first: item,
+            rest: Vec::new(),
+        });
+        let errors = self_checked(converted(vec![list], Vec::new()), Target::Jira).unwrap_err();
+        assert_eq!(codes(&errors), [Code::Internal]);
+        assert!(
+            errors[0]
+                .hint
+                .as_deref()
+                .unwrap()
+                .contains("E_INVARIANT at /content/0/content/0/attrs/localId"),
+            "{:?}",
+            errors[0].hint
+        );
+    }
+
+    #[test]
+    fn converter_failures_keep_every_diagnostic() {
+        let warning = Diagnostic::new(Code::ImageAsLink, "image");
+        let failed: Result<Conversion<Doc>, Diagnostics> = Err(Diagnostics(vec![
+            warning,
+            Diagnostic::new(Code::Lossy, "html"),
+        ]));
+        let errors = self_checked(failed, Target::Jira).unwrap_err();
+        assert_eq!(codes(&errors), [Code::ImageAsLink, Code::Lossy]);
     }
 
     #[test]
