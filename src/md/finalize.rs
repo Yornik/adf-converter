@@ -2,7 +2,7 @@
 //! newlines into `hardBreak`s, trims block-edge whitespace, drops trailing hard breaks, merges
 //! adjacent text with equal marks and never emits an empty text node.
 
-use crate::adf::model::{Inline, MediaSingle, NonEmptyString, Text};
+use crate::adf::model::{Formatting, Inline, MediaSingle, NonEmptyString, Text};
 use crate::diagnostics::Code;
 
 use super::cx::Cx;
@@ -136,6 +136,18 @@ fn push_text(
             span,
         );
     }
+    // Compare and merge by the marks that reach the output: `<kbd>a *b*</kbd>` is one code run.
+    let marks = &if marks.code {
+        Marks {
+            fmt: Formatting {
+                link: marks.fmt.link.clone(),
+                ..Formatting::default()
+            },
+            code: true,
+        }
+    } else {
+        marks.clone()
+    };
     let mut first = true;
     for part in cleaned.split('\n') {
         if !first {

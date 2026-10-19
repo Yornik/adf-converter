@@ -842,6 +842,12 @@ fn images_by_policy() {
     let (value, warnings) = run_with("![a](javascript:x)", &external);
     assert_eq!(value["content"], json!([pt("a")]));
     assert_eq!(codes(&warnings), vec![Code::UnsafeUrl]);
+    // The alt text is trimmed after control characters and newlines are gone.
+    assert_eq!(
+        run_with("![\u{7} a\n\u{7}](https://x/i.png)", &external).0["content"],
+        json!([{"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+            {"type": "media", "attrs": {"type": "external", "url": "https://x/i.png", "alt": "a"}}]}])
+    );
     let drop = opts_with(|o| o.images = ImagePolicy::Drop);
     let (value, warnings) = run_with("a ![x](https://i) b", &drop);
     assert_eq!(value["content"], json!([pt("a  b")]));
@@ -892,6 +898,17 @@ fn recognised_inline_html() {
         ]))])
     );
     assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+    // Once the dropped formatting is gone, adjacent code text is one node.
+    let (value, warnings) = run("<kbd>a *b*</kbd> **<kbd>c</kbd>**<kbd>d</kbd>");
+    assert_eq!(
+        value["content"],
+        json!([p(json!([
+            tm("a b", json!([{"type": "code"}])),
+            t(" "),
+            tm("cd", json!([{"type": "code"}]))
+        ]))])
+    );
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped, Code::MarkDropped]);
     // Overlapping HTML and Markdown marks, an unclosed tag, comments.
     assert_eq!(
         content("<u>*a</u> b* <b>open <!-- gone -->x"),
