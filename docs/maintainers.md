@@ -192,10 +192,8 @@ Conventional Commit messages on `main` (see
 
 If the build or publish job fails, re-run the failed jobs from the Actions tab within 30 days
 (the build artifacts are kept that long; publish fails, and publishes nothing, unless all six
-zips are there).
-If the problem needs a code change, merge a `fix:` PR; release-please then proposes the next
-patch version.
-Never delete or move a published tag.
+zips are there). If the problem needs a code change, merge a `fix:` PR; release-please then
+proposes the next patch version. Never delete or move a published tag.
 
 ### Verifying a release
 
