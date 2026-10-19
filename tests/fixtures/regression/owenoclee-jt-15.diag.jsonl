@@ -5,4 +5,5 @@
 {"code":"W_BLOCK_HOISTED","line":7,"column":3}
 {"code":"W_BLOCK_FLATTENED","line":9,"column":3}
 {"code":"W_HEADING_DEMOTED","line":11,"column":3}
-{"code":"W_BLOCK_HOISTED","line":13,"column":3}
+{"code":"W_BLOCK_HOISTED","line":14,"column":3}
+{"code":"W_BLOCK_HOISTED","line":15,"column":3}

@@ -266,6 +266,42 @@ fn size_limit_warning() {
     assert_eq!(output.status.code(), Some(5));
 }
 
+/// `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` come from the self-check of the converted output, which
+/// the golden harness does not run, so their `lossy/` fixtures are converted here with the CLI.
+#[test]
+fn markdown_fixtures_warn_from_the_self_check() {
+    let cases = [
+        ("tests/fixtures/lossy/size-limit.md", "W_SIZE_LIMIT"),
+        ("tests/fixtures/lossy/empty-document.md", "W_EMPTY_DOCUMENT"),
+        (
+            "tests/fixtures/lossy/comment-only-document.md",
+            "W_EMPTY_DOCUMENT",
+        ),
+    ];
+    for (path, code) in cases {
+        let output = adf(&["convert", "--from", "md", path], b"", None);
+        assert_eq!(output.status.code(), Some(0), "{path}");
+        assert_eq!(codes(&output), [code], "{path}");
+        assert!(!output.stdout.is_empty(), "{path}: the document is written");
+        let output = adf(&["convert", "--from", "md", "--strict", path], b"", None);
+        assert_eq!(output.status.code(), Some(5), "{path} --strict");
+        assert_eq!(codes(&output), [code, "E_LOSSY"], "{path} --strict");
+        assert!(
+            output.stdout.is_empty(),
+            "{path} --strict: nothing is written"
+        );
+    }
+    // The size limit is Jira's; Confluence has no such warning.
+    let path = "tests/fixtures/lossy/size-limit.md";
+    let output = adf(
+        &["convert", "--from", "md", "-t", "confluence", path],
+        b"",
+        None,
+    );
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(codes(&output), Vec::<String>::new());
+}
+
 #[test]
 fn error_format_from_the_environment() {
     let mut command = Command::new(bin());

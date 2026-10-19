@@ -36,11 +36,29 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "code indented with a tab"
+                  "text": "continues the second item: the tab reaches its content column"
                 }
               ]
             }
           ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A paragraph ends the list."
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "code indented with a tab"
         }
       ]
     },

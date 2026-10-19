@@ -51,7 +51,7 @@ document disagree, that's a bug.
 | `[text](url "title")`, reference links | `link` `{href, title}` | `title` only if non-empty. `href` must pass the [URL allowlist](#url-allowlist); otherwise the text is kept without a link, `W_UNSAFE_URL`. Empty link text → the URL is used as text. Link text of only spaces (`[ ](url)`) is kept, even at the edge of a block. |
 | `<https://x>`, `<a@b.c>` | `link` | Email → `mailto:`. |
 | Bare `https://x`, `www.x.com` (GFM) | `link` | `www.` gets `http://`. Only URLs that appear literally in the source are linked, so `https\://x` stays text. |
-| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`, after the paragraph, heading or cell text (which keeps one space where the image was); external media has no title, so a title is dropped with `W_MARK_DROPPED`. `--images drop` → removed, `W_IMAGE_DROPPED`. Alt text is plain: line breaks (`<br>` too) become spaces. |
+| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`, after the paragraph, heading or cell text (which keeps one space where the image was); external media has no title and cannot be linked, so an image title or a link around the image is dropped with `W_MARK_DROPPED`. `--images drop` → removed, `W_IMAGE_DROPPED`. Alt text is plain: line breaks (`<br>` too) become spaces. |
 | `<u>` / `<ins>` | `underline` | |
 | `<s>` / `<del>` / `<strike>` | `strike` | |
 | `<strong>` / `<b>`, `<em>` / `<i>` | `strong`, `em` | Used by ADF → Markdown when `**`/`*` would not parse. |
@@ -201,7 +201,8 @@ label.
 - A task item holds inline content only. Several paragraphs are joined with `hardBreak`.
 - A nested task list stays nested (`taskList` inside `taskList`, after its item).
 - Other blocks under a task item (a plain sublist, code, a table) are hoisted after the task list,
-  with `W_BLOCK_HOISTED`.
+  with `W_BLOCK_HOISTED`. So are external images (`--images external`); the spaces around a moved
+  image collapse to one.
 - A list mixing checkbox and plain items is split into consecutive `taskList` and
   `bulletList`/`orderedList` runs.
 - An ordered task list (`1. [ ] x`) becomes a `taskList`, with `W_TASK_NUMBERING_LOST`.

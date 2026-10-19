@@ -49,6 +49,15 @@
           "text": " from F1."
         }
       ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An empty  span."
+        }
+      ]
     }
   ]
 }

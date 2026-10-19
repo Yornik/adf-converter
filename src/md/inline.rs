@@ -903,8 +903,8 @@ impl InlineBuilder {
             mode,
             url: dest.to_owned(),
             link,
+            titled: !strip_controls(title).trim().is_empty(),
             alt: String::new(),
-            titled: !title.trim().is_empty(),
             start_tok: self.toks.len(),
             span,
         };

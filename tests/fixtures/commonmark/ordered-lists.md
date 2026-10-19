@@ -8,4 +8,6 @@
 3. starts at three
 4. four
 
+A paragraph ends that list.
+
 0. starts at zero

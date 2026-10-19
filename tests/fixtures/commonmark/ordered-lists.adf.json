@@ -121,7 +121,24 @@
               ]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A paragraph ends that list."
+        }
+      ]
+    },
+    {
+      "type": "orderedList",
+      "attrs": {
+        "order": 0
+      },
+      "content": [
         {
           "type": "listItem",
           "content": [
