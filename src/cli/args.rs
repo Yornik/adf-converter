@@ -25,9 +25,12 @@ Unofficial community tool; not affiliated with or endorsed by Atlassian. Jira an
 trademarks of Atlassian.";
 
 /// Convert Markdown to Atlassian Document Format (ADF) JSON for Jira and Confluence, and back.
+// `bin_name` is fixed so that usage lines say `adf` whatever argv[0] is (`adf.exe` on Windows, a
+// full path, a renamed copy): `--help` and `E_USAGE` hints are the same on every platform.
 #[derive(Debug, Parser)]
 #[command(
     name = "adf",
+    bin_name = "adf",
     version,
     after_help = AFTER_HELP,
     term_width = 100,
@@ -446,6 +449,24 @@ mod tests {
         assert_eq!(args.target, TargetArg::Confluence);
         assert_eq!(args.markdown.softbreak, SoftBreakArg::HardBreak);
         assert!(args.markdown.extensions.alerts && !args.markdown.extensions.details);
+    }
+
+    /// Windows starts the binary as `…\adf.exe`; usage lines must still say `adf`.
+    #[test]
+    fn usage_names_the_binary_adf_whatever_argv0_is() {
+        for argv0 in [r"C:\tools\adf.exe", "/usr/local/bin/adf-0.1", "adf.exe"] {
+            let help = Cli::try_parse_from([argv0, "--help"])
+                .unwrap_err()
+                .render()
+                .to_string();
+            assert!(help.contains("Usage: adf [OPTIONS] <COMMAND>"), "{help}");
+            let usage = Cli::try_parse_from([argv0, "convert", "--bogus"])
+                .unwrap_err()
+                .render()
+                .to_string();
+            assert!(usage.contains("Usage: adf convert [OPTIONS]"), "{usage}");
+            assert!(!usage.contains(".exe") && !usage.contains("adf-0.1"), "{usage}");
+        }
     }
 
     #[test]
