@@ -40,6 +40,21 @@ pub(crate) struct Prepass {
 
 /// Runs the prepass. `cells` enables `::: cell` boxes.
 pub(crate) fn run(source: &str, cells: bool) -> Prepass {
+    run_impl(source, cells, false)
+}
+
+/// Like [`run`], but also removes trailing spaces and tabs from blank lines (lines of only
+/// spaces, tabs and quote markers), outside top-level fenced code.
+///
+/// CommonMark treats such lines as blank, so this only changes trailing whitespace on blank
+/// lines inside indented code (or code nested in containers). It is a fallback for input that
+/// trips a pulldown-cmark 0.13 bug (a list item holding only link reference definitions,
+/// followed by a deeply indented blank line, makes its offset iterator panic).
+pub(crate) fn run_blanking_whitespace_lines(source: &str, cells: bool) -> Prepass {
+    run_impl(source, cells, true)
+}
+
+fn run_impl(source: &str, cells: bool, blank_whitespace_lines: bool) -> Prepass {
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
     let normalised = normalise_newlines(source);
     let mut out = Prepass::default();
@@ -105,6 +120,14 @@ pub(crate) fn run(source: &str, cells: bool) -> Prepass {
             open_box = None;
             out.cell_closes.insert(start);
             replacement = Some(CLOSE_MARKER);
+        }
+        // A blank line, possibly inside quotes (`>\t\t`): drop its trailing whitespace.
+        if blank_whitespace_lines
+            && fence.is_none()
+            && replacement.is_none()
+            && line.bytes().all(|b| matches!(b, b' ' | b'\t' | b'>'))
+        {
+            replacement = Some(line.trim_end_matches([' ', '\t']));
         }
         push_line(
             &mut out.text,
@@ -305,6 +328,16 @@ mod tests {
         // Tilde fences and longer closing fences.
         let src = "~~~~\n::: cell\n~~~\n::: cell\n~~~~~\n";
         assert_eq!(run(src, true).text, src);
+    }
+
+    #[test]
+    fn whitespace_only_lines_blanked_outside_fences() {
+        let src = "a\n\t\t\n```\n  \n```\n    \n> >\t \nb";
+        assert_eq!(run(src, true).text, src);
+        assert_eq!(
+            run_blanking_whitespace_lines(src, true).text,
+            "a\n\n```\n  \n```\n\n> >\nb"
+        );
     }
 
     #[test]

@@ -46,7 +46,18 @@ pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Di
             .with_hint("Split the document into smaller parts"),
         ));
     }
-    let pre = prepass::run(source, opts.extensions.cells);
+    let mut pre = prepass::run(source, opts.extensions.cells);
+    if !tree::parses_completely(&pre.text, opts) {
+        // Work around a pulldown-cmark bug triggered by indented blank lines (see
+        // `tree::parses_completely`); blank lines then carry no whitespace.
+        pre = prepass::run_blanking_whitespace_lines(source, opts.extensions.cells);
+        if !tree::parses_completely(&pre.text, opts) {
+            return Err(Diagnostics::single(Diagnostic::new(
+                Code::Internal,
+                "The Markdown parser could not process this input; please report it",
+            )));
+        }
+    }
     let mut cx = Cx::new(&pre.text, opts);
     for (code, message, span) in &pre.warnings {
         cx.warn(*code, message.clone(), span);

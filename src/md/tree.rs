@@ -11,6 +11,7 @@ use pulldown_cmark::{
 
 use crate::adf::model::{Align, HeadingLevel, NonEmptyString, PanelType, TaskState};
 use crate::diagnostics::{Code, Diagnostic};
+use crate::options::MdToAdfOptions;
 
 use super::cx::Cx;
 use super::extensions::parse_raw;
@@ -124,15 +125,52 @@ fn internal(message: &str) -> Diagnostic {
     )
 }
 
-/// Parses the normalised source into blocks.
-pub(crate) fn build(cx: &mut Cx<'_>, pre: &Prepass) -> Result<Parsed, Diagnostic> {
+/// The pulldown-cmark options: GFM tables, footnotes, strikethrough and task lists always;
+/// alerts with the `alerts` extension. Smart punctuation, heading attributes, math, definition
+/// lists, wikilinks and super/subscript stay off (`~x~` is strikethrough).
+fn parser_options(opts: &MdToAdfOptions) -> Options {
     let mut options = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS;
-    if cx.opts.extensions.alerts {
+    if opts.extensions.alerts {
         options |= Options::ENABLE_GFM;
     }
+    options
+}
+
+/// Whether pulldown-cmark can stream `text` to the end.
+///
+/// pulldown-cmark 0.13's offset iterator panics on an empty tight paragraph (a list item that
+/// holds only link reference definitions, followed by a deeply indented blank line); its plain
+/// iterator stops early at the same point instead, leaving unbalanced start events. Running the
+/// plain iterator first detects the condition without panicking.
+pub(crate) fn parses_completely(text: &str, opts: &MdToAdfOptions) -> bool {
+    let mut depth: usize = 0;
+    for event in Parser::new_ext(text, parser_options(opts)) {
+        match event {
+            Event::Start(_) => depth += 1,
+            Event::End(_) => depth = depth.saturating_sub(1),
+            Event::Text(_)
+            | Event::Code(_)
+            | Event::InlineMath(_)
+            | Event::DisplayMath(_)
+            | Event::Html(_)
+            | Event::InlineHtml(_)
+            | Event::FootnoteReference(_)
+            | Event::SoftBreak
+            | Event::HardBreak
+            | Event::Rule
+            | Event::TaskListMarker(_) => {}
+        }
+    }
+    depth == 0
+}
+
+/// Parses the normalised source into blocks. The caller must have checked
+/// [`parses_completely`].
+pub(crate) fn build(cx: &mut Cx<'_>, pre: &Prepass) -> Result<Parsed, Diagnostic> {
+    let options = parser_options(cx.opts);
     let text = cx.text;
     let mut builder = Builder {
         cx,
