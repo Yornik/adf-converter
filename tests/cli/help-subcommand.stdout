@@ -8,7 +8,7 @@ Arguments:
 
 Options:
       --from <FROM>
-          Input format; auto: ADF when the input is a JSON object, else Markdown
+          Input format; auto: ADF when the input starts with `{`, else Markdown
 
           Possible values:
           - auto: ADF when the input starts with `{`, Markdown otherwise

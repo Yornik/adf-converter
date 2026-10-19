@@ -1,0 +1,5 @@
+# Markdown that starts with `{` is validated as Markdown with `--from md`; the default
+# `--from auto` reads it as JSON (tests/cli/validate-auto-brace-markdown.toml).
+bin.name = "adf"
+args = ["validate", "--from", "md", "--error-format", "text"]
+binary = true
