@@ -80,11 +80,14 @@ the release and publishes the binaries.
 | `feat:` | `feat: add --images drop` | minor (0.4.1 → 0.5.0), listed under Features |
 | `perf:` | `perf: avoid re-parsing raw adf blocks` | patch, listed under Performance Improvements |
 | `revert:` | `revert: feat: add --images drop` | patch, listed under Reverts |
-| `feat!:`, `fix!:` or a `BREAKING CHANGE:` footer | `feat!: rename the jira-field envelope` | major (1.4.0 → 2.0.0), listed under Breaking Changes |
+| `feat!:`, `fix!:` (any type with `!`) | `feat!: rename the jira-field envelope` | major (1.4.0 → 2.0.0), listed under Breaking Changes |
 | `docs:`, `test:`, `refactor:`, `build:`, `ci:`, `chore:`, `style:` | `docs: fix the Confluence recipe` | no release on their own, not in the changelog |
 
 - Use the imperative mood and lower case after the colon: `fix: reject …`, not `Fixed …`.
 - A scope is optional: `feat(md): …`, `fix(validate): …`.
+- Mark a breaking change with `!` in the **PR title**, and explain it in the PR description. The
+  squash commit keeps only the title, so a `BREAKING CHANGE:` footer in the description is not
+  seen by release-please.
 - While the version is below 1.0.0, a breaking change bumps the minor version if
   `release-please-config.json` sets `bump-minor-pre-major`, and the major version otherwise.
 - Anything that changes the [CLI contract](docs/cli-contract.md) in an incompatible way is

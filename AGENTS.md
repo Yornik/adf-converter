@@ -61,8 +61,8 @@ A change you were asked to make must update, in the same PR:
 - `docs/cli-contract.md` (and `docs/syntax.md` for mapping changes);
 - `schemas/*.v1.json` if a JSON shape changes;
 - `skills/markdown-to-adf/references/` if users see the difference;
-- the commit type: `feat:` for additions, `feat!:` or a `BREAKING CHANGE:` footer for breaking
-  changes. release-please builds the changelog and the version from it.
+- the commit type in the PR title: `feat:` for additions, `feat!:` (or another type with `!`) for
+  breaking changes. release-please builds the changelog and the version from it.
 
 Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or reuse a code.
 
