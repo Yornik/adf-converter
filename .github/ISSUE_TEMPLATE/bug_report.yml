@@ -1,0 +1,86 @@
+name: Bug report
+description: adf produced wrong or invalid output, crashed, or rejected input it should accept.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Before you start:
+
+        - Problems with **Jira or Confluence themselves** (how they render content, API errors
+          that `adf validate` does not explain) belong with
+          [Atlassian Support](https://support.atlassian.com/). This project is not affiliated
+          with Atlassian.
+        - **Security vulnerabilities**: report them privately; see
+          [SECURITY.md](https://github.com/Yornik/adf-converter/blob/main/SECURITY.md).
+        - **Never paste real Jira or Confluence content** from your employer, customers or anyone
+          else. Reduce the problem to a small example you wrote yourself.
+  - type: textarea
+    id: version
+    attributes:
+      label: Output of `adf version --json`
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran.
+      placeholder: adf convert comment.md -e jira-comment
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input
+      description: |
+        The smallest Markdown or ADF input that shows the problem, with invented content only.
+        Put it in a code fence; use four backticks (````) if the input contains ``` fences.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What you expected `adf` to do or output.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: |
+        What happened instead: the output, the diagnostics printed on stderr, and the exit code
+        (`echo $?` right after the command).
+    validations:
+      required: true
+  - type: dropdown
+    id: target
+    attributes:
+      label: Target product
+      description: Where the output is meant to go.
+      options:
+        - Jira Cloud
+        - Confluence Cloud
+        - Both, or not product-specific
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: product-response
+    attributes:
+      label: Product response (if any)
+      description: |
+        If Jira or Confluence rejected or mis-rendered the output: the endpoint, the HTTP status
+        and the error body. Remove tokens, site names and anything private.
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: The input and output in this report contain no private, employer or customer content.
+          required: true
+        - label: I can reproduce this with the latest release.
+          required: false
