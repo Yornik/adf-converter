@@ -11,7 +11,8 @@ use super::convert::{
 use super::report::DiagnosticJson;
 use crate::adf::envelope::Envelope;
 use crate::catalog::ADF_SCHEMA;
-use crate::diagnostics::{Code, Diagnostic};
+use crate::diagnostics::{Code, Diagnostic, cap_per_code, reported_count};
+use crate::limits::MAX_LISTED_PER_CODE;
 use crate::options::Target;
 
 /// The `validate --json` report (`schemas/validate-report.v1.json`).
@@ -38,17 +39,22 @@ struct Checked {
 
 /// Runs `adf validate`.
 pub(crate) fn run(args: &ValidateArgs) -> Outcome {
-    let checked = match check(args) {
+    let mut checked = match check(args) {
         Ok(checked) => checked,
         Err(outcome) => return *outcome,
     };
+    // At most 100 of each code are listed (in the report too); the counts include the rest.
+    checked.diagnostics = cap_per_code(
+        std::mem::take(&mut checked.diagnostics),
+        MAX_LISTED_PER_CODE,
+    );
     let exit = checked
         .diagnostics
         .iter()
         .find(|diagnostic| diagnostic.is_error())
         .map_or(0, |error| error.code.exit_code());
-    let errors = checked.diagnostics.iter().filter(|d| d.is_error()).count();
-    let warnings = checked.diagnostics.len() - errors;
+    let errors = reported_count(checked.diagnostics.iter().filter(|d| d.is_error()));
+    let warnings = reported_count(checked.diagnostics.iter().filter(|d| !d.is_error()));
 
     if args.json {
         let label = checked.label.as_deref();

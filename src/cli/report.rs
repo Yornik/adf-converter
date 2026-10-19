@@ -101,20 +101,15 @@ impl Reporter {
         }
     }
 
-    /// Prints diagnostics to stderr (warnings are skipped with `-q`). `file` is the input name
-    /// (`-` for stdin) added to every location.
+    /// Prints diagnostics to stderr, one line each, as they are rendered (warnings are skipped
+    /// with `-q`). `file` is the input name (`-` for stdin) added to every location.
     pub fn emit(self, diagnostics: &[Diagnostic], file: Option<&str>) {
-        let mut text = String::new();
-        for diagnostic in diagnostics {
-            if self.quiet && !diagnostic.is_error() {
-                continue;
-            }
-            text.push_str(&self.line(diagnostic, file));
-            text.push('\n');
-        }
-        if !text.is_empty() {
-            output::stderr(&text);
-        }
+        output::stderr_lines(
+            diagnostics
+                .iter()
+                .filter(|diagnostic| !self.quiet || diagnostic.is_error())
+                .map(|diagnostic| self.line(diagnostic, file)),
+        );
     }
 
     /// One rendered diagnostic, without the trailing newline.
@@ -324,7 +319,7 @@ fn text_line(diagnostic: &Diagnostic, file: Option<&str>, color: bool) -> String
 }
 
 /// Keeps a text line on one line and free of terminal escape sequences, whatever the input was.
-fn sanitize(text: &str) -> String {
+pub(crate) fn sanitize(text: &str) -> String {
     text.chars()
         .map(|c| if c.is_control() { ' ' } else { c })
         .collect()

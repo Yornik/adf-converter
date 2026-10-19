@@ -55,10 +55,11 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
 ### `validate`
 
 - **`--from adf`** (default for `validate` when the input parses as JSON): checks the document
-  against the vendored ADF schema, the target rules and the invariants. Every problem is reported
-  with a JSON Pointer. Exit code 4 if anything fails.
-- **`--from md`**: a dry run of `convert`. It reports every warning the conversion would produce.
-  Exit code 0, or 5 with `--strict` if there are warnings.
+  against the vendored ADF schema, the target rules and the invariants. Problems are reported with
+  a JSON Pointer, at most 100 of each code (see [Diagnostics](#diagnostics)). Exit code 4 if
+  anything fails.
+- **`--from md`**: a dry run of `convert`. It reports the warnings the conversion would produce,
+  at most 100 of each code. Exit code 0, or 5 with `--strict` if there are warnings.
 - **`--json`**: writes a report to stdout:
 
   ```json
@@ -67,7 +68,8 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
   ```
 
   `envelope` is the detected (adf) or requested (md) envelope.
-- Without `--json`, diagnostics go to stderr, followed by a one-line summary.
+- Without `--json`, diagnostics go to stderr, followed by a one-line summary. Its error and
+  warning counts include the diagnostics that were not listed.
 
 ### `capabilities --json`
 
@@ -166,6 +168,14 @@ stdout carries **only** the result. Diagnostics always go to **stderr**.
 **Text**: `comment.md:12:3: warning[W_IMAGE_AS_LINK]: message (hint: …)`. For ADF locations:
 `doc.json#/content/0: error[E_SCHEMA]: …`.
 
+**At most 100 per code.** Every command lists at most 100 diagnostics of each code, in document
+order, so a document with thousands of problems cannot flood stderr (or an agent's context). The
+rest of a code are replaced by one diagnostic of the same code and severity, without a
+`pointer`, `line` or `column`, right after the last one listed:
+`"message":"150 more E_SCHEMA errors were not listed"`. In a `validate --json` report it is in
+`errors` or `warnings` like any other diagnostic. The exit code is unchanged: the first error is
+always listed.
+
 **Other switches:**
 - `-q/--quiet` suppresses warnings. Errors are always printed, and exit codes are unchanged.
 - `NO_COLOR` and `--no-color` disable colour. Colour is only used on a terminal.
@@ -245,6 +255,7 @@ requests.
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
+| Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
 
 GFM pads every table row to the header width, so a few kilobytes of Markdown can describe
 millions of cells. `adf` estimates the padded size with a linear scan before parsing, and fails

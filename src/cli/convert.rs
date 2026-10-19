@@ -14,7 +14,7 @@ use crate::adf::model::{
     BlockquoteChild, BulletList, Doc, DocBlock, ExpandChild, ListItem, ListItemChild,
     NestedExpandChild, OrderedList, PanelChild, Table, TableCellChild,
 };
-use crate::diagnostics::{Code, Diagnostic, Diagnostics};
+use crate::diagnostics::{self, Code, Diagnostic, Diagnostics, omitted_count, reported_count};
 use crate::limits::Limits;
 use crate::options::{AdfToMdOptions, MdToAdfOptions, Target};
 
@@ -271,8 +271,16 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
     let (mut out, errors): (Vec<Diagnostic>, Vec<Diagnostic>) = errors
         .into_iter()
         .partition(|error| matches!(error.code, Code::InputTooDeep | Code::Internal));
+    // Errors the validator counted but did not list (it lists at most 100 per code) have no
+    // location; they are ours unless every listed error lies in a raw block.
+    let (summaries, errors): (Vec<Diagnostic>, Vec<Diagnostic>) = errors
+        .into_iter()
+        .partition(|error| omitted_count(error).is_some());
+    let unlisted = reported_count(&summaries);
     let (raw_errors, own_errors): (Vec<Diagnostic>, Vec<Diagnostic>) =
         errors.into_iter().partition(in_raw);
+    let raw_unlisted = if own_errors.is_empty() { unlisted } else { 0 };
+    let own_unlisted = unlisted - raw_unlisted;
     if !own_errors.is_empty() {
         let mut details: Vec<String> = own_errors
             .iter()
@@ -287,8 +295,9 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
                 format!("{}{at}: {}", error.code, error.message)
             })
             .collect();
-        if own_errors.len() > details.len() {
-            details.push(format!("and {} more", own_errors.len() - details.len()));
+        let more = own_errors.len() - details.len() + own_unlisted;
+        if more > 0 {
+            details.push(format!("and {more} more"));
         }
         out.push(
             Diagnostic::new(
@@ -311,6 +320,9 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
         diagnostic.location = error.location;
         diagnostic.hint = error.hint;
         out.push(diagnostic);
+    }
+    if raw_unlisted > 0 {
+        out.push(diagnostics::omitted(Code::RawAdf, raw_unlisted));
     }
     out
 }
@@ -653,6 +665,28 @@ mod tests {
         let out = self_check_failure(deep, &raw, Target::Jira);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].code, Code::InputTooDeep);
+    }
+
+    /// The validator lists at most 100 errors per code and summarises the rest without a
+    /// location; the summary must not be mistaken for a bug in adf.
+    #[test]
+    fn self_check_attributes_unlisted_errors() {
+        let raw = vec!["/content/1".to_owned()];
+        let inner = |i: usize| {
+            Diagnostic::new(Code::Schema, "inner")
+                .at(Location::pointer(format!("/content/1/content/{i}")))
+        };
+        let errors = vec![inner(0), inner(1), diagnostics::omitted(Code::Schema, 7)];
+        let out = self_check_failure(errors, &raw, Target::Jira);
+        assert_eq!(codes(&out), [Code::RawAdf, Code::RawAdf, Code::RawAdf]);
+        assert_eq!(omitted_count(&out[2]), Some(7));
+        // With an error of our own among the listed ones, the rest count towards the bug report.
+        let own = Diagnostic::new(Code::Schema, "bad").at(Location::pointer("/content/0"));
+        let errors = vec![own, inner(0), diagnostics::omitted(Code::Schema, 7)];
+        let out = self_check_failure(errors, &raw, Target::Jira);
+        assert_eq!(codes(&out), [Code::Internal, Code::RawAdf]);
+        let hint = out[0].hint.as_deref().unwrap();
+        assert!(hint.contains("and 7 more"), "{hint}");
     }
 
     /// A successful converter result, shaped like `md_to_adf`'s.

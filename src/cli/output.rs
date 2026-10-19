@@ -22,6 +22,22 @@ pub(crate) fn stderr(text: &str) {
     let _ = err.flush();
 }
 
+/// Writes `lines` to stderr as they are produced, each followed by a newline, through one
+/// buffered handle (the report is never assembled in memory). Stops at the first write error.
+pub(crate) fn stderr_lines(lines: impl Iterator<Item = String>) {
+    let mut err = io::BufWriter::new(io::stderr().lock());
+    for line in lines {
+        if err
+            .write_all(line.as_bytes())
+            .and_then(|()| err.write_all(b"\n"))
+            .is_err()
+        {
+            return;
+        }
+    }
+    let _ = err.flush();
+}
+
 pub(crate) fn stdin_is_terminal() -> bool {
     io::stdin().is_terminal()
 }

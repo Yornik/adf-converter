@@ -31,24 +31,37 @@ const CARD_NODES: &[&str] = &["inlineCard", "blockCard", "embedCard"];
 const URL_HINT: &str =
     "Use an http(s), ftp(s), mailto: or tel: URL, a /root-relative path or a #anchor";
 
+/// What [`check`] found.
+#[derive(Debug, Default)]
+pub(crate) struct Found {
+    /// At most `limit` diagnostics of each code, in document order.
+    pub diagnostics: Vec<Diagnostic>,
+    /// How many more of each code there are (counted, not built).
+    pub omitted: BTreeMap<Code, usize>,
+}
+
 /// Runs the target and invariant checks. `schema_pointers` are locations the schema layer already
-/// reported; `null` attributes there are not reported twice.
+/// reported; `null` attributes there are not reported twice. At most `limit` diagnostics of each
+/// code are kept; the rest are counted.
 pub(crate) fn check(
     doc: &Value,
     target: Target,
     max_depth: usize,
     schema_pointers: &BTreeSet<String>,
-) -> Vec<Diagnostic> {
+    limit: usize,
+) -> Found {
     let mut walker = Walker {
         target,
         max_depth,
         schema_pointers,
         local_ids: BTreeMap::new(),
-        out: Vec::new(),
+        limit,
+        listed: BTreeMap::new(),
+        found: Found::default(),
     };
     let mut pointer = String::new();
     walker.node(doc, &mut pointer, 0, false);
-    walker.out
+    walker.found
 }
 
 struct Walker<'a> {
@@ -57,17 +70,39 @@ struct Walker<'a> {
     schema_pointers: &'a BTreeSet<String>,
     /// `localId` → pointer of its first use.
     local_ids: BTreeMap<String, String>,
-    out: Vec<Diagnostic>,
+    /// The most diagnostics kept per code.
+    limit: usize,
+    /// How many diagnostics of each code are kept.
+    listed: BTreeMap<Code, usize>,
+    found: Found,
 }
 
 impl Walker<'_> {
+    /// Keeps `diagnostic`, or only counts it once `limit` of its code are kept.
+    fn push(&mut self, diagnostic: Diagnostic) {
+        let listed = self.listed.entry(diagnostic.code).or_default();
+        if *listed < self.limit {
+            *listed += 1;
+            self.found.diagnostics.push(diagnostic);
+        } else {
+            let omitted = self.found.omitted.entry(diagnostic.code).or_default();
+            *omitted = omitted.saturating_add(1);
+        }
+    }
+
+    fn push_all(&mut self, diagnostics: Vec<Diagnostic>) {
+        for diagnostic in diagnostics {
+            self.push(diagnostic);
+        }
+    }
+
     fn invariant(&mut self, pointer: String, message: String, hint: Option<&str>) {
         let mut diagnostic =
             Diagnostic::new(Code::Invariant, message).at(Location::pointer(pointer));
         if let Some(hint) = hint {
             diagnostic = diagnostic.with_hint(hint);
         }
-        self.out.push(diagnostic);
+        self.push(diagnostic);
     }
 
     /// Checks one node and its subtree. `blocked` is set inside a node the target rejects, so
@@ -82,7 +117,9 @@ impl Walker<'_> {
         let ty = node.get("type").and_then(Value::as_str).unwrap_or("");
         let mut blocked = blocked;
         if !blocked && !ty.is_empty() {
-            blocked = targets::check_node(self.target, ty, node, pointer, &mut self.out);
+            let mut rejected = Vec::new();
+            blocked = targets::check_node(self.target, ty, node, pointer, &mut rejected);
+            self.push_all(rejected);
         }
         self.attrs(node, ty, pointer);
         self.marks(node, pointer, blocked);
@@ -202,7 +239,9 @@ impl Walker<'_> {
                 );
             }
             if !blocked {
-                targets::check_mark(self.target, mark_type, &at, &mut self.out);
+                let mut rejected = Vec::new();
+                targets::check_mark(self.target, mark_type, &at, &mut rejected);
+                self.push_all(rejected);
             }
             let Some(attrs) = mark.get("attrs").and_then(Value::as_object) else {
                 continue;
@@ -453,7 +492,8 @@ mod tests {
     const NONE: Vec<(Code, String, String)> = Vec::new();
 
     fn run(doc: &Value, target: Target) -> Vec<(Code, String, String)> {
-        check(doc, target, 64, &BTreeSet::new())
+        check(doc, target, 64, &BTreeSet::new(), usize::MAX)
+            .diagnostics
             .into_iter()
             .map(|d| {
                 (
@@ -700,7 +740,7 @@ mod tests {
         );
         // Already reported by the schema layer: not repeated.
         let schema: BTreeSet<String> = ["/content/0/attrs/language".to_owned()].into();
-        let found = check(&value, Target::Confluence, 64, &schema);
+        let found = check(&value, Target::Confluence, 64, &schema, usize::MAX).diagnostics;
         assert_eq!(found.len(), 3);
     }
 

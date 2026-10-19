@@ -63,9 +63,11 @@ fn schema_warnings(doc: &Value) -> Vec<Diagnostic> {
         .into_iter()
         .filter(|d| d.code == Code::Schema)
         .collect();
-    let total = errors.len();
+    // The validator lists the first problems and summarises the rest; count those too.
+    let total = crate::diagnostics::reported_count(&errors);
     let mut out: Vec<Diagnostic> = errors
         .into_iter()
+        .filter(|d| crate::diagnostics::omitted_count(d).is_none())
         .take(MAX_SCHEMA_WARNINGS)
         .map(|d| Diagnostic {
             code: Code::InputSchema,

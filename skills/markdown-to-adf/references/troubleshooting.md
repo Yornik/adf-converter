@@ -8,6 +8,10 @@ the installed version, and `adf explain codes` lists all codes.
 Locations: Markdown input has `line` and `column` (1-based); ADF input has a JSON `pointer` such
 as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 
+At most 100 diagnostics of each code are listed. The rest of a code are counted in one more
+diagnostic of that code without a location ("150 more E_SCHEMA errors were not listed"): fix the
+listed problems and run again.
+
 ## Exit codes
 
 | Exit | Meaning | Retry? | What to do |

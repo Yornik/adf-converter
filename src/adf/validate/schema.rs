@@ -150,30 +150,41 @@ impl Engine {
     }
 
     /// Validates a document. Returns no issues if and only if the whole schema accepts it.
-    pub(crate) fn check(&self, doc: &Value) -> Vec<Issue> {
+    ///
+    /// At most `limit` issues are built, in document order; the rest are only counted
+    /// ([`Checked::omitted`]), so memory stays bounded however many problems the input has.
+    /// Node types in `rejected` (the target's) are left out of "allowed here" hints.
+    pub(crate) fn check(&self, doc: &Value, rejected: &[&str], limit: usize) -> Checked {
         if self.full.is_valid(doc) {
-            return Vec::new();
+            return Checked::default();
         }
-        let mut explainer = Explainer {
-            engine: self,
-            memo: HashMap::new(),
-            issues: Vec::new(),
+        let mut explainer = Explainer::new(self, rejected, limit.max(1));
+        let mut pointer = String::new();
+        explainer.explain(doc, &[self.root], &mut pointer, None, 0);
+        let mut checked = Checked {
+            issues: explainer.issues,
+            omitted: explainer.omitted,
         };
-        explainer.explain(doc, &[self.root], "", None, 0);
-        let mut issues = explainer.issues;
-        if issues.is_empty() {
+        if checked.issues.is_empty() {
             // The walker always finds a cause for the constructs the vendored schema uses; keep a
             // located error anyway so an invalid document can never pass.
-            issues.push(Issue {
+            checked.issues.push(Issue {
                 pointer: String::new(),
                 message: "the document does not match the ADF schema".to_owned(),
                 hint: None,
             });
         }
-        let mut seen = BTreeSet::new();
-        issues.retain(|issue| seen.insert((issue.pointer.clone(), issue.message.clone())));
-        issues
+        checked
     }
+}
+
+/// The result of [`Engine::check`].
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct Checked {
+    /// The first issues (at most the limit), in document order.
+    pub issues: Vec<Issue>,
+    /// How many more issues there are.
+    pub omitted: usize,
 }
 
 /// Extracts `name` from `#/definitions/name`.
@@ -364,19 +375,41 @@ fn is_union(def: &Value) -> bool {
 }
 
 /// Walks an invalid document and records the most specific causes.
-struct Explainer<'e> {
+///
+/// It records at most `limit` issues and only counts the rest (`omitted`), and it builds JSON
+/// Pointers in one shared buffer, copying one only for a recorded issue: a document with millions
+/// of problems, each as deep as the nesting limit, stays cheap.
+struct Explainer<'e, 'r> {
     engine: &'e Engine,
     /// `(node address, definition)` → valid. Addresses are stable: the document is borrowed for
     /// the whole walk.
     memo: HashMap<(usize, DefId), bool>,
+    /// Node types the target rejects, left out of "allowed here" hints.
+    rejected: &'r [&'r str],
+    /// The issues recorded so far, in document order.
     issues: Vec<Issue>,
+    /// The most issues recorded.
+    limit: usize,
+    /// Issues found after `limit` was reached: counted, never built.
+    omitted: usize,
 }
 
 /// The walker never recurses deeper than this; `validate` rejects deeper documents up front.
 const MAX_WALK_DEPTH: usize = 1024;
 
-impl Explainer<'_> {
-    fn def(&self, id: DefId) -> Option<&Def> {
+impl<'e, 'r> Explainer<'e, 'r> {
+    fn new(engine: &'e Engine, rejected: &'r [&'r str], limit: usize) -> Self {
+        Self {
+            engine,
+            memo: HashMap::new(),
+            rejected,
+            issues: Vec::new(),
+            limit,
+            omitted: 0,
+        }
+    }
+
+    fn def(&self, id: DefId) -> Option<&'e Def> {
         self.engine.defs.get(id)
     }
 
@@ -409,11 +442,10 @@ impl Explainer<'_> {
     }
 
     fn children_ok(&mut self, node: &Value, id: DefId, depth: usize) -> bool {
-        let engine = self.engine;
         let Some(children) = node.get("content").and_then(Value::as_array) else {
             return true;
         };
-        let Some(def) = engine.defs.get(id) else {
+        let Some(def) = self.def(id) else {
             return false;
         };
         for rule in &def.content {
@@ -434,57 +466,84 @@ impl Explainer<'_> {
             .any(|&id| self.type_matches(node, id) && self.valid(node, id, depth))
     }
 
-    fn issue(&mut self, pointer: String, message: String, hint: Option<String>) {
+    /// Records an issue at `pointer` followed by `suffix`, or only counts it once `limit` issues
+    /// are recorded (`describe`, which builds the message and hint, is not called then).
+    fn note(
+        &mut self,
+        pointer: &str,
+        suffix: &str,
+        describe: impl FnOnce(&Self) -> (String, Option<String>),
+    ) {
+        if self.issues.len() >= self.limit {
+            self.omitted = self.omitted.saturating_add(1);
+            return;
+        }
+        let (message, hint) = describe(self);
+        let mut at = String::with_capacity(pointer.len() + suffix.len());
+        at.push_str(pointer);
+        at.push_str(suffix);
+        // The same cause can be found twice (a child constrained by two content rules).
+        if self
+            .issues
+            .iter()
+            .any(|issue| issue.pointer == at && issue.message == message)
+        {
+            return;
+        }
         self.issues.push(Issue {
-            pointer,
+            pointer: at,
             message,
             hint,
         });
     }
 
     /// Records why `node` (at `pointer`, a child of a `parent` node) matches none of
-    /// `candidates`.
+    /// `candidates`. `pointer` is a shared buffer; it is restored before returning.
     fn explain(
         &mut self,
         node: &Value,
         candidates: &[DefId],
-        pointer: &str,
+        pointer: &mut String,
         parent: Option<&str>,
         depth: usize,
     ) {
         if depth > MAX_WALK_DEPTH || self.valid_any(node, candidates, depth) {
             return;
         }
-        let engine = self.engine;
         let Some(object) = node.as_object() else {
             let what = if parent.is_some() {
                 "an ADF node"
             } else {
                 "the document"
             };
-            self.issue(
-                pointer.to_owned(),
-                format!("expected {what} (a JSON object), found {}", kind(node)),
-                None,
-            );
+            self.note(pointer, "", |_| {
+                (
+                    format!("expected {what} (a JSON object), found {}", kind(node)),
+                    None,
+                )
+            });
             return;
         };
         let ty = match object.get("type") {
             Some(Value::String(ty)) => ty.as_str(),
             Some(other) => {
-                self.issue(
-                    format!("{pointer}/type"),
-                    format!("`type` must be a string, found {}", kind(other)),
-                    None,
-                );
+                self.note(pointer, "/type", |_| {
+                    (
+                        format!("`type` must be a string, found {}", kind(other)),
+                        None,
+                    )
+                });
                 return;
             }
             None => {
-                self.issue(
-                    pointer.to_owned(),
-                    "this node has no `type`".to_owned(),
-                    Some("Every ADF node needs a \"type\", for example \"paragraph\"".to_owned()),
-                );
+                self.note(pointer, "", |_| {
+                    (
+                        "this node has no `type`".to_owned(),
+                        Some(
+                            "Every ADF node needs a \"type\", for example \"paragraph\"".to_owned(),
+                        ),
+                    )
+                });
                 return;
             }
         };
@@ -494,23 +553,27 @@ impl Explainer<'_> {
             .filter(|&id| self.type_matches(node, id))
             .collect();
         if typed.is_empty() {
-            self.not_allowed(pointer, ty, candidates, parent);
+            self.note(pointer, "", |this| {
+                this.describe_not_allowed(ty, candidates, parent)
+            });
             return;
         }
         if ty == "text"
             && let Some(message) = code_mark_conflict(object)
         {
-            self.issue(
-                format!("{pointer}/marks"),
-                message,
-                Some("Split the text into separate nodes, or drop the other marks".to_owned()),
-            );
+            self.note(pointer, "/marks", |_| {
+                (
+                    message,
+                    Some("Split the text into separate nodes, or drop the other marks".to_owned()),
+                )
+            });
             if object.get("text").and_then(Value::as_str) == Some("") {
-                self.issue(
-                    format!("{pointer}/text"),
-                    "text nodes must not be empty".to_owned(),
-                    Some("Remove the node or give it some text".to_owned()),
-                );
+                self.note(pointer, "/text", |_| {
+                    (
+                        "text nodes must not be empty".to_owned(),
+                        Some("Remove the node or give it some text".to_owned()),
+                    )
+                });
             }
             return;
         }
@@ -518,38 +581,57 @@ impl Explainer<'_> {
         let chosen = if let Some(&id) = typed.iter().find(|&&id| self.shallow_ok(node, id)) {
             id
         } else {
-            let mut best: Option<(DefId, Vec<Issue>)> = None;
-            for &id in &typed {
-                let found = self.shallow_issues(node, id, ty, pointer);
-                if best.as_ref().is_none_or(|(_, b)| found.len() < b.len()) {
-                    best = Some((id, found));
-                }
-            }
-            let Some((id, found)) = best else {
+            let Some((id, found)) = self.best_definition(node, &typed, ty) else {
                 return;
             };
-            self.issues.extend(found);
+            for issue in found {
+                self.note(pointer, &issue.pointer, |_| (issue.message, issue.hint));
+            }
             id
         };
+        self.explain_children(object, chosen, ty, pointer, depth);
+    }
 
+    /// Explains the children of a node (`object`, of type `ty`) checked as definition `chosen`.
+    fn explain_children(
+        &mut self,
+        object: &Map<String, Value>,
+        chosen: DefId,
+        ty: &str,
+        pointer: &mut String,
+        depth: usize,
+    ) {
         let Some(children) = object.get("content").and_then(Value::as_array) else {
             return;
         };
-        let Some(def) = engine.defs.get(chosen) else {
+        let Some(def) = self.def(chosen) else {
             return;
         };
-        for rule in &def.content {
-            for (index, child) in children.iter().enumerate() {
-                if let Some(child_candidates) = rule.candidates(index) {
-                    let child_pointer = format!("{pointer}/content/{index}");
-                    self.explain(child, child_candidates, &child_pointer, Some(ty), depth + 1);
-                }
-            }
+        let len = pointer.len();
+        for (index, child) in children.iter().enumerate() {
+            // A child must satisfy every rule that constrains its position; explain the first it
+            // breaks, so each child is explained once, in document order.
+            let Some(child_candidates) = def
+                .content
+                .iter()
+                .filter_map(|rule| rule.candidates(index))
+                .find(|candidates| !self.valid_any(child, candidates, depth + 1))
+            else {
+                continue;
+            };
+            let _ = write!(pointer, "/content/{index}");
+            self.explain(child, child_candidates, pointer, Some(ty), depth + 1);
+            pointer.truncate(len);
         }
     }
 
-    /// `ty` is not among the types `candidates` allow.
-    fn not_allowed(&mut self, pointer: &str, ty: &str, candidates: &[DefId], parent: Option<&str>) {
+    /// Why `ty` is not among the types `candidates` allow (inside `parent`).
+    fn describe_not_allowed(
+        &self,
+        ty: &str,
+        candidates: &[DefId],
+        parent: Option<&str>,
+    ) -> (String, Option<String>) {
         let shown = code(ty);
         if !self.engine.known_types.contains(ty) {
             let message = if ty.is_empty() {
@@ -561,53 +643,80 @@ impl Explainer<'_> {
             } else {
                 format!("unknown node type {shown}")
             };
-            self.issue(pointer.to_owned(), message, None);
-            return;
+            return (message, None);
         }
-        let mut allowed: Vec<&str> = Vec::new();
-        for &id in candidates {
-            if let Some(def) = self.def(id) {
-                for t in &def.types {
-                    if !allowed.contains(&t.as_str()) {
-                        allowed.push(t);
-                    }
-                }
-            }
-        }
-        let (message, hint) = match parent {
-            None => (
+        let Some(parent) = parent else {
+            return (
                 format!("the root node must be `doc`, found {shown}"),
                 Some(
                     "An ADF document is {\"type\":\"doc\",\"version\":1,\"content\":[…]}"
                         .to_owned(),
                 ),
-            ),
-            Some(parent) => {
-                let hint = if ty == "text" || ty == "hardBreak" {
-                    format!(
-                        "Inline content must be wrapped in a paragraph; allowed here: {}",
-                        allowed.join(", ")
-                    )
-                } else {
-                    format!("Allowed here: {}", allowed.join(", "))
-                };
-                (
-                    format!("{shown} is not allowed inside `{parent}`"),
-                    Some(hint),
-                )
-            }
+            );
         };
-        self.issue(pointer.to_owned(), message, hint);
+        // Only what the target accepts: suggesting a node it rejects just moves the error.
+        let mut allowed: Vec<&str> = Vec::new();
+        for &id in candidates {
+            if let Some(def) = self.def(id) {
+                for t in &def.types {
+                    if !self.rejected.contains(&t.as_str()) && !allowed.contains(&t.as_str()) {
+                        allowed.push(t);
+                    }
+                }
+            }
+        }
+        let inline = ty == "text" || ty == "hardBreak";
+        let hint = match (inline, allowed.is_empty()) {
+            (true, true) => "Inline content must be wrapped in a paragraph".to_owned(),
+            (true, false) => format!(
+                "Inline content must be wrapped in a paragraph; allowed here: {}",
+                allowed.join(", ")
+            ),
+            (false, true) => "Remove the node".to_owned(),
+            (false, false) => format!("Allowed here: {}", allowed.join(", ")),
+        };
+        (
+            format!("{shown} is not allowed inside `{parent}`"),
+            Some(hint),
+        )
     }
 
-    /// The node's own problems against definition `id`, as issues.
-    fn shallow_issues(&self, node: &Value, id: DefId, ty: &str, pointer: &str) -> Vec<Issue> {
+    /// Of the definitions matching the node's type (none of which accepts the node itself), the
+    /// one with the fewest problems, and its problems (pointers relative to the node). Ties go to
+    /// the definition whose problems lie deepest, the most specific explanation: for a paragraph
+    /// with `indentation` level 9, "level is too large" beats "the mark is not allowed here".
+    fn best_definition(
+        &self,
+        node: &Value,
+        typed: &[DefId],
+        ty: &str,
+    ) -> Option<(DefId, Vec<Issue>)> {
+        let mut best: Option<(DefId, Vec<Issue>, usize)> = None;
+        for &id in typed {
+            let found = self.shallow_issues(node, id, ty);
+            let deepest = found
+                .iter()
+                .map(|issue| issue.pointer.matches('/').count())
+                .max()
+                .unwrap_or(0);
+            let better = best.as_ref().is_none_or(|(_, issues, depth)| {
+                found.len() < issues.len() || (found.len() == issues.len() && deepest > *depth)
+            });
+            if better {
+                best = Some((id, found, deepest));
+            }
+        }
+        best.map(|(id, found, _)| (id, found))
+    }
+
+    /// The node's own problems against definition `id`, with pointers relative to the node.
+    fn shallow_issues(&self, node: &Value, id: DefId, ty: &str) -> Vec<Issue> {
         let Some(def) = self.def(id) else {
             return Vec::new();
         };
         let Some(validator) = def.shallow.as_ref() else {
             return vec![Issue {
-                pointer: pointer.to_owned(),
+                pointer: String::new(),
                 message: format!(
                     "`{ty}` does not match the ADF schema definition `{}`",
                     def.name
@@ -617,7 +726,7 @@ impl Explainer<'_> {
         };
         let mut found = Vec::new();
         for error in validator.iter_errors(node) {
-            reduce(&error, node, ty, pointer, &mut found, 0);
+            reduce(&error, node, ty, "", &mut found, 0);
         }
         found
     }
@@ -1041,12 +1150,18 @@ mod tests {
         json!({"type":"paragraph","content":[inline]})
     }
 
+    /// Every issue (no limit), without hints.
     fn issues(value: &Value) -> Vec<(String, String)> {
-        engine()
-            .check(value)
+        all(value)
             .into_iter()
             .map(|issue| (issue.pointer, issue.message))
             .collect()
+    }
+
+    fn all(value: &Value) -> Vec<Issue> {
+        let checked = engine().check(value, &[], usize::MAX);
+        assert_eq!(checked.omitted, 0);
+        checked.issues
     }
 
     #[test]
@@ -1109,7 +1224,7 @@ mod tests {
     fn heading_in_blockquote() {
         let value =
             doc(json!([{"type":"blockquote","content":[{"type":"heading","attrs":{"level":1}}]}]));
-        let found = engine().check(&value);
+        let found = all(&value);
         assert_eq!(found.len(), 1, "{found:?}");
         assert_eq!(found[0].pointer, "/content/0/content/0");
         assert_eq!(
@@ -1160,7 +1275,7 @@ mod tests {
             "text",
             {"content":[]}
         ]));
-        let found = engine().check(&value);
+        let found = all(&value);
         let pairs: Vec<(&str, &str)> = found
             .iter()
             .map(|issue| (issue.pointer.as_str(), issue.message.as_str()))
@@ -1326,6 +1441,83 @@ mod tests {
         assert!(start.elapsed() < std::time::Duration::from_secs(5));
     }
 
+    /// Every bad child used to become an issue with its own deep pointer: 4 MiB of `1,` deep in
+    /// nested lists needed tens of GB. Past the limit, issues are only counted.
+    #[test]
+    fn issues_beyond_the_limit_are_counted_not_built() {
+        let bad: Vec<Value> = (0..250).map(|_| json!(1)).collect();
+        let mut node = json!({"type":"paragraph","content":bad});
+        for _ in 0..100 {
+            node = json!({"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph"}, node]}]});
+        }
+        let value = doc(json!([node]));
+        let checked = engine().check(&value, &[], 100);
+        assert_eq!(checked.issues.len(), 100);
+        assert_eq!(checked.omitted, 150);
+        let prefix = "/content/0".to_owned() + &"/content/0/content/1".repeat(100);
+        assert_eq!(checked.issues[0].pointer, format!("{prefix}/content/0"));
+        assert_eq!(checked.issues[99].pointer, format!("{prefix}/content/99"));
+        assert_eq!(
+            checked.issues[0].message,
+            "expected an ADF node (a JSON object), found a number"
+        );
+        // Without a limit, every child is reported once, in document order.
+        let everything = all(&value);
+        assert_eq!(everything.len(), 250);
+        assert_eq!(everything[..100], checked.issues[..]);
+    }
+
+    /// When several definitions fit the node's type equally badly, the most specific explanation
+    /// wins: the attribute that is out of range, not "the mark is not allowed".
+    #[test]
+    fn ties_go_to_the_most_specific_explanation() {
+        let value =
+            doc(json!([{"type":"paragraph","marks":[{"type":"indentation","attrs":{"level":9}}]}]));
+        assert_eq!(
+            issues(&value),
+            [(
+                "/content/0/marks/0/attrs/level".to_owned(),
+                "attribute `level` of the `indentation` mark is too large: 9 (maximum 6)"
+                    .to_owned()
+            )]
+        );
+        let value = doc(json!([{"type":"heading","attrs":{"level":1},
+            "marks":[{"type":"alignment","attrs":{"align":"middle"}}]}]));
+        let found = issues(&value);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].0, "/content/0/marks/0/attrs/align");
+        assert!(found[0].1.contains("\"middle\""), "{}", found[0].1);
+    }
+
+    /// "Allowed here" hints leave out the node types the target rejects.
+    #[test]
+    fn hints_leave_out_what_the_target_rejects() {
+        let value = doc(json!([{"type":"text","text":"x"}]));
+        let hint = |rejected: &[&str]| {
+            engine().check(&value, rejected, 10).issues[0]
+                .hint
+                .clone()
+                .unwrap()
+        };
+        let every = hint(&[]);
+        assert!(
+            every.contains("extension") && every.contains("layoutSection"),
+            "{every}"
+        );
+        let jira: Vec<&str> = crate::adf::targets::rejected_nodes(crate::Target::Jira).collect();
+        let for_jira = hint(&jira);
+        assert!(
+            for_jira.contains("paragraph") && for_jira.contains("table"),
+            "{for_jira}"
+        );
+        for rejected in &jira {
+            assert!(
+                !for_jira.split([' ', ',']).any(|word| word == *rejected),
+                "{rejected}: {for_jira}"
+            );
+        }
+    }
+
     /// The walker must agree with the whole-schema verdict.
     #[test]
     fn walker_agrees_with_full_schema() {
@@ -1379,14 +1571,10 @@ mod tests {
         ];
         for value in samples {
             let verdict = engine.full.is_valid(&value);
-            let mut explainer = Explainer {
-                engine,
-                memo: HashMap::new(),
-                issues: Vec::new(),
-            };
+            let mut explainer = Explainer::new(engine, &[], usize::MAX);
             let walked = explainer.valid_any(&value, &[engine.root], 0);
             assert_eq!(walked, verdict, "{value}");
-            explainer.explain(&value, &[engine.root], "", None, 0);
+            explainer.explain(&value, &[engine.root], &mut String::new(), None, 0);
             assert_eq!(
                 explainer.issues.is_empty(),
                 verdict,
@@ -1545,9 +1733,9 @@ mod tests {
                 let engine = super::engine();
                 let value = doc(Value::Array(children));
                 let verdict = engine.full.is_valid(&value);
-                let mut explainer = Explainer { engine, memo: HashMap::new(), issues: Vec::new() };
+                let mut explainer = Explainer::new(engine, &[], usize::MAX);
                 prop_assert_eq!(explainer.valid_any(&value, &[engine.root], 0), verdict, "{}", value);
-                explainer.explain(&value, &[engine.root], "", None, 0);
+                explainer.explain(&value, &[engine.root], &mut String::new(), None, 0);
                 prop_assert_eq!(explainer.issues.is_empty(), verdict, "{} {:?}", value, explainer.issues);
                 for issue in &explainer.issues {
                     prop_assert!(value.pointer(&issue.pointer).is_some(), "{} {}", value, issue.pointer);

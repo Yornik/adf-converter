@@ -1,0 +1,4 @@
+# 150 unknown HTML tags: 100 W_HTML_AS_TEXT warnings are listed, then one summary for the rest.
+bin.name = "adf"
+args = ["convert", "--compact", "--error-format", "text"]
+binary = true

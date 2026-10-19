@@ -24,7 +24,8 @@ use clap::error::ErrorKind;
 use args::{Cli, Command};
 use report::Reporter;
 
-use crate::diagnostics::{Code, Diagnostic, Location};
+use crate::diagnostics::{Code, Diagnostic, Location, cap_per_code};
+use crate::limits::MAX_LISTED_PER_CODE;
 
 /// Stack size of the thread that runs a command. The converters and validators recurse only to
 /// bounded depths, but those bounds (64 containers, 512 JSON levels) need more than the 1 MiB main
@@ -233,10 +234,12 @@ fn hint_sentence(line: &str) -> String {
     sentence
 }
 
-/// Prints the diagnostics, writes the result (to the output file atomically, or to stdout) and
-/// returns the exit code. A closed stdout (`adf … | head`) is not an error.
+/// Prints the diagnostics (at most [`MAX_LISTED_PER_CODE`] of each code, then a summary), writes
+/// the result (to the output file atomically, or to stdout) and returns the exit code. A closed
+/// stdout (`adf … | head`) is not an error.
 fn finish(outcome: Outcome, reporter: Reporter) -> u8 {
-    reporter.emit(&outcome.diagnostics, outcome.label.as_deref());
+    let diagnostics = cap_per_code(outcome.diagnostics, MAX_LISTED_PER_CODE);
+    reporter.emit(&diagnostics, outcome.label.as_deref());
     let mut exit = outcome.exit;
     if !outcome.stdout.is_empty() {
         match outcome
@@ -283,7 +286,8 @@ fn finish(outcome: Outcome, reporter: Reporter) -> u8 {
     if let Some(summary) = outcome.summary
         && reporter.format == report::Format::Text
     {
-        output::stderr(&format!("{summary}\n"));
+        // The summary starts with the input file name, which may contain control characters.
+        output::stderr(&format!("{}\n", report::sanitize(&summary)));
     }
     exit
 }
