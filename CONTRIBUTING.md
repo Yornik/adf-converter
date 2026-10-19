@@ -69,11 +69,14 @@ cargo deny --locked check          # only if cargo-deny is installed
 This project uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 Pull requests are **squash-merged**, and the PR title becomes the commit message on `main`, so
 the PR title is what counts (a CI check enforces the format). Commits inside your branch can be
-anything, but conventional messages make review easier.
+anything, but conventional messages make review easier. One exception: if the PR has a single
+commit, GitHub may use that commit's message instead, so the check requires its first line to
+equal the PR title.
 
 [release-please](https://github.com/googleapis/release-please) reads these messages on `main`. It
 keeps a release PR open that bumps the version and updates `CHANGELOG.md`; merging that PR tags
-the release and publishes the binaries.
+the release and publishes the binaries. release-please creates `CHANGELOG.md` with the first
+release; don't edit it by hand.
 
 | Type | Example | Effect on the next release |
 |---|---|---|

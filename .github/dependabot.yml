@@ -1,7 +1,11 @@
 # Dependabot version updates. PR titles must be Conventional Commits (pr-title.yml), and the
 # commit type decides what release-please does with the change:
-#   deps:      Rust dependencies; listed under "Dependencies" and released (patch)
-#   ci(deps):  GitHub Actions; hidden from the changelog, no release
+#   deps:        Rust dependencies of the root crate; listed under "Dependencies" and released
+#                (patch). Dependabot has no separate prefix for cargo dev-dependencies: retitle
+#                a PR that only bumps dev-dependencies (proptest, trycmd) to `test(deps): …`
+#                before merging, because the binary does not change.
+#   chore(deps): the fuzz workspace (fuzz/), which is never shipped; hidden, no release
+#   ci(deps):    GitHub Actions; hidden from the changelog, no release
 #   build(deps): the pinned Rust toolchain; hidden from the changelog, no release
 # A cooldown lets the ecosystem catch broken or malicious releases before they reach this repo.
 # Security updates are not delayed by the cooldown.
@@ -23,8 +27,7 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: cargo
-    # /fuzz is a separate cargo workspace (cargo-fuzz).
-    directories: [/, /fuzz]
+    directory: /
     schedule:
       interval: weekly
       day: monday
@@ -39,6 +42,23 @@ updates:
         # For 0.x crates a "minor" bump is a breaking release; keep these in their own PRs so a
         # failure is easy to attribute. jsonschema is pinned exactly (=0.59.0) for the same reason.
         exclude-patterns: [jsonschema, pulldown-cmark, linkify]
+
+  # fuzz/ is a separate cargo workspace (cargo-fuzz). Its updates (libfuzzer-sys, serde_json and
+  # its own fuzz/Cargo.lock) never reach a release binary, so they get a hidden commit type.
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      fuzz-minor-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: rust-toolchain
     directory: /

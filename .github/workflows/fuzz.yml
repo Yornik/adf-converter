@@ -1,5 +1,7 @@
-# Weekly fuzzing of every cargo-fuzz target in fuzz/fuzz_targets (10 minutes each). A crash,
-# leak or per-input timeout fails the run and uploads the reproducer from fuzz/artifacts/.
+# Weekly fuzzing of every cargo-fuzz target in fuzz/fuzz_targets (10 minutes each). Each run
+# starts from a corpus seeded with the test fixtures and uses the target's dictionary from
+# fuzz/dict/, as in fuzz/README.md. A crash, leak or per-input timeout fails the run and uploads
+# the reproducer from fuzz/artifacts/.
 # Reproduce locally with: cargo +nightly fuzz run <target> <artifact file>
 name: Fuzz
 
@@ -65,8 +67,39 @@ jobs:
         run: rustup toolchain install nightly --profile minimal
       - name: Install cargo-fuzz
         run: cargo +nightly install --locked cargo-fuzz@0.13.2
+      # md_to_adf and roundtrip read an options byte (\0: the defaults) and then Markdown, so they
+      # are seeded with the fixture inputs; adf_to_md reads JSON, so it gets the blessed ADF.
+      # A target not listed here runs without seeds or a dictionary.
+      - name: Seed the corpus from tests/fixtures
+        id: seed
+        run: |
+          corpus="fuzz/corpus/$FUZZ_TARGET"
+          mkdir -p "$corpus"
+          case $FUZZ_TARGET in
+            md_to_adf | roundtrip) pattern='*.md' prefix='\0' dict=markdown.dict ;;
+            adf_to_md) pattern='*.adf.json' prefix='' dict=adf.dict ;;
+            *) pattern='' prefix='' dict='' ;;
+          esac
+          count=0
+          if [[ -n $pattern ]]; then
+            # tests/fixtures/<area>/<case>.*; case names are unique only within their area.
+            while IFS= read -r -d '' f; do
+              area=$(basename "$(dirname "$f")")
+              { printf '%b' "$prefix"; cat "$f"; } >"$corpus/$area-$(basename "$f")"
+              count=$((count + 1))
+            done < <(find tests/fixtures -mindepth 2 -maxdepth 2 -type f -name "$pattern" -print0)
+          fi
+          echo "seeded $count inputs into $corpus${dict:+, dictionary fuzz/dict/$dict}"
+          echo "dict=$dict" >>"$GITHUB_OUTPUT"
       - name: Fuzz for ${{ env.FUZZ_SECONDS }} seconds
-        run: cargo +nightly fuzz run "$FUZZ_TARGET" -- -max_total_time="$FUZZ_SECONDS" -timeout=60
+        env:
+          FUZZ_DICT: ${{ steps.seed.outputs.dict }}
+        run: |
+          args=(-max_total_time="$FUZZ_SECONDS" -timeout=60)
+          if [[ -n $FUZZ_DICT ]]; then
+            args+=(-dict="$PWD/fuzz/dict/$FUZZ_DICT")
+          fi
+          cargo +nightly fuzz run "$FUZZ_TARGET" -- "${args[@]}"
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

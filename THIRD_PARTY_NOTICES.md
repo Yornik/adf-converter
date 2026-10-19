@@ -19,7 +19,7 @@ does not endorse or support this project.
 
 ## Rust crates
 
-The `adf` binary is built from the following 91 crates: the normal (non-development)
+The `adf` binary is built from the following 89 crates: the normal (non-development)
 dependency tree in `Cargo.lock` for the six release targets. Development-only dependencies (test
 frameworks) and build-script helpers are not part of the binary and are not listed.
 
@@ -107,8 +107,6 @@ or under MIT No Attribution or Zlib where that is what the crate offers.
 | syn | 2.0.119 | MIT OR Apache-2.0 | Authors: David Tolnay |
 | syn | 3.0.9 | MIT OR Apache-2.0 | Authors: David Tolnay |
 | terminal_size | 0.4.4 | MIT OR Apache-2.0 | Copyright (c) 2015 The terminal-size Developers |
-| thiserror | 2.0.21 | MIT OR Apache-2.0 | Authors: David Tolnay |
-| thiserror-impl | 2.0.21 | MIT OR Apache-2.0 | Authors: David Tolnay |
 | unicase | 2.10.0 | MIT OR Apache-2.0 | Copyright (c) 2014-2026 Sean McArthur |
 | unicode-general-category | 1.1.0 | Apache-2.0 | Authors: YesLogic Pty. Ltd. |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | Copyright © 1991-2023 Unicode, Inc. |

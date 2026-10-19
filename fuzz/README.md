@@ -44,7 +44,7 @@ Useful libFuzzer flags: `-max_len=65536` (longer inputs), `-jobs=N -workers=N` (
 `-timeout=10` (report slow inputs). `fuzz/corpus/`, `fuzz/artifacts/`, `fuzz/coverage/` and
 `fuzz/target/` are git-ignored.
 
-To check that the targets still compile without nightly:
+To check that the targets still compile without nightly (CI's lint job runs this on every PR):
 
 ```sh
 cargo check --manifest-path fuzz/Cargo.toml --bins --lib
