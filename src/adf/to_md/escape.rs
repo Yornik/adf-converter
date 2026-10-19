@@ -24,10 +24,15 @@ pub(super) struct TextEscape {
     /// Roundtrip flavour: escape everything that this tool's own parser could misread.
     /// Plain flavour escapes only what changes the rendering.
     pub roundtrip: bool,
-    /// The text is the first thing on its line (no markup before it).
+    /// The text is the first thing on its line (no markup before it): block syntax is special,
+    /// and the parser strips leading spaces and tabs.
     pub line_start: bool,
-    /// The text is the last thing on its line (nothing after it before the line break or the
-    /// end of the block).
+    /// Only opening marks and blank text precede the text in its block (paragraph, heading,
+    /// task item or table cell). Markdown → ADF trims spaces and tabs at the block's edges even
+    /// inside marks, so leading ones are written as character references.
+    pub block_start: bool,
+    /// Trailing spaces and tabs would be trimmed: the text ends its block, followed at most by
+    /// closing marks and blank text (or it ends a line the parser trims).
     pub line_end: bool,
     /// The text is inside a link label, where autolinks cannot occur.
     pub in_link: bool,
@@ -37,8 +42,9 @@ pub(super) struct TextEscape {
 pub(super) fn escape_text(text: &str, opts: TextEscape, out: &mut String) {
     let chars: Vec<char> = text.chars().collect();
     // Leading spaces/tabs are stripped by the parser at the start of a line, trailing ones at
-    // the end of a block (and in cells); write them as character references.
-    let lead = if opts.line_start {
+    // the end of a block (and in cells), and Markdown → ADF trims both at a block's edges, also
+    // inside marks; write them as character references, which are never trimmed.
+    let lead = if opts.line_start || opts.block_start {
         chars.iter().take_while(|c| is_space_or_tab(**c)).count()
     } else {
         0
@@ -155,10 +161,13 @@ fn is_www_dot(chars: &[char], i: usize) -> bool {
     !before.is_some_and(|c| c.is_alphanumeric())
 }
 
-/// An `@` that could be part of a GFM extended email autolink (`a@b.c`).
+/// An `@` that could be part of an email autolink (`a@b.c`) as Markdown → ADF finds them
+/// (`linkify`: RFC 5321 atoms plus any non-ASCII character in the local part, and
+/// internationalised domains).
 fn is_email_at(prev: Option<char>, next: Option<char>) -> bool {
-    let local = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-' | '_');
-    prev.is_some_and(local) && next.is_some_and(|c| c.is_ascii_alphanumeric())
+    let local =
+        |c: char| c.is_ascii_alphanumeric() || !c.is_ascii() || "!#$%&'*+-/=?^_`{|}~.".contains(c);
+    prev.is_some_and(local) && next.is_some_and(|c| c.is_ascii_alphanumeric() || !c.is_ascii())
 }
 
 /// A code span for `content` (non-empty, no `\n`), with a backtick fence longer than any run
@@ -234,6 +243,21 @@ pub(super) fn link_destination(url: &str, in_table: bool) -> String {
     out
 }
 
+/// A code fence info string (a language without whitespace): backslash escapes and entities
+/// are decoded there, so `\` and entity-like `&` are escaped.
+pub(super) fn info_string(language: &str) -> String {
+    let mut out = String::with_capacity(language.len());
+    let chars: Vec<char> = language.chars().collect();
+    for (i, &c) in chars.iter().enumerate() {
+        let next = chars.get(i + 1).copied();
+        if c == '\\' || (c == '&' && next.is_some_and(|n| n.is_ascii_alphanumeric() || n == '#')) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
 /// A link title in double quotes.
 pub(super) fn link_title(title: &str, in_table: bool) -> String {
     let mut out = String::with_capacity(title.len() + 2);
@@ -296,6 +320,7 @@ mod tests {
                 context,
                 roundtrip: true,
                 line_start,
+                block_start: false,
                 line_end,
                 in_link: false,
             },
@@ -352,6 +377,39 @@ mod tests {
     }
 
     #[test]
+    fn whitespace_at_block_edges_inside_marks_becomes_references() {
+        let mut out = String::new();
+        escape_text(
+            " \ta  ",
+            TextEscape {
+                context: TextContext::TableCell,
+                roundtrip: true,
+                line_start: false,
+                block_start: true,
+                line_end: true,
+                in_link: false,
+            },
+            &mut out,
+        );
+        assert_eq!(out, "&#32;&#9;a&#32;&#32;");
+        // Leading references do not make the following character line-initial.
+        out.clear();
+        escape_text(
+            " # x",
+            TextEscape {
+                context: TextContext::Block,
+                roundtrip: true,
+                line_start: false,
+                block_start: true,
+                line_end: false,
+                in_link: false,
+            },
+            &mut out,
+        );
+        assert_eq!(out, "&#32;# x");
+    }
+
+    #[test]
     fn autolink_triggers() {
         assert_eq!(
             block("see https://x.org, www.y.com or a@b.cd"),
@@ -365,6 +423,7 @@ mod tests {
                 context: TextContext::Block,
                 roundtrip: true,
                 line_start: false,
+                block_start: false,
                 line_end: false,
                 in_link: true,
             },
@@ -408,6 +467,7 @@ mod tests {
         assert_eq!(link_destination("a\\b&amp;", false), r"a\\b\&amp;");
         assert_eq!(link_destination("a|b", true), r"a\|b");
         assert_eq!(link_title(r#"say "hi" \o/"#, false), r#""say \"hi\" \\o/""#);
+        assert_eq!(info_string(r"\*a&amp;b&"), r"\\*a\&amp;b&");
     }
 
     #[test]

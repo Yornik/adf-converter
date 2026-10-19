@@ -781,7 +781,12 @@ impl InlineBuilder {
                 }
             }
             ImageMode::External => {
-                let alt = strip_controls(frame.alt.trim()).replace('\n', " ");
+                // Trim last: a removed control character or newline must not leave the alt
+                // text starting or ending with a space.
+                let alt = strip_controls(&frame.alt)
+                    .replace('\n', " ")
+                    .trim()
+                    .to_owned();
                 if Href::parse(&frame.url).is_none() {
                     cx.warn(
                         Code::UnsafeUrl,

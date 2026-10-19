@@ -287,18 +287,18 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
 | ADF | Markdown |
 |---|---|
 | `heading` | ATX `#`…`######`; `hardBreak` inside → `<br>` |
-| `paragraph` | text; `hardBreak` → `\` + newline; leading/trailing spaces → `&#32;` |
+| `paragraph` | text; `hardBreak` → `\` + newline; leading/trailing spaces → `&#32;` (tabs `&#9;`), also inside marks at the edges of a paragraph, heading, task item or table cell, and at the start of a line; U+FEFF starting the document → `&#65279;` |
 | marks | `*em*`, `**strong**`, `~~strike~~`, `` `code` ``, `[t](href "title")`, `<u>`, `<sub>`, `<sup>`, `<span style="color: #hex">`, `<span style="background-color: #hex">`. When `*`/`**`/`~~` would not parse (whitespace or punctuation at the edge, inside a word), the HTML form (`<em>`, `<strong>`, `<del>`) is used. |
 | text | Markdown-special characters are escaped so they stay literal. `://` in unlinked text is written `\://` so it is not autolinked. |
-| `bulletList`, `orderedList {order}` | `-` / `N.` lists; nesting by indentation; an item whose first paragraph is empty → `-` alone on its line |
+| `bulletList`, `orderedList {order}` | `-` / `N.` lists; nesting by indentation; an item whose first paragraph is empty → `-` alone on its line, or `- ![alt](url)` when an external image follows it. A blank line separates a list that cannot interrupt a paragraph (`N.` with `N` ≠ 1, an empty first item) from a paragraph line before it. |
 | `taskList`, `taskItem` | `- [ ]` / `- [x]` |
-| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content |
-| `blockquote` | `>` |
-| `rule` | `---` |
+| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content; `\` and `&` in the language are escaped. Language `adf` → ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), because a fence with that language is raw ADF. |
+| `blockquote` | `>`; a quote holding one empty paragraph → `>` alone |
+| `rule` | `---` (`***` as the first block, where `---` could open front matter) |
 | `panel` info / success / note / warning / error | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` |
 | `expand`, `nestedExpand` | `<details><summary>title</summary>` … `</details>` |
 | `table` 1×1 with a single `tableCell` and default attrs | `::: cell` … `:::` |
-| `table` with a header row, one paragraph per cell, no spans, consistent column alignment | GFM table |
+| `table` with a header row, one paragraph per cell (optionally followed by external images, written after the cell's text), no spans, consistent column alignment | GFM table |
 | `mention`, `status`, `date`, `emoji`, `inlineCard` | the `adf:` link forms above |
 | `mediaSingle` with external `media` | `![alt](url)` |
 | anything else: other tables, Media Services files, `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`) |
@@ -321,5 +321,9 @@ where `normalize`:
 - splits `\n` inside text nodes into `hardBreak`s;
 - drops the attributes listed under `W_ATTR_DROPPED`.
 
-Every document produced by `md → adf` satisfies this. The test suite checks it with goldens and
-property tests.
+`md_to_adf` here runs for the document's target, with all ADF extensions on (the roundtrip
+Markdown is written with them) and with `--images external` (`![alt](url)` stands for an external
+image).
+
+Every document produced by `md → adf` (with any options) satisfies this. The test suite checks it
+with goldens and property tests.

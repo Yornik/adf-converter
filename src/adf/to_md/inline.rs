@@ -278,6 +278,7 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                         context: TextContext::Block,
                         roundtrip: false,
                         line_start: false,
+                        block_start: false,
                         line_end: false,
                         in_link: true,
                     },
@@ -818,7 +819,52 @@ fn switch_at(layout: &Layout, intended: &Intended, positions: &[usize], html: &m
     changed
 }
 
+/// Which atoms sit at the edges of the block, where Markdown → ADF trims spaces and tabs even
+/// inside marks (`md/finalize.rs`): on the first line, every atom up to and including the first
+/// one that is not blank text; on the last line, every atom from the last such one on.
+#[derive(Debug, Clone, Copy)]
+struct BlockEdges {
+    /// Index (on the first line) of the first atom that is not blank text.
+    lead_until: usize,
+    /// Index (on the last line) of the last atom that is not blank text.
+    trail_from: usize,
+}
+
+impl BlockEdges {
+    fn of(layout: &Layout) -> Self {
+        let lead_until = layout
+            .lines
+            .first()
+            .and_then(|line| line.iter().position(|a| !is_blank_text(a)))
+            .unwrap_or(usize::MAX);
+        let trail_from = layout
+            .lines
+            .last()
+            .and_then(|line| line.iter().rposition(|a| !is_blank_text(a)))
+            .unwrap_or(0);
+        Self {
+            lead_until,
+            trail_from,
+        }
+    }
+}
+
+/// Text (not code) made only of spaces and tabs: Markdown → ADF trims all of it at an edge.
+fn is_blank_text(atom: &Atom) -> bool {
+    matches!(atom, Atom::Text { text, style } if !style.code && text.chars().all(|c| c == ' ' || c == '\t'))
+}
+
+/// Where a text atom sits, for escaping its edges.
+#[derive(Debug, Clone, Copy)]
+struct Edges {
+    /// Only opening marks and blank text precede it in the block.
+    block_start: bool,
+    /// Only closing marks and blank text follow it in the block.
+    block_end: bool,
+}
+
 fn write_layout(layout: &Layout, html: &[bool], kind: InlineKind, roundtrip: bool) -> String {
+    let edges = BlockEdges::of(layout);
     let mut out = String::new();
     for (line_no, (line, events)) in layout.lines.iter().zip(&layout.events).enumerate() {
         if line_no > 0 {
@@ -830,6 +876,17 @@ fn write_layout(layout: &Layout, html: &[bool], kind: InlineKind, roundtrip: boo
         for (pos, ev) in events.iter().enumerate() {
             let at_end = last_line && pos + 1 == events.len();
             match *ev {
+                // Roundtrip keeps every space; plain only guards the line edges the parser
+                // strips (readability over exactness inside marks).
+                Ev::Atom(i) if roundtrip => {
+                    if let Some(atom) = line.get(i) {
+                        let at = Edges {
+                            block_start: line_no == 0 && i <= edges.lead_until,
+                            block_end: last_line && i >= edges.trail_from,
+                        };
+                        write_atom(atom, kind, roundtrip, at, &mut buf);
+                    }
+                }
                 Ev::Open(id) => {
                     if let Some(span) = layout.spans.get(id) {
                         let html_form = html.get(id).copied().unwrap_or(true);
@@ -844,7 +901,11 @@ fn write_layout(layout: &Layout, html: &[bool], kind: InlineKind, roundtrip: boo
                 }
                 Ev::Atom(i) => {
                     if let Some(atom) = line.get(i) {
-                        write_atom(atom, kind, roundtrip, at_end, &mut buf);
+                        let at = Edges {
+                            block_start: false,
+                            block_end: at_end,
+                        };
+                        write_atom(atom, kind, roundtrip, at, &mut buf);
                     }
                 }
             }
@@ -908,7 +969,7 @@ fn close_mark(key: &MarkKey, html: bool, kind: InlineKind, buf: &mut String) {
     }
 }
 
-fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at_end: bool, buf: &mut String) {
+fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at: Edges, buf: &mut String) {
     match atom {
         Atom::Text { text, style } if style.code => {
             buf.push_str(&code_span(text, kind.in_table()));
@@ -918,7 +979,8 @@ fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at_end: bool, buf:
                 context: kind.context(),
                 roundtrip,
                 line_start: buf.is_empty(),
-                line_end: at_end,
+                block_start: at.block_start,
+                line_end: at.block_end,
                 in_link: style.link.is_some(),
             };
             escape_text(text, opts, buf);
@@ -930,6 +992,7 @@ fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at_end: bool, buf:
                 context: kind.context(),
                 roundtrip,
                 line_start: false,
+                block_start: false,
                 line_end: false,
                 in_link: true,
             };
