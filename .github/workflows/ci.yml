@@ -41,6 +41,9 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            . -> target
+            fuzz -> target
       - name: cargo fmt
         run: cargo fmt --all --check
       - name: cargo clippy
@@ -49,6 +52,13 @@ jobs:
         run: cargo doc --locked --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+      # fuzz/ is its own cargo workspace, so the steps above never compile it. Type-check it here
+      # (stable is enough), so a library change that breaks the fuzz targets fails the PR rather
+      # than the weekly Fuzz run. Not --locked: a requirement change in the root Cargo.toml (for
+      # example from a Dependabot PR) does not update fuzz/Cargo.lock, so that lock may lag
+      # behind and is re-resolved here. release-please keeps its adf-converter version in step.
+      - name: cargo check (fuzz workspace)
+        run: cargo check --manifest-path fuzz/Cargo.toml --bins --lib
 
   test:
     name: test (${{ matrix.os }})
