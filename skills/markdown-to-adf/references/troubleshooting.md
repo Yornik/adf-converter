@@ -42,7 +42,7 @@ as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 
 | Code | Meaning | Fix |
 |---|---|---|
-| `W_MARK_DROPPED` | Formatting ADF doesn't allow there was dropped: bold, italic or strike on inline code, or any formatting around a mention, status, date, emoji or card. | Remove the formatting around the code span or extension (`` **`x`** `` → `` `x` ``), or format the surrounding words instead. |
+| `W_MARK_DROPPED` | Formatting ADF doesn't allow there was dropped: bold, italic or strike on inline code, or any formatting around a mention, status, date, emoji or card. With `--images external`, also the title of an image or a link around it. | Remove the formatting around the code span or extension (`` **`x`** `` → `` `x` ``), or format the surrounding words instead. Write an image's link or title as text next to it. |
 | `W_HEADING_DEMOTED` | A heading inside a list item or quote became a bold paragraph. | Move the heading out of the list or quote, or write **bold** text on purpose. |
 | `W_BLOCK_HOISTED` | A block was moved out of a container that cannot hold it, such as a table, rule or quote in a list, a rule or table in a quote, or a table in a box cell. The container is split around it. | End the list or quote before the block, then continue it after. Keep tables at the top level or in `<details>`. |
 | `W_BLOCK_FLATTENED` | A nested container was merged: a quote in a quote, an alert or `<details>` where a panel or expand cannot go, or a nested `::: cell`. | Avoid nested quotes; put alerts and `<details>` at the top level, in `<details>` or in a box cell; don't nest boxes. |

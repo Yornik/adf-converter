@@ -23,7 +23,7 @@ the installed version supports.
 | ```` ```python ```` … ```` ``` ```` | code block with language | Contents are never formatted. |
 | `> quote` | quote | Quotes hold paragraphs, lists and code only. |
 | `---` on its own line (blank line before it) | horizontal rule | Directly under a text line, `---` makes that line a heading instead. |
-| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL. |
+| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL, without the image's title or a link around it (`W_MARK_DROPPED`). |
 | `[^1]` and `[^1]: note` | superscript number + numbered list at the end | `W_FOOTNOTE_FLATTENED`. |
 | `\*`, `&amp;` | literal `*`, `&` | Backslash escapes and entities work as usual. |
 

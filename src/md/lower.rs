@@ -945,8 +945,12 @@ impl Lowerer<'_, '_> {
     }
 
     /// Appends a paragraph's text to a task item's content (separated by a hard break).
+    ///
+    /// External images are moved after the task list. The spaces around a moved image collapse
+    /// to one (`task ![i](u) after` → `task after`), or to none at the edge of the text.
     fn task_text(&mut self, toks: &mut Vec<Tok>, content: Vec<Tok>, ups: &mut Vec<Block>) {
         let mut text = Vec::new();
+        let mut after_media = false;
         for tok in content {
             match tok {
                 Tok::Media { media, span } => {
@@ -956,9 +960,33 @@ impl Lowerer<'_, '_> {
                         &span,
                     );
                     ups.push(Block::Media { media, span });
+                    after_media = true;
                 }
-                other @ (Tok::Text { .. } | Tok::HardBreak | Tok::Node(_)) => text.push(other),
+                Tok::Text {
+                    text: value,
+                    marks,
+                    span,
+                    trim: true,
+                } if after_media && ends_in_space(&text) => {
+                    let value = value.trim_start_matches([' ', '\t']);
+                    if !value.is_empty() {
+                        text.push(Tok::Text {
+                            text: value.to_owned(),
+                            marks,
+                            span,
+                            trim: true,
+                        });
+                        after_media = false;
+                    }
+                }
+                other @ (Tok::Text { .. } | Tok::HardBreak | Tok::Node(_)) => {
+                    text.push(other);
+                    after_media = false;
+                }
             }
+        }
+        if after_media {
+            trim_end_spaces(&mut text);
         }
         if text.is_empty() {
             return;
@@ -1002,6 +1030,32 @@ impl Lowerer<'_, '_> {
                 &first_task.span,
             );
         }
+    }
+}
+
+/// Whether inline text is empty so far, or ends in a hard break or a literal space or tab.
+fn ends_in_space(toks: &[Tok]) -> bool {
+    match toks.last() {
+        None | Some(Tok::HardBreak) => true,
+        Some(Tok::Text {
+            text, trim: true, ..
+        }) => text.ends_with([' ', '\t']),
+        Some(Tok::Text { .. } | Tok::Node(_) | Tok::Media { .. }) => false,
+    }
+}
+
+/// Removes literal spaces and tabs at the end of inline text.
+fn trim_end_spaces(toks: &mut Vec<Tok>) {
+    while let Some(Tok::Text {
+        text, trim: true, ..
+    }) = toks.last_mut()
+    {
+        let len = text.trim_end_matches([' ', '\t']).len();
+        if len > 0 {
+            text.truncate(len);
+            return;
+        }
+        toks.pop();
     }
 }
 

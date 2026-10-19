@@ -53,6 +53,8 @@ struct ImageFrame {
     mode: ImageMode,
     url: String,
     link: Option<Link>,
+    /// Whether the image has a non-empty title (`![alt](url "title")`).
+    titled: bool,
     /// Alt text, collected when the image does not become text.
     alt: String,
     start_tok: usize,
@@ -735,6 +737,7 @@ impl InlineBuilder {
             mode,
             url: dest.to_owned(),
             link,
+            titled: !strip_controls(title).trim().is_empty(),
             alt: String::new(),
             start_tok: self.toks.len(),
             span,
@@ -808,9 +811,17 @@ impl InlineBuilder {
                     return;
                 }
                 if !self.stack.links.is_empty() || self.stack.in_link > 0 {
+                    cx.warn_hint(
+                        Code::MarkDropped,
+                        "The link around an image was dropped; --images external does not link media",
+                        "Write the link as text next to the image",
+                        &frame.span,
+                    );
+                }
+                if frame.titled {
                     cx.warn(
                         Code::MarkDropped,
-                        "The link around an image was dropped; ADF media cannot be linked",
+                        "The image title was dropped; ADF media has no title",
                         &frame.span,
                     );
                 }
