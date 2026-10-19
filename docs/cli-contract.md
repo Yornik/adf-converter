@@ -229,7 +229,7 @@ included in `adf capabilities --json`.
 | <a id="e_usage"></a>`E_USAGE` | 2 | Invalid command-line usage. |
 | <a id="e_input_read"></a>`E_INPUT_READ` | 3 | The input file or stdin could not be read. |
 | <a id="e_input_encoding"></a>`E_INPUT_ENCODING` | 3 | The input is not valid UTF-8 (location has `byte_offset`). |
-| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (4 MiB), or its Markdown tables would expand to more than 100,000 cells (see [Limits](#limits)). |
+| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (4 MiB), or its Markdown tables would expand to more than 100,000 cells, or (ADF → Markdown) the Markdown would be larger than 64 MiB or its plain-flavour tables would need more than 100,000 empty cells (see [Limits](#limits)). |
 | <a id="e_input_too_deep"></a>`E_INPUT_TOO_DEEP` | 3 | The input nests deeper than the nesting limit (64 container levels; 512 JSON levels for ADF input). |
 | <a id="e_input_json"></a>`E_INPUT_JSON` | 3 | The input is not valid JSON. |
 | <a id="e_input_not_adf"></a>`E_INPUT_NOT_ADF` | 3 | The JSON input is not an ADF document or a known envelope around one. |
@@ -281,6 +281,9 @@ from Markdown or ADF input alike:
 | <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
 
+ADF → Markdown lists at most 20 `W_INPUT_SCHEMA` warnings and at most 100 of each other code. One
+more warning of the same code, without a location, counts the rest.
+
 ## Environment variables
 
 | Variable | Effect |
@@ -299,6 +302,8 @@ requests.
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
+| Markdown output of ADF → Markdown | 64 MiB | `E_INPUT_TOO_LARGE` |
+| Empty cells that `--md-flavor plain` adds to keep table columns aligned (merged cells): all tables of the document together | 100,000 | `E_INPUT_TOO_LARGE` |
 | Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
 
 GFM pads every table row to the header width, so a few kilobytes of Markdown can describe
@@ -308,6 +313,12 @@ exceeds 100,000 cells (it counts the cells it actually builds as well). The esti
 high side: a line that directly follows a table without a blank line counts as a row. Table-like
 lines in fenced code are not counted, except towards a safety bound of 1,000,000 cells over the
 whole input.
+
+In ADF → Markdown, indentation makes the output grow with nesting depth: every line of a list nested
+100 levels deep carries hundreds of spaces. `adf` fails with `E_INPUT_TOO_LARGE`, located at the node
+it was writing, before the Markdown grows beyond 64 MiB; Markdown → ADF could not read it back anyway.
+Raw ```` ```adf ```` blocks are pretty-printed only for their first 16 JSON levels and compact below,
+so they stay close to the size of the input.
 
 ## Determinism
 

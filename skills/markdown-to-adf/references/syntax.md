@@ -166,5 +166,12 @@ warning, so `adf validate --from md` shows what to restructure.
   editing. Attributes and marks without a Markdown form (column widths, cell colours, alignment,
   Confluence inline-comment anchors) are dropped with `W_ATTR_DROPPED`.
 - `--md-flavor plain`: compact Markdown for reading. Mentions become `@Name`, statuses `[TEXT]`,
-  dates `YYYY-MM-DD`, emoji their character, cards bare URLs, and nodes without a Markdown form
-  are dropped.
+  dates `YYYY-MM-DD`, emoji their character, cards bare URLs, external images `![alt](url)`
+  with their caption, uploaded files `[image: alt]` or `[attachment]`, and nodes without a
+  Markdown form are dropped. Merged table cells leave the columns they span empty, so every
+  value stays under its header.
+
+Text, code or titles that Markdown cannot carry unchanged (control characters such as terminal
+colour codes, or an expand title with extra spaces) become ```` ```adf ```` blocks in roundtrip
+mode; plain mode shows control characters in code as U+FFFD. Markdown output is limited to
+64 MiB (`E_INPUT_TOO_LARGE`).

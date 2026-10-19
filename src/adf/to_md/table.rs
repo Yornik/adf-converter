@@ -62,7 +62,7 @@ fn drop_cell_attrs(cell: &Node<'_>, cx: &mut Ctx) {
 fn render_box(table: &Node<'_>, cell: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
     if cell.content.is_empty() {
         return Err(Fail::unrepresentable(
-            &cell.pointer,
+            &cell.pointer(),
             "an empty table cell has no Markdown form",
         ));
     }
@@ -115,7 +115,10 @@ fn plain_box(cell: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
 }
 
 fn not_gfm(node: &Node<'_>, why: &str) -> Fail {
-    Fail::unrepresentable(&node.pointer, &format!("a GFM table cannot hold it: {why}"))
+    Fail::unrepresentable(
+        &node.pointer(),
+        &format!("a GFM table cannot hold it: {why}"),
+    )
 }
 
 fn render_gfm(table: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
@@ -249,36 +252,64 @@ fn table_row(cells: &[String]) -> String {
 // Plain flavour
 // ---------------------------------------------------------------------------------------------
 
+/// Plain: a GFM table with every cell in its column. Merged cells keep their text in the first
+/// column they cover; the columns they span (to the right, and in the rows below) become empty
+/// cells, so later cells stay under their headers. Rows are not padded at the end (GFM readers
+/// do that), and the empty cells written are counted against a budget ([`Ctx::add_table_padding`]),
+/// because spans can describe far more cells than the input holds.
 fn render_plain(table: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
-    let mut grid: Vec<Vec<String>> = Vec::new();
-    let mut aligns: Vec<Align> = Vec::new();
-    for (r, row) in table
+    let rows: Vec<&Node<'_>> = table
         .content
         .iter()
         .filter(|r| r.ty == "tableRow")
-        .enumerate()
-    {
-        let mut cells = Vec::new();
+        .collect();
+    // Per column, the row index up to which (exclusive) a cell from a row above covers it.
+    let mut covered_until: Vec<usize> = Vec::new();
+    let mut grid: Vec<Vec<String>> = Vec::with_capacity(rows.len());
+    let mut aligns: Vec<Align> = Vec::new();
+    for (r, row) in rows.iter().enumerate() {
+        let mut cells: Vec<String> = Vec::new();
+        // Empty cells owed before the next cell with content.
+        let mut pending: usize = 0;
+        let mut column: usize = 0;
         for cell in &row.content {
+            while covered_until.get(column).is_some_and(|&until| until > r) {
+                pending += 1;
+                column += 1;
+            }
             cx.enter(cell)?;
             let text = plain_cell(cell, cx);
             cx.leave();
+            let text = text?;
+            cx.add_table_padding(pending, table)?;
+            cells.extend(std::iter::repeat_n(String::new(), pending));
             if r == 0 {
                 let align = cell
                     .content
                     .first()
                     .and_then(|p| paragraph_align(p).ok())
                     .unwrap_or(Align::Default);
+                aligns.resize(cells.len(), Align::Default);
                 aligns.push(align);
             }
-            cells.push(text?);
-            let span = cell.attr("colspan").and_then(Value::as_u64).unwrap_or(1);
-            for _ in 1..span.min(64) {
-                cells.push(String::new());
-                if r == 0 {
-                    aligns.push(Align::Default);
-                }
+            cells.push(text);
+            let colspan = span(cell, "colspan").min(64);
+            let rowspan = span(cell, "rowspan");
+            let end = column + colspan;
+            if covered_until.len() < end {
+                covered_until.resize(end, 0);
             }
+            for until in covered_until.iter_mut().skip(column).take(colspan) {
+                *until = (*until).max(r.saturating_add(rowspan));
+            }
+            column = end;
+            pending = colspan - 1;
+        }
+        if r == 0 {
+            // The header row shows the whole extent of its merged cells.
+            cx.add_table_padding(pending, table)?;
+            cells.extend(std::iter::repeat_n(String::new(), pending));
+            aligns.resize(cells.len(), Align::Default);
         }
         grid.push(cells);
     }
@@ -287,16 +318,42 @@ fn render_plain(table: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
         return Ok(String::new());
     }
     aligns.resize(width, Align::Default);
-    let mut lines = Vec::with_capacity(grid.len() + 1);
+    let mut out = String::new();
     for (r, mut cells) in grid.into_iter().enumerate() {
-        cells.resize(width, String::new());
-        lines.push(table_row(&cells));
+        if r == 0 {
+            // GFM drops cells beyond the header's width, so the header spans every column.
+            cx.add_table_padding(width - cells.len(), table)?;
+            cells.resize(width, String::new());
+        }
+        push_line(&mut out, &table_row(&cells), table, cx)?;
         if r == 0 {
             let delims: Vec<String> = aligns.iter().map(|a| delimiter(*a).to_owned()).collect();
-            lines.push(table_row(&delims));
+            push_line(&mut out, &table_row(&delims), table, cx)?;
         }
     }
-    Ok(lines.join("\n"))
+    Ok(out)
+}
+
+/// A cell's `colspan` or `rowspan`, at least 1.
+fn span(cell: &Node<'_>, name: &str) -> usize {
+    cell.attr(name)
+        .and_then(Value::as_u64)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(1)
+        .max(1)
+}
+
+/// Appends a line to the table, within the output budget.
+fn push_line(out: &mut String, line: &str, table: &Node<'_>, cx: &Ctx) -> Result<(), Fail> {
+    cx.check_output(
+        out.len().saturating_add(line.len()).saturating_add(1),
+        table,
+    )?;
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(line);
+    Ok(())
 }
 
 /// A cell's blocks as one line, joined with `<br>`.
