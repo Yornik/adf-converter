@@ -209,7 +209,7 @@ included in `adf capabilities --json`.
 | <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. |
 | <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. |
 | <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown. |
-| <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | A construct is not supported by the target product and was replaced by a fallback. |
+| <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | A construct is not supported by the target product and was replaced by a fallback. Reserved: not emitted yet. Markdown never produces such a construct, and a raw ```` ```adf ```` block with one fails with `E_RAW_ADF`. |
 | <a id="w_size_limit"></a>`W_SIZE_LIMIT` | The output is larger than Jira's 32,767-character field limit and may be rejected. |
 | <a id="w_empty_document"></a>`W_EMPTY_DOCUMENT` | The document is empty; Jira rejects empty comment bodies. |
 

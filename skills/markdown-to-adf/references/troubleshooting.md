@@ -59,7 +59,7 @@ as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
 | `W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension; the label was kept as text. | Use `mention`, `status`, `date`, `emoji` or `card` (`adf capabilities --json` lists them); check for typos such as `adf:mentions/`. |
 | `W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument; the label was kept as text. | Status colours: `neutral`, `purple`, `blue`, `red`, `yellow`, `green`, and a non-empty label. Dates: label `YYYY-MM-DD`. Mentions: an account ID in the path. Cards: the label must be an allowed URL. |
 | `W_EXTENSION_DISABLED` | Extension syntax was found, but `--extensions` turned that extension off, so it was converted as plain Markdown. | Leave `--extensions` at its default (`all`) or include the extension's name. |
-| `W_NODE_NOT_IN_TARGET` | The target product doesn't support a construct, so a fallback was used. | Check that `-e`/`-t` match where you post (`-e confluence` for Confluence). Otherwise avoid the construct for that product. |
+| `W_NODE_NOT_IN_TARGET` | Reserved; this version never reports it. Markdown converts the same for Jira and Confluence. A raw ```` ```adf ```` block with a node the target rejects fails with `E_RAW_ADF` instead. | Nothing to do. For `E_RAW_ADF`, check that `-e`/`-t` match where you post (`-e confluence` for Confluence). |
 | `W_SIZE_LIMIT` | The output is larger than Jira's 32,767-character field limit and may be rejected (`CONTENT_LIMIT_EXCEEDED`). | Split it into several comments, shorten it, or attach long logs as files. |
 | `W_EMPTY_DOCUMENT` | The document is empty; Jira rejects empty comment bodies. | Check that the input file isn't empty or only front matter and comments. |
 
