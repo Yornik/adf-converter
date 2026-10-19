@@ -173,6 +173,13 @@ fn jira_shaped_documents_round_trip_after_normalize() {
             &external_images,
         ),
     ];
+    for (name, x, _) in &cases {
+        let errors = support::schema_errors(x);
+        assert!(
+            errors.is_empty(),
+            "{name}: the input is not schema-valid: {errors:?}"
+        );
+    }
     let failures: Vec<String> = cases
         .iter()
         .filter_map(|(name, x, options)| round_trip_document(name, x, options))

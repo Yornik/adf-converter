@@ -355,6 +355,59 @@ fn every_options_file_is_valid() {
     );
 }
 
+/// The JSON of each ```` ```adf ```` fence (one per line range, unindented) in a fixture input.
+fn raw_adf_blocks(source: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut current: Option<String> = None;
+    for line in source.lines() {
+        match current.as_mut() {
+            None if line.trim_end() == "```adf" => current = Some(String::new()),
+            None => {}
+            Some(_) if line.trim_end() == "```" => blocks.extend(current.take()),
+            Some(json) => {
+                json.push_str(line);
+                json.push('\n');
+            }
+        }
+    }
+    blocks
+}
+
+/// Fixtures must convert successfully, so every raw ADF block they splice in must itself be valid
+/// ADF (checked here as the content of a document, independently of the converter).
+#[test]
+fn raw_adf_blocks_in_fixtures_are_valid() {
+    let mut failures = Vec::new();
+    let mut checked = 0;
+    for fixture in support::fixtures() {
+        if !fixture.options.extensions.raw_adf {
+            continue; // the block is an ordinary code block
+        }
+        for json in raw_adf_blocks(&fixture.source) {
+            checked += 1;
+            let nodes = match serde_json::from_str::<serde_json::Value>(&json) {
+                Ok(serde_json::Value::Array(nodes)) => nodes,
+                Ok(node) => vec![node],
+                Err(e) => {
+                    failures.push(format!("{}: not JSON: {e}", fixture.name));
+                    continue;
+                }
+            };
+            let doc = serde_json::json!({"type": "doc", "version": 1, "content": nodes});
+            let mut problems = support::schema_errors(&doc);
+            problems.extend(support::invariant_errors(&doc));
+            if !problems.is_empty() {
+                failures.push(format!("{}:\n  {}", fixture.name, problems.join("\n  ")));
+            }
+        }
+    }
+    assert!(
+        checked >= 4,
+        "expected several raw ADF fixtures, found {checked}"
+    );
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
 #[test]
 fn pretty_json_is_stable() {
     let value: serde_json::Value =
