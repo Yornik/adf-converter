@@ -144,7 +144,9 @@ fn status(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
             ))
         })?,
     };
-    let text = NonEmptyString::new(label.trim())
+    // The label is kept verbatim (round trip); it only has to contain something visible.
+    let text = NonEmptyString::new(label)
+        .filter(|t| !t.as_str().trim().is_empty())
         .ok_or_else(|| invalid("adf:status needs a non-empty label"))?;
     Ok(Inline::Status(Status { text, color }))
 }
@@ -494,6 +496,10 @@ mod tests {
         assert_eq!(
             ok("status", Some("Green"), "DONE"),
             json!({"type":"status","attrs":{"text":"DONE","color":"green"}})
+        );
+        assert_eq!(
+            ok("status", Some("blue"), " In progress "),
+            json!({"type":"status","attrs":{"text":" In progress ","color":"blue"}})
         );
         assert_eq!(
             ok("emoji", Some("smile"), ""),
