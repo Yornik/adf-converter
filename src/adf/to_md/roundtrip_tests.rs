@@ -607,6 +607,110 @@ fn only_the_passthrough_document_uses_adf_blocks() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Self-contained: block structure as CommonMark/GFM (pulldown-cmark) sees it. Box cells and
+// details are handled by Markdown → ADF's own pre-pass, so they are left out here.
+// ---------------------------------------------------------------------------------------------
+
+/// A compact block/inline skeleton of `markdown`: `Tag[…]` for containers, `'text'` for text.
+fn skeleton(markdown: &str) -> String {
+    use pulldown_cmark::{Event, Parser};
+    let mut out = String::new();
+    for event in Parser::new_ext(markdown, super::verify::options()) {
+        if let Event::Start(tag) = &event {
+            let name = format!("{tag:?}");
+            let name = name
+                .split(['(', ' ', '{'])
+                .next()
+                .unwrap_or_default()
+                .to_owned();
+            out.push_str(&name);
+            out.push('[');
+        } else if let Event::End(_) = &event {
+            out.push(']');
+        } else if let Event::Text(text) | Event::Code(text) = &event {
+            out.push('\'');
+            out.push_str(text);
+            out.push('\'');
+        } else if let Event::TaskListMarker(done) = &event {
+            out.push_str(if *done { "[x]" } else { "[ ]" });
+        } else if let Event::Rule = &event {
+            out.push_str("---");
+        } else if let Event::HardBreak = &event {
+            out.push('/');
+        } else {
+            out.push_str("<?>");
+        }
+    }
+    out
+}
+
+fn rendered(name: &str) -> String {
+    let document = feature_docs()
+        .into_iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, d)| d)
+        .unwrap_or_default();
+    to_markdown(&document, &AdfToMdOptions::default())
+        .unwrap()
+        .output
+}
+
+#[test]
+fn lists_parse_as_the_intended_structure() {
+    assert_eq!(
+        skeleton(&rendered("lists")),
+        "List[Item[Paragraph['one']List[Item['one.a']Item['one.b']]]\
+         Item[Paragraph['two']Paragraph['two, second paragraph']]\
+         Item[List[Item['empty first paragraph']]]\
+         Item[Paragraph['code']CodeBlock['ls -la\n\n']]]\
+         List[Item['adjacent list']]\
+         List[Item[Paragraph['seven']]Item[Paragraph['eight']List[Item['three']]]]\
+         List[Item['adjacent ordered']]"
+    );
+}
+
+#[test]
+fn tasks_parse_as_the_intended_structure() {
+    assert_eq!(
+        skeleton(&rendered("tasks")),
+        "List[Item[[ ]'write tests']Item[[x]Strong['ship']' it'List[Item[[ ]'nested']]]]"
+    );
+}
+
+#[test]
+fn quotes_alerts_and_code_parse_as_the_intended_structure() {
+    let markdown = rendered("blocks");
+    let before_details = markdown.split("<details>").next().unwrap_or_default();
+    assert_eq!(
+        skeleton(before_details),
+        "Heading['Title ''v2'<?>'second line ''#']\
+         CodeBlock['```\nfenced inside\n```\n']\
+         CodeBlock[]\
+         BlockQuote[Paragraph['quoted']List[Item['in a quote']]CodeBlock['q\n']]\
+         ---\
+         BlockQuote[Heading['Panel heading']Paragraph['panel text']---List[Item[[ ]'in panel']]]\
+         BlockQuote[]"
+    );
+    assert!(before_details.contains("> [!NOTE]\n> ### Panel heading"));
+    assert!(before_details.contains("> [!CAUTION]\n"));
+}
+
+#[test]
+fn escaped_text_parses_as_text() {
+    assert_eq!(
+        skeleton(&rendered("escaping")),
+        "Paragraph['# ''* ''_ ''`'' ''[ ''] ''< > ''| ''~ ! & ''\\ ''$ ''^ { }']\
+         Paragraph['- 1. + > ::: cell']\
+         Paragraph['1'') also not a list']\
+         Paragraph[' '' ''leading and trailing'' '' ']\
+         Paragraph['line one'/'- line two'/' '' ''three']\
+         Paragraph['Wow!']\
+         Paragraph['x''!'Link['link']]\
+         Paragraph['AT''&T ''&amp; ''&#32; snake_case']"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // Self-contained: escaped text re-parses to the same characters under CommonMark/GFM.
 // ---------------------------------------------------------------------------------------------
 
