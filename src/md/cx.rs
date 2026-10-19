@@ -6,10 +6,11 @@ use crate::options::MdToAdfOptions;
 
 use super::ir::Span;
 
-/// Internal hard cap on container nesting, whatever `Limits::max_depth` says. The lowering pass
-/// recurses once per container level, so this bounds stack use even if a caller configures a
-/// huge limit.
-pub(crate) const HARD_MAX_DEPTH: usize = 256;
+/// Internal hard cap on container nesting, whatever `Limits::max_depth` says (the default is
+/// 64). The lowering pass and serialisation recurse once per container level; 100 levels fit
+/// comfortably in a 2 MiB thread stack even in debug builds, so a caller that configures a
+/// huge limit cannot cause a stack overflow.
+pub(crate) const HARD_MAX_DEPTH: usize = 100;
 
 /// Bytes between character-count checkpoints in [`Locator`].
 const CHECKPOINT: usize = 256;

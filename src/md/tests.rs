@@ -1362,6 +1362,36 @@ fn deep_nesting_is_rejected_quickly() {
     assert!(start.elapsed().as_secs() < 20, "{:?}", start.elapsed());
 }
 
+/// A huge configured limit is capped internally, so lowering and serialisation (which recurse
+/// once per level) stay within a test thread's 2 MiB stack, for every kind of container.
+#[test]
+fn configured_depth_is_capped() {
+    let unlimited = opts_with(|o| o.limits.max_depth = usize::MAX);
+    let cap = super::cx::HARD_MAX_DEPTH;
+    let deepest = "- ".repeat(cap) + "x";
+    let (value, _) = run_with(&deepest, &unlimited);
+    let mut node = &value["content"][0];
+    let mut levels = 0;
+    while node["type"] == "bulletList" {
+        levels += 1;
+        node = &node["content"][0]["content"][1];
+    }
+    assert_eq!(levels, cap);
+    for md in [
+        "> - ".repeat(cap / 2) + "x",
+        ">".repeat(cap) + " x",
+        "- [ ] ".repeat(cap) + "x",
+        "1. ".repeat(cap) + "x",
+        "> [!NOTE]\n".to_owned() + &"> - ".repeat(cap / 2 - 1) + "x",
+        "<details>\n\n".repeat(cap) + "x",
+        "::: cell\n".to_owned() + &"<details>\n\n".repeat(cap - 2) + "- x",
+    ] {
+        let _ = run_with(&md, &unlimited);
+    }
+    let too_deep = "- ".repeat(cap + 1) + "x";
+    assert_eq!(error_of(&too_deep, &unlimited).code, Code::InputTooDeep);
+}
+
 #[test]
 fn nesting_up_to_the_limit_is_fine() {
     let max = Limits::default().max_depth;
