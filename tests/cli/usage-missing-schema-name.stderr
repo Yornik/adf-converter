@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"missing required argument <NAME>","hint":"Possible values: adf, diagnostic, capabilities, validate-report. Usage: adf schema <NAME>. For more information, try '--help'.","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

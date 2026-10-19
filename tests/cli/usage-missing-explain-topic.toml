@@ -1,0 +1,5 @@
+# A missing argument without fixed values: the hint says what it accepts.
+bin.name = "adf"
+args = ["explain"]
+status.code = 2
+binary = true
