@@ -6,8 +6,12 @@
 //! limit (`E_INPUT_TOO_DEEP`). Everything else — unknown node types, unknown attributes, missing
 //! fields, wrong value types — is kept as it is, so the renderer can pass it through unchanged.
 
+use std::fmt::Write as _;
+use std::rc::Rc;
+
 use serde_json::{Map, Value};
 
+use crate::adf::validate::MAX_JSON_DEPTH;
 use crate::diagnostics::{Code, Diagnostic, Location};
 use crate::limits::Limits;
 
@@ -18,8 +22,10 @@ pub struct Node<'a> {
     pub ty: &'a str,
     /// The original JSON of this node (used for passthrough).
     pub value: &'a Value,
-    /// RFC 6901 JSON Pointer of this node, relative to the document root.
-    pub pointer: String,
+    /// Where the node sits: its index in the parent's `content`, linked to the parent's path.
+    /// Pointers are only needed for diagnostics, so [`Node::pointer`] builds them on demand;
+    /// storing a full pointer in every node would cost O(nodes × depth) memory.
+    path: Option<Rc<PathSegment>>,
     /// `attrs`, when it is an object.
     attrs: Option<&'a Map<String, Value>>,
     /// `text`, when it is a string.
@@ -54,7 +60,29 @@ impl<'a> Mark<'a> {
     }
 }
 
+/// One step of a node's path: `/content/{index}` below the parent's path.
+#[derive(Debug)]
+struct PathSegment {
+    parent: Option<Rc<PathSegment>>,
+    index: usize,
+}
+
 impl<'a> Node<'a> {
+    /// RFC 6901 JSON Pointer of this node, relative to the document root (`""` for the root).
+    pub fn pointer(&self) -> String {
+        let mut indices = Vec::new();
+        let mut segment = self.path.as_deref();
+        while let Some(current) = segment {
+            indices.push(current.index);
+            segment = current.parent.as_deref();
+        }
+        let mut out = String::with_capacity(indices.len().saturating_mul(12));
+        for index in indices.iter().rev() {
+            let _ = write!(out, "/content/{index}");
+        }
+        out
+    }
+
     /// An attribute value.
     pub fn attr(&self, name: &str) -> Option<&'a Value> {
         self.attrs.and_then(|a| a.get(name))
@@ -126,9 +154,16 @@ pub fn is_inline_type(ty: &str) -> bool {
     )
 }
 
+/// The JSON depth limit for ADF input: [`Limits::max_json_depth`], but never more than
+/// [`MAX_JSON_DEPTH`]. Reading and rendering recurse once per level, so a caller that configures
+/// a huge limit must not be able to overflow the stack.
+pub fn max_json_depth(limits: &Limits) -> usize {
+    limits.max_json_depth().min(MAX_JSON_DEPTH)
+}
+
 /// Reads a bare `doc`. Fails with `E_INPUT_NOT_ADF` if the value is not a JSON object with
-/// `"type": "doc"`, and with `E_INPUT_TOO_DEEP` if it nests deeper than
-/// [`Limits::max_json_depth`] (JSON depth: every object and array counts one level).
+/// `"type": "doc"`, and with `E_INPUT_TOO_DEEP` if it nests deeper than [`max_json_depth`]
+/// (JSON depth: every object and array counts one level).
 pub fn read_doc<'a>(doc: &'a Value, limits: &Limits) -> Result<Node<'a>, Diagnostic> {
     let Some(object) = doc.as_object() else {
         return Err(not_adf("the input is not a JSON object"));
@@ -136,7 +171,7 @@ pub fn read_doc<'a>(doc: &'a Value, limits: &Limits) -> Result<Node<'a>, Diagnos
     if object.get("type").and_then(Value::as_str) != Some("doc") {
         return Err(not_adf("the root object does not have \"type\": \"doc\""));
     }
-    let max_depth = limits.max_json_depth();
+    let max_depth = max_json_depth(limits);
     if let Some(pointer) = find_too_deep(doc, max_depth) {
         return Err(Diagnostic::new(
             Code::InputTooDeep,
@@ -144,7 +179,7 @@ pub fn read_doc<'a>(doc: &'a Value, limits: &Limits) -> Result<Node<'a>, Diagnos
         )
         .at(Location::pointer(pointer)));
     }
-    read_node(doc, String::new(), 0, max_depth)
+    read_node(doc, None, 0, max_depth)
 }
 
 fn not_adf(reason: &str) -> Diagnostic {
@@ -155,33 +190,65 @@ fn not_adf(reason: &str) -> Diagnostic {
     .with_hint("Pass a document like {\"type\":\"doc\",\"version\":1,\"content\":[…]}")
 }
 
+/// One reference token of a JSON Pointer, borrowed from the document.
+#[derive(Debug, Clone, Copy)]
+enum Token<'a> {
+    Index(usize),
+    Key(&'a str),
+}
+
 /// Returns the pointer of the first value nested deeper than `max_depth`, without recursion.
+///
+/// The stack holds only references; the pointer is built once, for the offending value, from the
+/// tokens of the branch being walked (formatting one per value would cost O(values × depth)).
 fn find_too_deep(root: &Value, max_depth: usize) -> Option<String> {
-    // (value, depth of the value, pointer)
-    let mut stack: Vec<(&Value, usize, String)> = vec![(root, 0, String::new())];
-    while let Some((value, depth, pointer)) = stack.pop() {
+    // (value, depth of the value, its token in the parent; `None` for the root)
+    let mut stack: Vec<(&Value, usize, Option<Token<'_>>)> = vec![(root, 0, None)];
+    // Tokens from the root to the value being looked at.
+    let mut branch: Vec<Token<'_>> = Vec::new();
+    while let Some((value, depth, token)) = stack.pop() {
+        branch.truncate(depth.saturating_sub(1));
+        if let Some(token) = token {
+            branch.push(token);
+        }
         let level = match value {
             Value::Array(_) | Value::Object(_) => depth + 1,
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => continue,
         };
         if level > max_depth {
-            return Some(pointer);
+            return Some(pointer_of(&branch));
         }
         match value {
             Value::Array(items) => {
                 for (i, item) in items.iter().enumerate().rev() {
-                    stack.push((item, level, format!("{pointer}/{i}")));
+                    stack.push((item, level, Some(Token::Index(i))));
                 }
             }
             Value::Object(map) => {
                 for (key, item) in map.iter().rev() {
-                    stack.push((item, level, format!("{pointer}/{}", escape_pointer(key))));
+                    stack.push((item, level, Some(Token::Key(key))));
                 }
             }
             Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
         }
     }
     None
+}
+
+fn pointer_of(tokens: &[Token<'_>]) -> String {
+    let mut out = String::new();
+    for token in tokens {
+        match token {
+            Token::Index(i) => {
+                let _ = write!(out, "/{i}");
+            }
+            Token::Key(key) => {
+                out.push('/');
+                out.push_str(&escape_pointer(key));
+            }
+        }
+    }
+    out
 }
 
 /// Escapes one JSON Pointer reference token (RFC 6901).
@@ -191,16 +258,26 @@ pub fn escape_pointer(token: &str) -> String {
 
 fn read_node(
     value: &Value,
-    pointer: String,
+    path: Option<Rc<PathSegment>>,
     depth: usize,
     max_depth: usize,
 ) -> Result<Node<'_>, Diagnostic> {
     if depth > max_depth {
+        let node = Node {
+            ty: "",
+            value,
+            path,
+            attrs: None,
+            text: None,
+            marks: Vec::new(),
+            content: Vec::new(),
+            has_content_key: false,
+        };
         return Err(Diagnostic::new(
             Code::InputTooDeep,
             format!("The ADF document nests deeper than the limit of {max_depth} JSON levels"),
         )
-        .at(Location::pointer(pointer)));
+        .at(Location::pointer(node.pointer())));
     }
     let object = value.as_object();
     let field = |name: &str| object.and_then(|o| o.get(name));
@@ -223,19 +300,18 @@ fn read_node(
     let mut content = Vec::new();
     if let Some(children) = field("content").and_then(Value::as_array) {
         content.reserve(children.len());
-        for (i, child) in children.iter().enumerate() {
-            content.push(read_node(
-                child,
-                format!("{pointer}/content/{i}"),
-                depth + 1,
-                max_depth,
-            )?);
+        for (index, child) in children.iter().enumerate() {
+            let segment = Rc::new(PathSegment {
+                parent: path.clone(),
+                index,
+            });
+            content.push(read_node(child, Some(segment), depth + 1, max_depth)?);
         }
     }
     Ok(Node {
         ty,
         value,
-        pointer,
+        path,
         attrs,
         text,
         marks,
@@ -276,11 +352,13 @@ mod tests {
         assert_eq!(root.content.len(), 3);
         let para = &root.content[0];
         assert_eq!(para.ty, "paragraph");
-        assert_eq!(para.pointer, "/content/0");
+        assert_eq!(root.pointer(), "");
+        assert_eq!(para.pointer(), "/content/0");
         assert_eq!(para.attr_names().collect::<Vec<_>>(), ["localId", "bogus"]);
         let text = &para.content[0];
         assert_eq!(text.text, Some("hi"));
-        assert_eq!(text.pointer, "/content/0/content/0");
+        assert_eq!(text.pointer(), "/content/0/content/0");
+        assert_eq!(root.content[2].pointer(), "/content/2");
         assert_eq!(text.marks.len(), 2);
         assert_eq!(text.marks[1].ty, "");
         assert!(root.content[1].content.is_empty());
@@ -326,6 +404,41 @@ mod tests {
             {"type": "paragraph", "content": [{"type": "text", "text": "x"}]}]}]}]});
         assert_eq!(
             read_doc(&deep, &limits).unwrap_err().code,
+            Code::InputTooDeep
+        );
+    }
+
+    #[test]
+    fn too_deep_pointer_names_the_offending_value() {
+        let limits = Limits {
+            max_depth: 1,
+            ..Limits::default()
+        };
+        // doc(1) > "a/b"(2) > 0(3) > "~x"(4) > 1(5) > 0(6) > 0(7) > 0(8) > 0(9): too deep.
+        let deep = json!({"type": "doc", "content": [], "a/b": [{"~x": [0, [[[[[]]]]]]}]});
+        let err = read_doc(&deep, &limits).unwrap_err();
+        assert_eq!(err.code, Code::InputTooDeep);
+        assert_eq!(
+            err.location.unwrap().pointer.as_deref(),
+            Some("/a~1b/0/~0x/1/0/0/0/0")
+        );
+    }
+
+    #[test]
+    fn a_huge_configured_depth_is_capped() {
+        // A library caller cannot lift the limit past what the recursive passes can take.
+        let limits = Limits {
+            max_depth: 100_000,
+            ..Limits::default()
+        };
+        assert_eq!(max_json_depth(&limits), MAX_JSON_DEPTH);
+        let mut deep = json!({"type": "text", "text": "x"});
+        for _ in 0..300 {
+            deep = json!({"type": "blockquote", "content": [deep]});
+        }
+        let doc = json!({"type": "doc", "content": [deep]});
+        assert_eq!(
+            read_doc(&doc, &limits).unwrap_err().code,
             Code::InputTooDeep
         );
     }

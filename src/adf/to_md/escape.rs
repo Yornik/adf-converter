@@ -2,6 +2,7 @@
 //! Markdown parses back to exactly the same characters (CommonMark 0.31 / GFM plus this tool's
 //! extensions, see `docs/syntax.md`).
 
+use std::borrow::Cow;
 use std::fmt::Write as _;
 
 /// Where a run of text is written. Decides which characters are special.
@@ -50,9 +51,10 @@ pub(super) fn escape_text(text: &str, opts: TextEscape, out: &mut String) {
         0
     };
     let trail = if opts.line_end {
+        // Plain drops trailing whitespace (below), also when the text is only whitespace.
         chars
             .iter()
-            .skip(lead)
+            .skip(if opts.roundtrip { lead } else { 0 })
             .rev()
             .take_while(|c| is_space_or_tab(**c))
             .count()
@@ -61,6 +63,11 @@ pub(super) fn escape_text(text: &str, opts: TextEscape, out: &mut String) {
     };
     let body_end = chars.len() - trail;
     for (i, &c) in chars.iter().enumerate() {
+        if i >= body_end && !opts.roundtrip {
+            // Plain: trailing spaces carry no meaning for a reader; drop them instead of
+            // writing `&#32;` noise.
+            continue;
+        }
         if i < lead || i >= body_end {
             push_char_ref(c, out);
             continue;
@@ -170,9 +177,43 @@ fn is_email_at(prev: Option<char>, next: Option<char>) -> bool {
     prev.is_some_and(local) && next.is_some_and(|c| c.is_ascii_alphanumeric() || !c.is_ascii())
 }
 
+/// A control character other than tab and line feed. Markdown → ADF removes these
+/// (`W_CONTROL_CHAR`), so roundtrip passes text holding them through as raw ADF; and written
+/// raw, ESC and BEL would reach the terminal of whoever prints the output.
+pub(super) fn is_unsafe_control(c: char) -> bool {
+    c.is_control() && c != '\t' && c != '\n'
+}
+
+/// Whether `text` holds a character that [`is_unsafe_control`].
+pub(super) fn has_unsafe_control(text: &str) -> bool {
+    text.chars().any(is_unsafe_control)
+}
+
+/// Where code is written verbatim (code spans, info strings, plain-flavour code blocks), control
+/// characters other than tab become U+FFFD, so none reaches stdout raw. Line feeds are kept only
+/// where `keep_lines` (code blocks), where CR LF and a lone CR also become a line feed.
+pub(super) fn replace_controls(text: &str, keep_lines: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' if keep_lines => {
+                if chars.peek() != Some(&'\n') {
+                    out.push('\n');
+                }
+            }
+            '\n' if keep_lines => out.push('\n'),
+            c if c != '\t' && c.is_control() => out.push(char::REPLACEMENT_CHARACTER),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// A code span for `content` (non-empty, no `\n`), with a backtick fence longer than any run
 /// inside and padding where the parser would otherwise strip or merge characters. In table
-/// cells `|` is written `\|`, which GFM unescapes even inside code spans.
+/// cells `|` is written `\|`, which GFM unescapes even inside code spans. Control characters
+/// are never written raw ([`replace_controls`]).
 pub(super) fn code_span(content: &str, in_table: bool) -> String {
     let fence = "`".repeat(longest_run(content, '`') + 1);
     let all_spaces = content.chars().all(|c| c == ' ');
@@ -184,10 +225,15 @@ pub(super) fn code_span(content: &str, in_table: bool) -> String {
     if pad {
         out.push(' ');
     }
+    let content = if content.chars().any(char::is_control) {
+        Cow::Owned(replace_controls(content, false))
+    } else {
+        Cow::Borrowed(content)
+    };
     if in_table {
         out.push_str(&content.replace('|', "\\|"));
     } else {
-        out.push_str(content);
+        out.push_str(&content);
     }
     if pad {
         out.push(' ');
@@ -244,7 +290,7 @@ pub(super) fn link_destination(url: &str, in_table: bool) -> String {
 }
 
 /// A code fence info string (a language without whitespace): backslash escapes and entities
-/// are decoded there, so `\` and entity-like `&` are escaped.
+/// are decoded there, so `\` and entity-like `&` are escaped. Control characters become U+FFFD.
 pub(super) fn info_string(language: &str) -> String {
     let mut out = String::with_capacity(language.len());
     let chars: Vec<char> = language.chars().collect();
@@ -253,7 +299,11 @@ pub(super) fn info_string(language: &str) -> String {
         if c == '\\' || (c == '&' && next.is_some_and(|n| n.is_ascii_alphanumeric() || n == '#')) {
             out.push('\\');
         }
-        out.push(c);
+        out.push(if c.is_control() {
+            char::REPLACEMENT_CHARACTER
+        } else {
+            c
+        });
     }
     out
 }

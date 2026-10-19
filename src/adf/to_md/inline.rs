@@ -13,7 +13,8 @@ use crate::adf::model::{HexColor, Href};
 use crate::adf::reader::Node;
 
 use super::escape::{
-    TextContext, TextEscape, code_span, escape_text, link_destination, link_title,
+    TextContext, TextEscape, code_span, escape_text, has_unsafe_control, link_destination,
+    link_title,
 };
 use super::verify::{self, Run};
 use super::{Ctx, Fail};
@@ -88,15 +89,17 @@ pub(super) enum Atom {
     Break,
     /// An `adf:` link (`[label](dest)`); these nodes carry no marks.
     Ext { label: String, dest: String },
-    /// Markdown written verbatim (plain flavour only, e.g. `[DONE]` or a bare URL).
+    /// Markdown written verbatim (plain flavour only, e.g. `[DONE]`).
     Raw { text: String, style: Style },
+    /// `<url>` (plain flavour only), which parses as a link to `url` with the URL as its text.
+    Autolink { url: String },
 }
 
 impl Atom {
     fn style(&self) -> Option<&Style> {
         match self {
             Self::Text { style, .. } | Self::Raw { style, .. } => Some(style),
-            Self::Break | Self::Ext { .. } => None,
+            Self::Break | Self::Ext { .. } | Self::Autolink { .. } => None,
         }
     }
 }
@@ -111,7 +114,7 @@ pub(super) fn render_inline(
     let atoms = build_atoms(nodes, cx)?;
     render_atoms(atoms, kind, cx.roundtrip).ok_or_else(|| {
         Fail::unrepresentable(
-            nodes.first().map_or("", |n| n.pointer.as_str()),
+            &nodes.first().map(Node::pointer).unwrap_or_default(),
             "its inline formatting could not be written as Markdown that parses back unchanged",
         )
     })
@@ -151,6 +154,13 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
         "text" => {
             let style = parse_marks(node, cx);
             let text = node.text.unwrap_or("");
+            let title = style.link.as_ref().and_then(|l| l.title.as_deref());
+            if cx.roundtrip && (has_unsafe_control(text) || title.is_some_and(has_unsafe_control)) {
+                return Err(Fail::unrepresentable(
+                    &node.pointer(),
+                    "Markdown → ADF removes control characters from text",
+                ));
+            }
             match &style.link {
                 // Plain: a link whose text is its URL reads best as an autolink.
                 Some(link)
@@ -160,9 +170,8 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                         && style == link_only(&style)
                         && is_autolink_safe(text) =>
                 {
-                    atoms.push(Atom::Raw {
-                        text: format!("<{text}>"),
-                        style: Style::default(),
+                    atoms.push(Atom::Autolink {
+                        url: text.to_owned(),
                     });
                 }
                 _ => push_text(text, &style, atoms),
@@ -174,9 +183,9 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
             let id = node.attr_str("id").unwrap_or("");
             let text = node.attr_str("text").unwrap_or("");
             if cx.roundtrip {
-                if !is_safe_path(id, "") || text.is_empty() {
+                if !is_safe_path(id, "") || text.is_empty() || has_unsafe_control(text) {
                     return Err(Fail::unrepresentable(
-                        &node.pointer,
+                        &node.pointer(),
                         "a mention without an ID or display text has no Markdown form",
                     ));
                 }
@@ -201,9 +210,9 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
             let text = node.attr_str("text").unwrap_or("");
             if cx.roundtrip {
                 let wrapped = short.len() > 2 && short.starts_with(':') && short.ends_with(':');
-                if !wrapped || !is_safe_path(short, "+") {
+                if !wrapped || !is_safe_path(short, "+") || has_unsafe_control(text) {
                     return Err(Fail::unrepresentable(
-                        &node.pointer,
+                        &node.pointer(),
                         "an emoji without a :short-name: has no Markdown form",
                     ));
                 }
@@ -244,7 +253,7 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                 }
                 (Some((_, false)) | None, true) => {
                     return Err(Fail::unrepresentable(
-                        &node.pointer,
+                        &node.pointer(),
                         "a date that is not midnight UTC has no Markdown form",
                     ));
                 }
@@ -259,9 +268,9 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                     color,
                     "neutral" | "purple" | "blue" | "red" | "yellow" | "green"
                 );
-                if text.is_empty() || !named {
+                if text.is_empty() || !named || has_unsafe_control(text) {
                     return Err(Fail::unrepresentable(
-                        &node.pointer,
+                        &node.pointer(),
                         "a status without text or with a non-named colour has no Markdown form",
                     ));
                 }
@@ -302,18 +311,14 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                         dest: "adf:card".to_owned(),
                     });
                 }
-                (Some(url), false) => atoms.push(Atom::Raw {
-                    text: if url.chars().any(|c| "*_~`[]<>|\\".contains(c)) && is_autolink_safe(url)
-                    {
-                        format!("<{url}>")
-                    } else {
-                        url.to_owned()
-                    },
-                    style: Style::default(),
+                // Plain: the URL is untrusted text, so it is escaped unless an autolink holds it.
+                (Some(url), false) if plain_autolink(url) => atoms.push(Atom::Autolink {
+                    url: url.to_owned(),
                 }),
+                (Some(url), false) => push_text(url, &Style::default(), atoms),
                 (None, true) => {
                     return Err(Fail::unrepresentable(
-                        &node.pointer,
+                        &node.pointer(),
                         "a smart link without an allowed URL has no Markdown form",
                     ));
                 }
@@ -323,7 +328,7 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
         other => {
             if cx.roundtrip {
                 return Err(Fail::unrepresentable(
-                    &node.pointer,
+                    &node.pointer(),
                     &format!("inline node '{other}' has no Markdown form"),
                 ));
             }
@@ -341,6 +346,12 @@ fn link_only(style: &Style) -> Style {
         link: style.link.clone(),
         ..Style::default()
     }
+}
+
+/// Plain flavour: whether a card URL is written as an autolink `<url>`, because it holds
+/// characters that would need escaping as text and an autolink can hold it.
+pub(super) fn plain_autolink(url: &str) -> bool {
+    url.chars().any(|c| "*_~`[]<>|\\&".contains(c)) && is_autolink_safe(url)
 }
 
 /// A URL that can be written as a CommonMark autolink `<…>` (absolute URI, no spaces or angle
@@ -387,7 +398,7 @@ fn ext_marks_dropped(node: &Node<'_>, cx: &mut Ctx) {
     if !node.marks.is_empty() {
         let names: Vec<&str> = node.marks.iter().map(|m| m.ty).collect();
         cx.warn_attr_dropped(
-            &format!("{}/marks", node.pointer),
+            &format!("{}/marks", node.pointer()),
             &format!(
                 "Marks on a {} node have no Markdown form and were dropped: {}",
                 node.ty,
@@ -401,7 +412,8 @@ fn ext_marks_dropped(node: &Node<'_>, cx: &mut Ctx) {
 fn parse_marks(node: &Node<'_>, cx: &mut Ctx) -> Style {
     let mut style = Style::default();
     for (i, mark) in node.marks.iter().enumerate() {
-        let pointer = format!("{}/marks/{i}", node.pointer);
+        // Only built for a warning: most marks need none.
+        let pointer = || format!("{}/marks/{i}", node.pointer());
         match mark.ty {
             "link" => {
                 let href = mark.attr_str("href").filter(|h| Href::parse(h).is_some());
@@ -419,7 +431,7 @@ fn parse_marks(node: &Node<'_>, cx: &mut Ctx) -> Style {
                         .collect();
                     if !extra.is_empty() {
                         cx.warn_attr_dropped(
-                            &pointer,
+                            &pointer(),
                             &format!(
                                 "Link attributes without a Markdown form were dropped: {}",
                                 extra.join(", ")
@@ -428,7 +440,7 @@ fn parse_marks(node: &Node<'_>, cx: &mut Ctx) -> Style {
                     }
                 } else {
                     cx.warn_attr_dropped(
-                        &pointer,
+                        &pointer(),
                         "A link whose target is not an allowed URL was dropped; the text is kept",
                     );
                 }
@@ -447,7 +459,7 @@ fn parse_marks(node: &Node<'_>, cx: &mut Ctx) -> Style {
                 Some("sup") => style.subsup = Some(SubSup::Sup),
                 _ => {
                     cx.warn_attr_dropped(
-                        &pointer,
+                        &pointer(),
                         "A subsup mark without a valid type was dropped",
                     );
                 }
@@ -465,13 +477,13 @@ fn parse_marks(node: &Node<'_>, cx: &mut Ctx) -> Style {
                     }
                     Some(_) => {}
                     None => cx.warn_attr_dropped(
-                        &pointer,
+                        &pointer(),
                         &format!("A {} mark without a #RRGGBB colour was dropped", mark.ty),
                     ),
                 }
             }
             other => cx.warn_attr_dropped(
-                &pointer,
+                &pointer(),
                 &format!("Mark '{other}' has no Markdown form and was dropped"),
             ),
         }
@@ -975,6 +987,11 @@ fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at: Edges, buf: &m
             buf.push_str(&code_span(text, kind.in_table()));
         }
         Atom::Text { text, style } => {
+            // Plain: after a `[TEXT]` status, `(` would make it a link and `:` a link
+            // reference definition (which renders as nothing).
+            if !roundtrip && buf.ends_with(']') && text.starts_with(['(', ':']) {
+                buf.push('\\');
+            }
             let opts = TextEscape {
                 context: kind.context(),
                 roundtrip,
@@ -984,6 +1001,11 @@ fn write_atom(atom: &Atom, kind: InlineKind, roundtrip: bool, at: Edges, buf: &m
                 in_link: style.link.is_some(),
             };
             escape_text(text, opts, buf);
+        }
+        Atom::Autolink { url } => {
+            buf.push('<');
+            buf.push_str(url);
+            buf.push('>');
         }
         Atom::Ext { label, dest } => {
             guard_bang(buf);
@@ -1040,6 +1062,16 @@ fn intended_runs(layout: &Layout) -> Intended {
                     Style {
                         link: Some(LinkTarget {
                             href: dest.clone(),
+                            title: None,
+                        }),
+                        ..Style::default()
+                    },
+                ),
+                Atom::Autolink { url } => (
+                    url.clone(),
+                    Style {
+                        link: Some(LinkTarget {
+                            href: url.clone(),
                             title: None,
                         }),
                         ..Style::default()

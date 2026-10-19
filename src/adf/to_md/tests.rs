@@ -834,7 +834,8 @@ fn uploaded_media_passes_through() {
         {"type": "media", "attrs": {"type": "file", "id": "abc", "collection": "", "alt": "shot.png"}}
     ]}]);
     assert!(md(content.clone()).starts_with("```adf\n"));
-    assert_eq!(plain(content), "shot.png\n");
+    // Plain marks the file (which has no URL in ADF), so it does not read as body text.
+    assert_eq!(plain(content), "[image: shot.png]\n");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1308,6 +1309,415 @@ fn list_item_holding_only_an_image_writes_it_on_the_marker_line() {
     // An empty first paragraph followed by text has no Markdown form.
     let content = json!([bullets(&[li(&[json!({"type": "paragraph"}), para("x")])])]);
     assert!(md(content).starts_with("```adf\n"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Resource limits and untrusted input
+// ---------------------------------------------------------------------------------------------
+
+/// `levels` task lists, each nested in the previous one after a task item; the innermost item
+/// holds `text`.
+fn nested_task_lists(levels: usize, text: &str) -> Value {
+    let item = |text: &str| json!({"type": "taskItem", "attrs": {"localId": "", "state": "TODO"}, "content": [t(text)]});
+    let mut list = json!({"type": "taskList", "attrs": {"localId": ""}, "content": [item(text)]});
+    for _ in 1..levels {
+        list = json!({"type": "taskList", "attrs": {"localId": ""}, "content": [item("x"), list]});
+    }
+    list
+}
+
+fn too_large(result: Result<crate::Conversion<String>, crate::Diagnostics>) -> String {
+    let err = result.unwrap_err();
+    let error = err.0.last().unwrap();
+    assert_eq!(error.code, Code::InputTooLarge, "{err}");
+    assert_eq!(err.exit_code(), 3);
+    error
+        .location
+        .clone()
+        .and_then(|l| l.pointer)
+        .unwrap_or_default()
+}
+
+#[test]
+fn nested_task_lists_indent_every_line_once() {
+    assert_eq!(
+        md(json!([nested_task_lists(3, "a\nb")])),
+        "- [ ] x\n  - [ ] x\n    - [ ] a\\\n      b\n"
+    );
+    // 200 levels, 2,000 lines in the innermost item: every line carries its indentation once.
+    let lines = "y\n".repeat(2_000);
+    let out = md(json!([nested_task_lists(200, &lines)]));
+    // The first line follows the marker, the last one ends without a hard break.
+    let indent = " ".repeat(2 * 199 + 2);
+    assert_eq!(out.matches(&format!("\n{indent}y\\")).count(), 1_998);
+    assert!(out.ends_with(&format!("\n{indent}y\n")));
+    assert!(
+        out.len() < 2_000 * (2 * 200 + 8) + 200 * 420,
+        "{}",
+        out.len()
+    );
+}
+
+#[test]
+fn deep_quotes_in_plain_indent_every_line_once() {
+    let mut quote = json!({"type": "codeBlock", "content": [t(&"c\n".repeat(500))]});
+    for _ in 0..200 {
+        quote = json!({"type": "blockquote", "content": [quote]});
+    }
+    let out = plain(json!([quote]));
+    let prefix = "> ".repeat(200);
+    assert_eq!(out.matches(&format!("{prefix}c\n")).count(), 500);
+}
+
+#[test]
+fn output_beyond_the_budget_fails_with_input_too_large() {
+    let content = doc(json!([nested_task_lists(100, &"y\n".repeat(200))]));
+    let full = super::convert(&content, &opts(MdFlavor::Roundtrip), usize::MAX)
+        .unwrap()
+        .output;
+    // The checks count block separators before trimming, so allow a few bytes over the size.
+    assert!(super::convert(&content, &opts(MdFlavor::Roundtrip), full.len() + 8).is_ok());
+    // The renderer stops inside the nested lists, before it copies them into the output.
+    let pointer = too_large(super::convert(
+        &content,
+        &opts(MdFlavor::Roundtrip),
+        full.len() / 2,
+    ));
+    assert!(pointer.starts_with("/content/0/content/1"), "{pointer}");
+    // Raw blocks and plain lists are bounded too.
+    let raw = doc(
+        json!([{"type": "extension", "attrs": {"extensionType": "t", "extensionKey": "k",
+        "parameters": {"data": "z".repeat(5_000)}}}]),
+    );
+    assert_eq!(
+        too_large(super::convert(&raw, &opts(MdFlavor::Roundtrip), 4_000)),
+        "/content/0"
+    );
+    let list = doc(json!([bullets(&[li(&[para(&"w\n".repeat(3_000))])])]));
+    too_large(super::convert(&list, &opts(MdFlavor::Plain), 4_000));
+}
+
+#[test]
+fn warnings_per_code_are_capped_and_counted() {
+    // 250 unknown blocks and 250 dropped attributes: 100 of each are listed, then a count.
+    let mut content = Vec::new();
+    for _ in 0..250 {
+        content.push(json!({"type": "x"}));
+        content.push(json!({"type": "rule", "attrs": {"color": "red"}}));
+    }
+    let found = to_markdown(&doc(Value::Array(content)), &opts(MdFlavor::Roundtrip))
+        .unwrap()
+        .warnings;
+    for code in [Code::AdfPassthrough, Code::AttrDropped] {
+        let of_code: Vec<_> = found.iter().filter(|w| w.code == code).collect();
+        assert_eq!(of_code.len(), 101, "{code:?}");
+        let last = of_code.last().unwrap();
+        assert_eq!(last.message, "150 more warnings like this were not listed");
+        assert!(last.location.is_none());
+    }
+    // Warnings of an abandoned attempt are not counted: each list drops attributes in its first
+    // item (150 of them in the first list, beyond the cap), then fails on its second child and
+    // passes through whole.
+    let attr_para = json!({"type": "paragraph", "attrs": {"color": "red"}, "content": [t("a")]});
+    let big = bullets(&[li(&vec![attr_para.clone(); 150]), json!({"type": "x"})]);
+    let small = bullets(&[li(&[attr_para]), json!({"type": "x"})]);
+    let mut lists = vec![big];
+    lists.extend(vec![small; 149]);
+    let lists = Value::Array(lists);
+    let found = to_markdown(&doc(lists), &opts(MdFlavor::Roundtrip))
+        .unwrap()
+        .warnings;
+    assert!(found.iter().all(|w| w.code != Code::AttrDropped));
+    let passthrough: Vec<_> = found
+        .iter()
+        .filter(|w| w.code == Code::AdfPassthrough)
+        .collect();
+    assert_eq!(passthrough.len(), 101);
+    assert_eq!(
+        passthrough[100].message,
+        "50 more warnings like this were not listed"
+    );
+}
+
+#[test]
+fn deep_raw_blocks_are_compact_below_sixteen_levels() {
+    // An extension whose parameters nest 400 arrays deep around many small values: indenting
+    // every level would make the Markdown hundreds of times larger than the input.
+    let mut params = Value::Array(vec![json!(1); 5_000]);
+    for _ in 0..400 {
+        params = Value::Array(vec![params]);
+    }
+    let content = json!([{"type": "extension", "attrs": {"extensionType": "t", "extensionKey": "k", "parameters": params}}]);
+    let input = serde_json::to_string(&content).unwrap().len();
+    let out = md(content);
+    assert!(out.len() < input + 2_000, "{} vs {input}", out.len());
+}
+
+#[test]
+fn a_huge_configured_depth_is_capped_at_512_json_levels() {
+    let mut deep = para("x");
+    for _ in 0..300 {
+        deep = json!({"type": "blockquote", "content": [deep]});
+    }
+    let opts = AdfToMdOptions {
+        flavor: MdFlavor::Plain,
+        limits: Limits {
+            max_depth: 100_000,
+            ..Limits::default()
+        },
+    };
+    let err = to_markdown(&doc(json!([deep])), &opts).unwrap_err();
+    assert_eq!(err.0[0].code, Code::InputTooDeep);
+}
+
+#[test]
+fn deepest_accepted_documents_render_on_a_small_stack() {
+    // The library has no worker thread of its own: 2 MiB is the usual default for spawned
+    // threads. Each document nests as deep as the 512 JSON levels allow.
+    let run = || {
+        let mut quotes = para("x");
+        for _ in 0..253 {
+            quotes = json!({"type": "blockquote", "content": [quotes]});
+        }
+        let mut lists = para("x");
+        for _ in 0..126 {
+            lists = bullets(&[li(&[para("i"), lists])]);
+        }
+        let tasks = nested_task_lists(253, "x");
+        for content in [quotes, lists, tasks] {
+            let content = doc(json!([content]));
+            for flavor in [MdFlavor::Roundtrip, MdFlavor::Plain] {
+                to_markdown(&content, &opts(flavor)).unwrap();
+            }
+        }
+    };
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+#[test]
+fn plain_tables_keep_cells_under_their_headers_across_spans() {
+    let c = |text: &str| cell("tableCell", &[para(text)]);
+    let spanned = |text: &str, attrs: Value| json!({"type": "tableCell", "attrs": attrs, "content": [para(text)]});
+    let content = json!([table(&[
+        row(&[
+            cell("tableHeader", &[para("Svc")]),
+            cell("tableHeader", &[para("Env")]),
+            cell("tableHeader", &[para("Owner")]),
+        ]),
+        row(&[spanned("api", json!({"rowspan": 2})), c("prod"), c("alice")]),
+        row(&[c("test"), c("bob")]),
+        row(&[spanned("total", json!({"colspan": 2})), c("2")]),
+        row(&[c("short")]),
+    ])]);
+    assert_eq!(
+        plain(content),
+        "| Svc | Env | Owner |\n| --- | --- | --- |\n| api | prod | alice |\n|  | test | bob |\n| total |  | 2 |\n| short |\n"
+    );
+    // A merged header shows its full width.
+    let header = json!([table(&[
+        row(&[json!({"type": "tableHeader", "attrs": {"colspan": 3}, "content": [para("H")]})]),
+        row(&[c("a")]),
+    ])]);
+    assert_eq!(plain(header), "| H |  |  |\n| --- | --- | --- |\n| a |\n");
+}
+
+#[test]
+fn plain_ragged_tables_grow_linearly() {
+    // One wide header row and many one-cell rows: rows are not padded to the header width.
+    let header: Vec<Value> = (0..1_000)
+        .map(|_| cell("tableHeader", &[para("h")]))
+        .collect();
+    let mut rows = vec![row(&header)];
+    rows.extend((0..1_000).map(|_| row(&[cell("tableCell", &[para("c")])])));
+    let out = plain(json!([table(&rows)]));
+    assert!(out.len() < 20_000, "{}", out.len());
+}
+
+#[test]
+fn plain_table_spans_beyond_the_cell_budget_fail() {
+    // 400 header cells spanning 400 rows each, then rows whose one cell sits after them: every
+    // row needs 400 empty cells, 160,000 in all.
+    let header: Vec<Value> = (0..400)
+        .map(|_| json!({"type": "tableHeader", "attrs": {"rowspan": 400}, "content": [para("h")]}))
+        .collect();
+    let mut rows = vec![row(&header)];
+    rows.extend((0..399).map(|_| row(&[cell("tableCell", &[para("c")])])));
+    let content = doc(json!([table(&rows)]));
+    assert_eq!(
+        too_large(to_markdown(&content, &opts(MdFlavor::Plain))),
+        "/content/0"
+    );
+    // Roundtrip writes such a table as raw ADF.
+    assert!(md(json!([table(&rows)])).starts_with("```adf\n"));
+}
+
+#[test]
+fn control_characters_never_reach_the_output_raw() {
+    let code = json!({"type": "codeBlock", "attrs": {"language": "sh\u{1b}[2J"}, "content": [
+        t("ok \u{1b}[31mred\u{1b}[0m \u{1b}]0;pwned\u{7} a\r\nb\rc")
+    ]});
+    let inline = p(&[t("x"), tm("a\u{1b}[5mb\u{85}", &["code"])]);
+    let text = para("v\u{b}t");
+    for content in [
+        json!([code.clone()]),
+        json!([inline.clone()]),
+        json!([text.clone()]),
+    ] {
+        let out = md(content.clone());
+        assert!(!out.chars().any(|c| c.is_control() && c != '\n'), "{out:?}");
+        assert!(out.starts_with("```adf\n"), "{out}");
+        assert_eq!(
+            warnings(content.clone()),
+            vec![(Code::AdfPassthrough, "/content/0".to_owned())]
+        );
+        // The raw block keeps them, so the round trip is exact.
+        assert_round_trip(content.clone(), &out);
+        let out = plain(content);
+        assert!(!out.chars().any(|c| c.is_control() && c != '\n'), "{out:?}");
+    }
+    assert_eq!(
+        plain(json!([code])),
+        "```sh\u{fffd}[2J\nok \u{fffd}[31mred\u{fffd}[0m \u{fffd}]0;pwned\u{fffd} a\nb\nc\n```\n"
+    );
+    assert_eq!(plain(json!([inline])), "x`a\u{fffd}[5mb\u{fffd}`\n");
+    assert_eq!(plain(json!([text])), "v&#11;t\n");
+}
+
+#[test]
+fn plain_cards_filter_and_escape_their_urls() {
+    let card = |ty: &str, url: &str| json!({"type": ty, "attrs": {"url": url}});
+    let content = json!([
+        card("blockCard", "<img src=x onerror=alert(1)>"),
+        card("embedCard", "javascript:alert(1)"),
+        card(
+            "embedCard",
+            "https://e.com/\n\n# Injected heading\n\n[click](javascript:alert(2))"
+        ),
+        card("blockCard", "https://e.com/a_b?x=1&y=2"),
+        card("embedCard", "https://e.com/a b<i>"),
+        card("blockCard", "https://e.com/plain"),
+        p(&[
+            t("see "),
+            json!({"type": "inlineCard", "attrs": {"url": "https://e.com/x <img src=y>"}})
+        ]),
+    ]);
+    assert_eq!(
+        plain(content),
+        "<https://e.com/a_b?x=1&y=2>\n\nhttps://e.com/a b\\<i>\n\nhttps://e.com/plain\n\nsee https://e.com/x \\<img src=y>\n"
+    );
+}
+
+#[test]
+fn plain_autolinks_keep_emphasis_as_delimiters() {
+    let content = json!([p(&[
+        t("Deploy is "),
+        tm("blocked", &["strong"]),
+        t(", "),
+        tm("really", &["em"]),
+        t(", see "),
+        link("https://example.com/runbook", "https://example.com/runbook"),
+    ])]);
+    assert_eq!(
+        plain(content),
+        "Deploy is **blocked**, *really*, see <https://example.com/runbook>\n"
+    );
+    let content = json!([p(&[
+        tm("bold", &["strong"]),
+        t(" "),
+        json!({"type": "inlineCard", "attrs": {"url": "https://example.com/a_(b)"}}),
+    ])]);
+    assert_eq!(plain(content), "**bold** <https://example.com/a_(b)>\n");
+}
+
+#[test]
+fn plain_statuses_cannot_become_links_or_definitions() {
+    let status = |text: &str| json!({"type": "status", "attrs": {"text": text, "color": "green"}});
+    assert_eq!(
+        plain(json!([p(&[status("DONE"), t(": yes")])])),
+        "[DONE]\\: yes\n"
+    );
+    assert_eq!(
+        plain(json!([p(&[
+            t("Build "),
+            status("FAILED"),
+            t("(flaky) and "),
+            tm("bold", &["strong"])
+        ])])),
+        "Build [FAILED]\\(flaky) and **bold**\n"
+    );
+    // Read back, the text stays text.
+    let back = crate::md_to_adf("[DONE]\\: yes\n", &MdToAdfOptions::default())
+        .unwrap()
+        .output
+        .to_value()
+        .unwrap();
+    assert_eq!(back, doc(json!([para("[DONE]: yes")])));
+}
+
+#[test]
+fn plain_images_keep_url_caption_and_markers() {
+    let external = json!({"type": "media", "attrs": {"type": "external", "url": "https://example.com/a.png", "alt": "chart"}});
+    let caption = json!({"type": "caption", "content": [t("Figure 1: latency")]});
+    let single = |content: Value, marks: Value| json!({"type": "mediaSingle", "attrs": {"layout": "center"}, "marks": marks, "content": content});
+    assert_eq!(
+        plain(json!([single(
+            json!([external.clone(), caption.clone()]),
+            json!([])
+        )])),
+        "![chart](https://example.com/a.png)\\\nFigure 1: latency\n"
+    );
+    let no_alt =
+        json!({"type": "media", "attrs": {"type": "external", "url": "https://example.com/b.png"}});
+    let linked = json!([{"type": "link", "attrs": {"href": "https://example.com"}}]);
+    assert_eq!(
+        plain(json!([single(json!([no_alt]), linked)])),
+        "![](https://example.com/b.png)\n"
+    );
+    let file = json!({"type": "media", "attrs": {"type": "file", "id": "1", "collection": "c"}});
+    assert_eq!(
+        plain(json!([single(json!([file.clone(), caption]), json!([]))])),
+        "[image]\\\nFigure 1: latency\n"
+    );
+    let named = json!({"type": "media", "attrs": {"type": "file", "id": "2", "collection": "c", "alt": "log.txt"}});
+    assert_eq!(
+        plain(json!([{"type": "mediaGroup", "content": [file, named]}])),
+        "[attachment]\\\n[attachment: log.txt]\n"
+    );
+}
+
+#[test]
+fn plain_drops_trailing_spaces_left_by_dropped_nodes() {
+    let content = json!([p(&[
+        t("inline ext: "),
+        json!({"type": "inlineExtension", "attrs": {"extensionType": "t", "extensionKey": "k"}}),
+        t(" mediaInline: "),
+        json!({"type": "mediaInline", "attrs": {"id": "1", "collection": "c"}}),
+    ])]);
+    assert_eq!(plain(content), "inline ext:  mediaInline:\n");
+}
+
+#[test]
+fn expand_titles_that_would_change_pass_through() {
+    let expand = |title: &str| json!({"type": "expand", "attrs": {"title": title}, "content": [para("body")]});
+    for title in ["  spaced\ttitle  ", "line1\nline2", "a  b", "   ", "x\u{7}"] {
+        let content = json!([expand(title)]);
+        let out = md(content.clone());
+        assert!(out.starts_with("```adf\n"), "{title:?}: {out}");
+        assert_eq!(
+            warnings(content.clone()),
+            vec![(Code::AdfPassthrough, "/content/0".to_owned())]
+        );
+        assert_round_trip(content, &out);
+    }
+    assert_round_trip(
+        json!([expand("Details & <more>")]),
+        "<details>\n<summary>Details &amp; &lt;more&gt;</summary>\n\nbody\n\n</details>\n",
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
