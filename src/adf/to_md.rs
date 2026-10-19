@@ -48,7 +48,7 @@ const MAX_WARNINGS_PER_CODE: usize = 100;
 /// Indentation makes the output grow with nesting depth (every line of a list nested 100 deep
 /// carries hundreds of spaces), so a 4 MiB document could otherwise become gigabytes of
 /// Markdown. Markdown → ADF reads at most 4 MiB, so output this large cannot be read back anyway.
-pub const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_OUTPUT_BYTES: usize = crate::limits::MAX_OUTPUT_BYTES;
 
 /// Converts a bare `doc` to Markdown. Warnings use pointers relative to the document root.
 pub fn to_markdown(doc: &Value, opts: &AdfToMdOptions) -> Result<Conversion<String>, Diagnostics> {

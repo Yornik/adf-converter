@@ -104,7 +104,7 @@ full shape):
  "extensions":[{"name":"alerts","syntax":"> [!NOTE] / …","adf":["panel"],"default":true}…],
  "exit_codes":{"0":"ok (warnings may have been printed)","1":"internal error (a bug in adf)",…},
  "diagnostic_codes":[{"code":"W_IMAGE_AS_LINK","severity":"warning","exit_code":0,"summary":"…"}…],
- "limits":{"max_input_bytes":4194304,"max_nesting_depth":64,"jira_field_char_limit":32767}}
+ "limits":{"max_input_bytes":4194304,"max_nesting_depth":64,"max_json_depth":512,"max_table_cells":100000,"max_output_bytes":67108864,"jira_field_char_limit":32767}}
 ```
 
 `limits` holds the input size, the Markdown nesting depth and Jira's field size. The other limits
@@ -302,7 +302,7 @@ requests.
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
-| Markdown output of ADF → Markdown | 64 MiB | `E_INPUT_TOO_LARGE` |
+| Output size: the Markdown written by ADF → Markdown, and the estimated compact JSON written by Markdown → ADF | 64 MiB | `E_INPUT_TOO_LARGE` |
 | Empty cells that `--md-flavor plain` adds to keep table columns aligned (merged cells): all tables of the document together | 100,000 | `E_INPUT_TOO_LARGE` |
 | Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
 
@@ -313,6 +313,11 @@ exceeds 100,000 cells (it counts the cells it actually builds as well). The esti
 high side: a line that directly follows a table without a blank line counts as a row. Table-like
 lines in fenced code are not counted, except towards a safety bound of 1,000,000 cells over the
 whole input.
+
+In Markdown → ADF, every text node of a link repeats the link's URL and title, so a long URL over
+link text with many differently formatted runs multiplies. `adf` estimates the size of the JSON as
+it builds each text node and fails with `E_INPUT_TOO_LARGE`, located at the text, once the estimate
+passes 64 MiB.
 
 In ADF → Markdown, indentation makes the output grow with nesting depth: every line of a list nested
 100 levels deep carries hundreds of spaces. `adf` fails with `E_INPUT_TOO_LARGE`, located at the node

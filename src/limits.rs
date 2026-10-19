@@ -24,6 +24,13 @@ pub const JSON_LEVELS_PER_CONTAINER: usize = 8;
 /// reader checks it with a linear scan before parsing, and again on the tables it builds.
 pub const MAX_TABLE_CELLS: usize = 100_000;
 
+/// Maximum output size in bytes in either direction (64 MiB): the Markdown written by
+/// ADF → Markdown, and the estimated compact JSON written by Markdown → ADF. Larger output fails
+/// with `E_INPUT_TOO_LARGE`. Formatting repeated across many text nodes (every text node of a
+/// link carries the link's URL) or deep indentation can otherwise turn a small input into
+/// gigabytes of output.
+pub const MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
 /// Jira's documented limit for a text field / comment, in characters. Larger output gets
 /// `W_SIZE_LIMIT`.
 pub const JIRA_FIELD_CHAR_LIMIT: usize = 32_767;

@@ -82,6 +82,7 @@ enum Item {
         text: String,
         marks: Marks,
         trim: bool,
+        span: Span,
     },
     Break,
     Node(Inline),
@@ -105,34 +106,48 @@ pub(crate) fn finalize(toks: Vec<Tok>, cx: &mut Cx<'_>) -> Vec<Inline> {
     }
     trim_edges(&mut items);
     let mut out: Vec<Inline> = Vec::with_capacity(items.len());
-    let mut pending: Option<(String, Marks)> = None;
+    let mut pending: Option<(String, Marks, Span)> = None;
     for item in items {
+        if cx.over_budget.is_some() {
+            break;
+        }
         match item {
-            Item::Text { text, marks, .. } => match pending.as_mut() {
-                Some((buf, m)) if *m == marks => buf.push_str(&text),
+            Item::Text {
+                text, marks, span, ..
+            } => match pending.as_mut() {
+                Some((buf, m, _)) if *m == marks => buf.push_str(&text),
                 _ => {
-                    flush(&mut out, pending.take());
-                    pending = Some((text, marks));
+                    flush(&mut out, pending.take(), cx);
+                    pending = Some((text, marks, span));
                 }
             },
             Item::Break => {
-                flush(&mut out, pending.take());
+                flush(&mut out, pending.take(), cx);
                 out.push(Inline::HardBreak);
             }
             Item::Node(node) => {
-                flush(&mut out, pending.take());
+                flush(&mut out, pending.take(), cx);
                 out.push(node);
             }
         }
     }
-    flush(&mut out, pending);
+    flush(&mut out, pending, cx);
     out
 }
 
-fn flush(out: &mut Vec<Inline>, pending: Option<(String, Marks)>) {
-    if let Some((text, marks)) = pending
+/// Emits a text run, charging its estimated JSON size to the output budget: every text node of
+/// a link repeats the link's URL and title, so a long URL over a label with many differently
+/// formatted runs would otherwise multiply into gigabytes.
+fn flush(out: &mut Vec<Inline>, pending: Option<(String, Marks, Span)>, cx: &mut Cx<'_>) {
+    if let Some((text, marks, span)) = pending
         && let Some(text) = NonEmptyString::new(text)
     {
+        let link = marks.fmt.link.as_ref().map_or(0, |link| {
+            link.href().as_str().len() + link.title().map_or(0, |t| t.as_str().len()) + 48
+        });
+        if !cx.charge(32 + text.as_str().len() + link + 24 * marks.count(), &span) {
+            return;
+        }
         out.push(Inline::Text(Text {
             text,
             marks: marks.to_text_marks(),
@@ -187,6 +202,7 @@ fn push_text(
                 text: part.to_owned(),
                 marks: marks.clone(),
                 trim,
+                span: span.clone(),
             });
         }
     }

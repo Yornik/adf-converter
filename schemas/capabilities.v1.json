@@ -191,7 +191,14 @@
     },
     "limits": {
       "type": "object",
-      "required": ["max_input_bytes", "max_nesting_depth", "jira_field_char_limit"],
+      "required": [
+        "max_input_bytes",
+        "max_nesting_depth",
+        "max_json_depth",
+        "max_table_cells",
+        "max_output_bytes",
+        "jira_field_char_limit"
+      ],
       "additionalProperties": false,
       "properties": {
         "max_input_bytes": {
@@ -199,6 +206,22 @@
           "minimum": 1
         },
         "max_nesting_depth": {
+          "description": "Container levels in Markdown input.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_json_depth": {
+          "description": "Levels of JSON arrays/objects in ADF input.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_table_cells": {
+          "description": "Table cells in Markdown input, counting padding of short rows.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_output_bytes": {
+          "description": "Output size in either direction.",
           "type": "integer",
           "minimum": 1
         },

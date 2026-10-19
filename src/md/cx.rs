@@ -2,6 +2,7 @@
 
 use crate::adf::ids::LocalIdGen;
 use crate::diagnostics::{Code, Diagnostic, Location};
+use crate::limits::MAX_OUTPUT_BYTES;
 use crate::options::MdToAdfOptions;
 
 use super::ir::Span;
@@ -105,6 +106,10 @@ pub(crate) struct Cx<'a> {
     locator: Locator<'a>,
     pub(crate) warnings: Vec<Diagnostic>,
     pub(crate) ids: LocalIdGen,
+    /// Estimated size of the compact JSON output so far (see [`Cx::charge`]).
+    output_estimate: usize,
+    /// Where the output first exceeded [`MAX_OUTPUT_BYTES`], if it did.
+    pub(crate) over_budget: Option<Span>,
 }
 
 impl<'a> Cx<'a> {
@@ -115,7 +120,23 @@ impl<'a> Cx<'a> {
             locator: Locator::new(text),
             warnings: Vec::new(),
             ids: LocalIdGen::new(text),
+            output_estimate: 0,
+            over_budget: None,
         }
+    }
+
+    /// Adds `bytes` of estimated output for content that came from `span`. Returns `false` once
+    /// the estimate exceeds [`MAX_OUTPUT_BYTES`]; callers then stop producing content and the
+    /// conversion fails with `E_INPUT_TOO_LARGE`.
+    pub(crate) fn charge(&mut self, bytes: usize, span: &Span) -> bool {
+        self.output_estimate = self.output_estimate.saturating_add(bytes);
+        if self.output_estimate > MAX_OUTPUT_BYTES {
+            if self.over_budget.is_none() {
+                self.over_budget = Some(span.clone());
+            }
+            return false;
+        }
+        true
     }
 
     /// The effective maximum container depth.

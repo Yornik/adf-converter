@@ -9,7 +9,10 @@ use serde::Serialize;
 
 use crate::adf::envelope::{ENVELOPE_NAMES, Envelope};
 use crate::diagnostics::{Code, Severity};
-use crate::limits::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, JIRA_FIELD_CHAR_LIMIT};
+use crate::limits::{
+    DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, JIRA_FIELD_CHAR_LIMIT, JSON_LEVELS_PER_CONTAINER,
+    MAX_OUTPUT_BYTES, MAX_TABLE_CELLS,
+};
 use crate::options::Extensions;
 
 /// Where a construct comes from.
@@ -542,7 +545,14 @@ pub struct ExtensionInfo {
 #[derive(Debug, Clone, Serialize)]
 pub struct LimitsInfo {
     pub max_input_bytes: usize,
+    /// Container levels in Markdown input.
     pub max_nesting_depth: usize,
+    /// Levels of JSON arrays/objects in ADF input.
+    pub max_json_depth: usize,
+    /// Table cells in Markdown input, counting the cells GFM pads short rows with.
+    pub max_table_cells: usize,
+    /// Output size in either direction.
+    pub max_output_bytes: usize,
     pub jira_field_char_limit: usize,
 }
 
@@ -609,6 +619,9 @@ pub fn capabilities() -> Capabilities {
         limits: LimitsInfo {
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
             max_nesting_depth: DEFAULT_MAX_DEPTH,
+            max_json_depth: DEFAULT_MAX_DEPTH * JSON_LEVELS_PER_CONTAINER,
+            max_table_cells: MAX_TABLE_CELLS,
+            max_output_bytes: MAX_OUTPUT_BYTES,
             jira_field_char_limit: JIRA_FIELD_CHAR_LIMIT,
         },
     }

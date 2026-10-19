@@ -53,6 +53,24 @@ impl Marks {
             || f.background_color.is_some()
     }
 
+    /// The number of marks other than `link` (used to estimate output size).
+    pub(crate) fn count(&self) -> usize {
+        let f = &self.fmt;
+        [
+            self.code,
+            f.em,
+            f.strong,
+            f.strike,
+            f.underline,
+            f.subsup.is_some(),
+            f.text_color.is_some(),
+            f.background_color.is_some(),
+        ]
+        .into_iter()
+        .filter(|&set| set)
+        .count()
+    }
+
     /// Whether any mark at all (including link and code) is set.
     pub(crate) fn is_empty(&self) -> bool {
         !self.code && self.fmt.is_empty()

@@ -2400,3 +2400,30 @@ fn images_removed_from_headings_and_cells_leave_one_space() {
     let (value, _) = run_with("# H ![i](https://x/i.png)&#32;tail", &external);
     assert_eq!(value["content"][0]["content"], json!([t("H  tail")]));
 }
+
+/// Regression: every text node of a link repeats its URL, so a long URL over link text whose
+/// runs alternate formatting grew the output with the square of the input (32 KB of Markdown gave
+/// 135 MB of JSON). Conversion now stops at the 64 MiB output budget with `E_INPUT_TOO_LARGE`.
+#[test]
+fn link_url_repetition_is_bounded_by_the_output_budget() {
+    let input = |size: usize| {
+        let url = format!("https://example.com/{}", "x".repeat(size / 2));
+        format!("[{}]({url})\n", "*a*b".repeat(size / 8))
+    };
+    let small = super::to_adf(&input(2_000), &MdToAdfOptions::default()).unwrap();
+    assert_eq!(small.output.content.len(), 1);
+    let start = std::time::Instant::now();
+    let err = super::to_adf(&input(32_768), &MdToAdfOptions::default()).unwrap_err();
+    assert_eq!(err.0[0].code, Code::InputTooLarge, "{err}");
+    assert!(
+        err.0[0]
+            .location
+            .as_ref()
+            .is_some_and(|l| l.line == Some(1))
+    );
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}

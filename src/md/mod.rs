@@ -86,7 +86,21 @@ pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Di
     for (code, message, span) in &pre.warnings {
         cx.warn(*code, message.clone(), span);
     }
-    let result = tree::build(&mut cx, &pre).and_then(|parsed| lower::lower(parsed, &mut cx));
+    let mut result = tree::build(&mut cx, &pre).and_then(|parsed| lower::lower(parsed, &mut cx));
+    if let Some(span) = cx.over_budget.clone() {
+        result = Err(cx
+            .diag(
+                Code::InputTooLarge,
+                format!(
+                    "The ADF output would be larger than the {} MiB limit",
+                    crate::limits::MAX_OUTPUT_BYTES / (1024 * 1024)
+                ),
+                &span,
+            )
+            .with_hint(
+                "Every text node of a link repeats its URL: shorten long URLs over heavily formatted link text, or split the document",
+            ));
+    }
     let mut warnings = cx.warnings;
     // Source order; the sort is stable, so warnings at one position keep their order.
     warnings.sort_by_key(|d| {
