@@ -51,6 +51,10 @@ There is no default subcommand: `adf FILE` is a usage error (`E_USAGE`, exit 2).
   for `-e confluence` and `jira` otherwise.
 - **Self-check.** Output is checked before it is written (schema, target rules, invariants). If
   `adf`'s own output fails that check, it reports `E_INTERNAL` (exit 1), because that is a bug.
+- **Options of the other direction** are accepted and have no effect. With `--from adf`: `-t`,
+  `--pretty`, `--compact` and the Markdown options (`--softbreak`, `--html`, `--images`,
+  `--extensions`). With Markdown input: `--md-flavor`. Likewise `validate` ignores the Markdown
+  options when it checks ADF.
 
 ### `validate`
 
@@ -167,7 +171,11 @@ stdout carries **only** the result. Diagnostics always go to **stderr**.
   - `line`, `column`: 1-based, columns count characters;
   - `end_line`, `end_column`;
   - `byte_offset`: invalid UTF-8;
-  - `pointer`: a JSON Pointer into the ADF document.
+  - `pointer`: a JSON Pointer (RFC 6901) into the input: the document's position in its
+    [envelope](#envelopes), then the path inside the document (`/body/content/0`). A Confluence
+    body holds the document as a JSON *string* (`/value`, `/body/atlas_doc_format/value`); the
+    segments after it address the JSON parsed from that string
+    (`/value/content/0/content/0/text`), so a generic resolver must parse the string first.
 - `hint` is optional.
 
 **Text**: `comment.md:12:3: warning[W_IMAGE_AS_LINK]: message (hint: …)`. For ADF locations:

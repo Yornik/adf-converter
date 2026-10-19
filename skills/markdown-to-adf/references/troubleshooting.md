@@ -6,7 +6,9 @@ warnings (`W_…`) describe something that was repaired or lost, and the command
 the installed version, and `adf explain codes` lists all codes.
 
 Locations: Markdown input has `line` and `column` (1-based); ADF input has a JSON `pointer` such
-as `/body/content/2`; invalid UTF-8 has a `byte_offset`.
+as `/body/content/2`; invalid UTF-8 has a `byte_offset`. In a Confluence body the document is a
+JSON string, so in `/value/content/0` the part after `/value` points into the parsed string
+(`jq '.value | fromjson | .content[0]'`).
 
 At most 100 diagnostics of each code are listed. The rest of a code are counted in one more
 diagnostic of that code without a location ("150 more E_SCHEMA errors were not listed"): fix the
