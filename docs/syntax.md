@@ -280,7 +280,7 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
 | Flavour | Purpose |
 |---|---|
 | `--md-flavor roundtrip` (default) | Uses the extension syntax above, so `md → adf` gives the same document back. Nodes Markdown cannot express become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`). |
-| `--md-flavor plain` | Compact, readable Markdown for people and LLMs. Drops what Markdown cannot express, with no `adf` blocks. Mentions become `@Name`, statuses `[TEXT]`, dates `YYYY-MM-DD`, emoji their character, panels alerts, expands `<details>`, cards bare URLs. Plain mode is lossy by design and reports no warnings for it. |
+| `--md-flavor plain` | Compact, readable Markdown for people and LLMs. Drops what Markdown cannot express, with no `adf` blocks. Mentions become `@Name`, statuses `[TEXT]`, dates `YYYY-MM-DD`, emoji their character, panels alerts, expands `<details>`, cards bare URLs (only allowed URLs, escaped like text), external images `![alt](url)` with their caption on the next line, uploaded images `[image: alt]`, attachments `[attachment]`. Merged table cells keep their text in their first column and leave the columns they span empty. Rows shorter than the header are not padded (GFM readers pad them). Control characters in code become U+FFFD (CR LF and a lone CR in code blocks become a line break). Trailing spaces are dropped. Plain mode is lossy by design and reports no warnings for it. |
 
 ### Mapping (roundtrip)
 
@@ -289,19 +289,19 @@ The schema alone does not catch everything Jira rejects. These rules hold for al
 | `heading` | ATX `#`…`######`; `hardBreak` inside → `<br>` |
 | `paragraph` | text; `hardBreak` → `\` + newline; leading/trailing spaces → `&#32;` (tabs `&#9;`), also inside marks at the edges of a paragraph, heading, task item or table cell, and at the start of a line; U+FEFF starting the document → `&#65279;` |
 | marks | `*em*`, `**strong**`, `~~strike~~`, `` `code` ``, `[t](href "title")`, `<u>`, `<sub>`, `<sup>`, `<span style="color: #hex">`, `<span style="background-color: #hex">`. When `*`/`**`/`~~` would not parse (whitespace or punctuation at the edge, inside a word), the HTML form (`<em>`, `<strong>`, `<del>`) is used. |
-| text | Markdown-special characters are escaped so they stay literal. `://` in unlinked text is written `\://` so it is not autolinked. |
+| text | Markdown-special characters are escaped so they stay literal. `://` in unlinked text is written `\://` so it is not autolinked. Text holding control characters other than tab and line feed → ```` ```adf ```` block (`W_ADF_PASSTHROUGH`), because Markdown → ADF removes them; the JSON escapes them, so they never reach a terminal raw. |
 | `bulletList`, `orderedList {order}` | `-` / `N.` lists; nesting by indentation; an item whose first paragraph is empty → `-` alone on its line, or `- ![alt](url)` when an external image follows it. A blank line separates a list that cannot interrupt a paragraph (`N.` with `N` ≠ 1, an empty first item) from a paragraph line before it. |
 | `taskList`, `taskItem` | `- [ ]` / `- [x]` |
-| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content; `\` and `&` in the language are escaped. Language `adf` → ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), because a fence with that language is raw ADF. |
+| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content; `\` and `&` in the language are escaped. Language `adf` → ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), because a fence with that language is raw ADF. Code or a language holding control characters other than tab and line feed (CR included) → ```` ```adf ```` block. |
 | `blockquote` | `>`; a quote holding one empty paragraph → `>` alone |
 | `rule` | `---` (`***` as the first block, where `---` could open front matter) |
 | `panel` info / success / note / warning / error | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` |
-| `expand`, `nestedExpand` | `<details><summary>title</summary>` … `</details>` |
+| `expand`, `nestedExpand` | `<details><summary>title</summary>` … `</details>`. A title that Markdown → ADF would change (whitespace at the ends, tabs, line breaks, repeated spaces, control characters) → ```` ```adf ```` block. |
 | `table` 1×1 with a single `tableCell` and default attrs | `::: cell` … `:::` |
 | `table` with a header row, one paragraph per cell (optionally followed by external images, written after the cell's text), no spans, consistent column alignment | GFM table |
 | `mention`, `status`, `date`, `emoji`, `inlineCard` | the `adf:` link forms above |
 | `mediaSingle` with external `media` | `![alt](url)` |
-| anything else: other tables, Media Services files, `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`) |
+| anything else: other tables, Media Services files, `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), pretty-printed in its key order for the first 16 JSON levels and compact below |
 
 Attributes with no Markdown form are dropped with `W_ATTR_DROPPED`: cell `colwidth` and
 `background`, table `width`/`layout`/`displayMode`, a numbered column, media size, panel icons.
