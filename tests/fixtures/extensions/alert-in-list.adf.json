@@ -22,7 +22,10 @@
       ]
     },
     {
-      "type": "blockquote",
+      "type": "panel",
+      "attrs": {
+        "panelType": "info"
+      },
       "content": [
         {
           "type": "paragraph",

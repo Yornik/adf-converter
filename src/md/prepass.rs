@@ -36,6 +36,9 @@ pub(crate) struct Prepass {
     pub(crate) cell_closes: BTreeSet<usize>,
     /// Warnings, located by spans in `text`.
     pub(crate) warnings: Vec<(Code, String, Span)>,
+    /// Leading front matter that was blanked: the 1-based line of its closing `---` and the
+    /// column just after it. Its lines are empty in `text`, so it is located here instead.
+    pub(crate) front_matter: Option<(usize, usize)>,
 }
 
 /// Runs the prepass. `cells` enables `::: cell` boxes.
@@ -65,19 +68,14 @@ fn run_impl(source: &str, cells: bool, blank_whitespace_lines: bool) -> Prepass 
     // Colon count of the open box, if any.
     let mut open_box: Option<usize> = None;
 
+    if let Some(end) = front_matter_end {
+        let closing = lines.get(end).map_or(0, |line| line.chars().count());
+        out.front_matter = Some((end + 1, closing + 1));
+    }
     for (index, line) in lines.iter().enumerate() {
         let start = out.text.len();
         let span = start..start + line.len();
-        if let Some(end) = front_matter_end
-            && index <= end
-        {
-            if index == 0 {
-                out.warnings.push((
-                    Code::FrontMatterDropped,
-                    "Leading YAML front matter was removed".to_owned(),
-                    span,
-                ));
-            }
+        if front_matter_end.is_some_and(|end| index <= end) {
             push_line(&mut out.text, "", index + 1 < lines.len());
             continue;
         }
@@ -173,29 +171,47 @@ fn split_lines(text: &str) -> Vec<&str> {
 
 /// Index of the line closing leading front matter (`---` … `---` or `...`), if any.
 ///
-/// To avoid swallowing a document that merely starts with a horizontal rule, the first
-/// non-blank line inside must look like a YAML mapping key (`key: value`). Empty "front matter"
-/// (`---`, blank lines, `---`) is two thematic breaks, as CommonMark reads it.
+/// A document may simply start with a horizontal rule, and Markdown taken for front matter is
+/// lost, so the block counts only if it reads as YAML: the first non-blank line inside is a
+/// mapping key (`key: value`), and every other non-blank line is a key, an indented line (a
+/// nested value or a continuation) or a sequence item (`- x`). Prose, headings, fences, tables
+/// or quotes before the closing line make it Markdown. Empty "front matter" (`---`, blank lines,
+/// `---`) is two thematic breaks, as CommonMark reads it.
 fn front_matter_end(lines: &[&str]) -> Option<usize> {
     let first = lines.first()?;
     if first.trim_end_matches([' ', '\t']) != "---" {
         return None;
     }
-    let end = lines
-        .iter()
-        .enumerate()
-        .skip(1)
-        // The last element after a trailing newline is an empty pseudo-line; it never closes.
-        .find(|(_, line)| {
-            let line = line.trim_end_matches([' ', '\t']);
-            line == "---" || line == "..."
-        })
-        .map(|(index, _)| index)?;
-    let first_content = lines
-        .get(1..end)?
-        .iter()
-        .find(|line| !line.trim().is_empty());
-    first_content.and_then(|line| looks_like_yaml_key(line).then_some(end))
+    let mut keyed = false;
+    // The last element after a trailing newline is an empty pseudo-line; it never closes.
+    for (index, line) in lines.iter().enumerate().skip(1) {
+        let trimmed = line.trim_end_matches([' ', '\t']);
+        if trimmed == "---" || trimmed == "..." {
+            return keyed.then_some(index);
+        }
+        if line.trim().is_empty() {
+            continue;
+        }
+        let yaml = if keyed {
+            looks_like_yaml_line(line)
+        } else {
+            looks_like_yaml_key(line)
+        };
+        if !yaml {
+            return None;
+        }
+        keyed = true;
+    }
+    None
+}
+
+/// A line that can continue YAML front matter: a mapping key, an indented line or a sequence
+/// item.
+fn looks_like_yaml_line(line: &str) -> bool {
+    looks_like_yaml_key(line)
+        || line.starts_with([' ', '\t'])
+        || line.trim_end() == "-"
+        || line.starts_with("- ")
 }
 
 /// `key:` followed by a space or the end of the line; the key does not start with whitespace,
@@ -288,18 +304,42 @@ mod tests {
     fn front_matter_is_blanked_keeping_lines() {
         let p = run("---\ntitle: x\n---\n# H\n", true);
         assert_eq!(p.text, "\n\n\n# H\n");
-        assert_eq!(p.warnings.len(), 1);
-        assert_eq!(p.warnings[0].0, Code::FrontMatterDropped);
+        assert_eq!(p.warnings, vec![]);
+        // Located by its original lines: up to the end of the closing `---`.
+        assert_eq!(p.front_matter, Some((3, 4)));
+        assert_eq!(run("# H\n", true).front_matter, None);
         // Unclosed front matter is not front matter.
         assert_eq!(run("---\nx\n", true).text, "---\nx\n");
         // `...` closes too.
-        assert_eq!(run("---\na: 1\n...\nb", true).text, "\n\n\nb");
+        let p = run("---\na: 1\n...\nb", true);
+        assert_eq!(p.text, "\n\n\nb");
+        assert_eq!(p.front_matter, Some((3, 4)));
         // A leading rule followed by ordinary Markdown is not front matter.
         let src = "---\n# Title\n\ntext\n---\n";
         assert_eq!(run(src, true).text, src);
         // Empty front matter is two rules (CommonMark examples 43 and 47).
         assert_eq!(run("---\n---\nx", true).text, "---\n---\nx");
         assert_eq!(run("---\n\n---\n", true).text, "---\n\n---\n");
+    }
+
+    #[test]
+    fn front_matter_must_read_as_yaml() {
+        // Keys, nested values, block scalars, sequences, blank lines.
+        let src = "---\ntitle: \"Runbook\"\ntags:\n  - ops\n- db\n\ndescription: >\n  Long\n  text\nempty:\n---\nx";
+        let p = run(src, true);
+        assert_eq!(p.text, "\n".repeat(11) + "x");
+        assert_eq!(p.front_matter, Some((11, 4)));
+        // A rule, then Markdown whose first line happens to look like a key: prose, a list...
+        for src in [
+            "---\nSummary: the outage lasted 2h.\n\nThe failover did not trigger because **the health check** was misconfigured.\n\n- step one\n- step two\n\n---\n\nMore text\n",
+            "---\nStatus: open\n\n# Incident report\n\n| a | b |\n|---|---|\n\n---\n\nEnd",
+            "---\nNote: see below\n\n```yaml\n---\n```\nmore",
+            "---\nOwner: me\n> quoted\n---\n",
+        ] {
+            let p = run(src, true);
+            assert_eq!(p.text, src);
+            assert_eq!(p.front_matter, None);
+        }
     }
 
     #[test]

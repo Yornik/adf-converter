@@ -1,0 +1,9 @@
+Intro.
+
+```adf
+{"type":"taskList","attrs":{"localId":"dup"},"content":[{"type":"taskItem","attrs":{"localId":"i1","state":"TODO"},"content":[{"type":"text","text":"a"}]}]}
+```
+
+```adf
+{"type":"taskList","attrs":{"localId":"dup"},"content":[{"type":"taskItem","attrs":{"localId":"i2","state":"TODO"},"content":[{"type":"text","text":"b"}]}]}
+```

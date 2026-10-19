@@ -13,6 +13,10 @@
 //! document order is preserved. Each container converts its lowered children into its own
 //! child enum from `adf::model`, which cannot represent an invalid placement.
 
+use std::collections::BTreeSet;
+
+use serde_json::Value;
+
 use crate::adf::model::{
     Align, AlignedParagraph, Blockquote, BlockquoteChild, BulletList, CellKind, CodeBlock, Doc,
     DocBlock, Expand, ExpandChild, Formatting, Heading, HeadingLevel, Inline, ListItem,
@@ -23,8 +27,10 @@ use crate::adf::model::{
 use crate::diagnostics::{Code, Diagnostic};
 
 use super::cx::Cx;
-use super::extensions::{RawPlace, validate_raw};
-use super::finalize::{Segment, embolden, finalize, split_media};
+use super::extensions::{RawPlace, truncate, validate_raw};
+use super::finalize::{
+    Segment, embolden, ends_with_space, finalize, split_media, trim_leading_space,
+};
 use super::ir::{Block, Footnote, Item, Marks, Row, Span, Tok};
 use super::tree::Parsed;
 
@@ -356,11 +362,14 @@ enum TaskPart {
 
 struct Lowerer<'c, 'a> {
     cx: &'c mut Cx<'a>,
+    /// `localId`s used by ```` ```adf ```` blocks; generated IDs avoid them.
+    raw_ids: BTreeSet<String>,
 }
 
 /// Lowers a parsed document.
 pub(crate) fn lower(parsed: Parsed, cx: &mut Cx<'_>) -> Result<Doc, Diagnostic> {
-    let mut lowerer = Lowerer { cx };
+    let raw_ids = raw_local_ids(&parsed, cx)?;
+    let mut lowerer = Lowerer { cx, raw_ids };
     let mut content = Vec::new();
     for piece in lowerer.seq(Ctx::Doc, parsed.blocks)? {
         content.extend(lowerer.place_in_doc(piece)?);
@@ -373,7 +382,107 @@ pub(crate) fn lower(parsed: Parsed, cx: &mut Cx<'_>) -> Result<Doc, Diagnostic> 
     Ok(Doc { content })
 }
 
+/// Node types whose `localId` must be unique in the document (as checked by
+/// `adf::validate::invariants`).
+const LOCAL_ID_NODES: &[&str] = &[
+    "taskList",
+    "taskItem",
+    "blockTaskItem",
+    "decisionList",
+    "decisionItem",
+];
+
+/// The `localId`s of the ```` ```adf ```` blocks of the document. Each block is validated on its
+/// own when it is lowered, so an ID that two blocks share is reported here, at the later block
+/// (`E_RAW_ADF`).
+fn raw_local_ids(parsed: &Parsed, cx: &Cx<'_>) -> Result<BTreeSet<String>, Diagnostic> {
+    let mut raws: Vec<(&Span, &[Value])> = Vec::new();
+    let mut blocks: Vec<&Block> = parsed.blocks.iter().collect();
+    blocks.extend(parsed.footnotes.iter().flat_map(|f| f.children.iter()));
+    while let Some(block) = blocks.pop() {
+        match block {
+            Block::Raw { nodes, span } => raws.push((span, nodes)),
+            Block::List { items, .. } => {
+                blocks.extend(items.iter().flat_map(|item| item.children.iter()));
+            }
+            Block::Quote { children, .. }
+            | Block::Alert { children, .. }
+            | Block::Box { children, .. }
+            | Block::Details { children, .. } => blocks.extend(children.iter()),
+            Block::Paragraph { .. }
+            | Block::Heading { .. }
+            | Block::Code { .. }
+            | Block::Rule { .. }
+            | Block::Table { .. }
+            | Block::Media { .. } => {}
+        }
+    }
+    raws.sort_by_key(|(span, _)| span.start);
+    let mut ids = BTreeSet::new();
+    for (span, nodes) in raws {
+        let mut own = BTreeSet::new();
+        let mut values: Vec<&Value> = nodes.iter().collect();
+        while let Some(value) = values.pop() {
+            match value {
+                Value::Object(map) => {
+                    let typed = map
+                        .get("type")
+                        .and_then(Value::as_str)
+                        .is_some_and(|ty| LOCAL_ID_NODES.contains(&ty));
+                    if typed
+                        && let Some(id) = map
+                            .get("attrs")
+                            .and_then(|attrs| attrs.get("localId"))
+                            .and_then(Value::as_str)
+                            .filter(|id| !id.is_empty())
+                    {
+                        own.insert(id);
+                    }
+                    values.extend(map.values());
+                }
+                Value::Array(items) => values.extend(items.iter()),
+                Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+            }
+        }
+        for id in own {
+            if !ids.insert(id.to_owned()) {
+                return Err(cx
+                    .diag(
+                        Code::RawAdf,
+                        format!(
+                            "```adf block is invalid: its `localId` `{}` is already used by an earlier ```adf block",
+                            truncate(id, 40)
+                        ),
+                        span,
+                    )
+                    .with_hint("Give every task and decision node a unique, non-empty localId"));
+            }
+        }
+    }
+    Ok(ids)
+}
+
+/// `noun` with "A" or "An" before it, for the start of a message.
+fn with_article(noun: &str) -> String {
+    let article = if noun.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "An"
+    } else {
+        "A"
+    };
+    format!("{article} {noun}")
+}
+
 impl Lowerer<'_, '_> {
+    /// A fresh task `localId`, never one a ```` ```adf ```` block uses.
+    fn next_local_id(&mut self) -> String {
+        loop {
+            let id = self.cx.ids.next_id();
+            if !self.raw_ids.contains(&id) {
+                return id;
+            }
+        }
+    }
+
     fn place_in_doc(&mut self, piece: Piece) -> Result<Vec<DocBlock>, Diagnostic> {
         match piece {
             Piece::Node(node) => Ok(vec![doc_child(node)?]),
@@ -414,8 +523,8 @@ impl Lowerer<'_, '_> {
             self.cx.warn(
                 Code::BlockHoisted,
                 format!(
-                    "A {} is not allowed in {}; it was moved out of it",
-                    block.describe(),
+                    "{} is not allowed in {}; it was moved out of it",
+                    with_article(block.describe()),
                     ctx.describe()
                 ),
                 &block.span(),
@@ -480,20 +589,24 @@ impl Lowerer<'_, '_> {
                 if ctx.allows_panel() {
                     return self.panel(ctx, panel, children);
                 }
+                if ctx != Ctx::Quote {
+                    // A list item or a panel: the alert is hoisted as it is, and the container
+                    // that finally holds it decides (a panel in the document, an expand or a
+                    // cell; a plain quote's content in a quote).
+                    let block = Block::Alert {
+                        panel,
+                        children,
+                        span,
+                    };
+                    return Ok(self.hoist(ctx, block, arrived));
+                }
                 // Reported even for hoisted blocks: the conversion is a separate step.
                 self.cx.warn(
                     Code::BlockFlattened,
-                    format!(
-                        "An alert cannot be a panel in {}; it was converted to a plain quote",
-                        ctx.describe()
-                    ),
+                    "An alert cannot be a panel in a quote; it was merged into the quote",
                     &span,
                 );
-                if ctx == Ctx::Quote {
-                    return self.seq(Ctx::Quote, children);
-                }
-                // A plain quote is not allowed here either (list item, panel): hoist it.
-                Ok(self.hoist(ctx, Block::Quote { children, span }, arrived))
+                self.seq(Ctx::Quote, children)
             }
             block @ (Block::Table { .. } | Block::Box { .. }) if !ctx.allows_table() => {
                 Ok(self.hoist(ctx, block, arrived))
@@ -578,10 +691,21 @@ impl Lowerer<'_, '_> {
     fn leaf_inline(&mut self, content: Vec<Tok>) -> (Vec<Inline>, Vec<MediaSingle>) {
         let mut toks = Vec::new();
         let mut media = Vec::new();
+        let mut after_media = false;
         for segment in split_media(content) {
             match segment {
-                Segment::Inline(t) => toks.extend(t),
-                Segment::Media(m) => media.push(m),
+                Segment::Inline(mut t) => {
+                    // The text on both sides of a removed image joins: keep one space.
+                    if after_media && ends_with_space(&toks) {
+                        trim_leading_space(&mut t);
+                    }
+                    toks.extend(t);
+                    after_media = false;
+                }
+                Segment::Media(m) => {
+                    media.push(m);
+                    after_media = true;
+                }
             }
         }
         (finalize(toks, self.cx), media)
@@ -833,7 +957,7 @@ impl Lowerer<'_, '_> {
         for item in items {
             if current.is_none() {
                 current = Some(TaskListBuilder {
-                    local_id: self.cx.ids.next_id(),
+                    local_id: self.next_local_id(),
                     first: None,
                     rest: Vec::new(),
                 });
@@ -864,7 +988,7 @@ impl Lowerer<'_, '_> {
         &mut self,
         item: Item,
     ) -> Result<(TaskItem, Vec<TaskList>, Vec<Block>), Diagnostic> {
-        let local_id = self.cx.ids.next_id();
+        let local_id = self.next_local_id();
         let state = item.task.unwrap_or(TaskState::Todo);
         let mut toks: Vec<Tok> = Vec::new();
         let mut nested = Vec::new();
@@ -923,8 +1047,8 @@ impl Lowerer<'_, '_> {
                     self.cx.warn(
                         Code::BlockHoisted,
                         format!(
-                            "A {} is not allowed in a task item; it was moved after the task list",
-                            other.describe()
+                            "{} is not allowed in a task item; it was moved after the task list",
+                            with_article(other.describe())
                         ),
                         &other.span(),
                     );

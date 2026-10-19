@@ -19,6 +19,8 @@
 //! works on `serde_json::Value`, because real documents contain nodes and attributes this crate
 //! never emits.
 
+use std::sync::Arc;
+
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 // ---------------------------------------------------------------------------------------------
@@ -1070,19 +1072,47 @@ impl Serialize for SubSup {
 }
 
 /// `link` mark: `{"type":"link","attrs":{"href":…,"title":…}}`.
+///
+/// The attributes are shared, so a clone is cheap and compares in constant time with the value
+/// it was cloned from: every text run of one link label carries the same link, and a label of
+/// many runs must not copy a long `href` or `title` once per run.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Link {
-    pub href: Href,
-    /// Omitted when `None`; never empty.
-    pub title: Option<NonEmptyString>,
+pub struct Link(Arc<LinkAttrs>);
+
+#[derive(Debug, PartialEq, Eq)]
+struct LinkAttrs {
+    href: Href,
+    title: Option<NonEmptyString>,
+}
+
+impl Link {
+    /// A link to `href`; `title` is omitted when `None`.
+    pub fn new(href: Href, title: Option<NonEmptyString>) -> Self {
+        Self(Arc::new(LinkAttrs { href, title }))
+    }
+
+    pub fn href(&self) -> &Href {
+        &self.0.href
+    }
+
+    /// The title; never empty.
+    pub fn title(&self) -> Option<&NonEmptyString> {
+        self.0.title.as_ref()
+    }
+
+    /// Whether `self` and `other` share their attributes (one is a clone of the other).
+    #[cfg(test)]
+    pub(crate) fn shares(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 impl Serialize for Link {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(2))?;
         map.serialize_entry("type", "link")?;
-        let mut entries = vec![("href", AttrValue::Str(self.href.as_str()))];
-        if let Some(title) = &self.title {
+        let mut entries = vec![("href", AttrValue::Str(self.href().as_str()))];
+        if let Some(title) = self.title() {
             entries.push(("title", AttrValue::Str(title.as_str())));
         }
         attrs(&mut map, &entries)?;
@@ -1090,21 +1120,31 @@ impl Serialize for Link {
     }
 }
 
+/// The URL forms [`Href::parse`] accepts, for messages and hints.
+pub const ALLOWED_URL_FORMS: &str = "http, https, ftp, ftps, mailto, tel, /path, #anchor";
+
 /// A link target that passes this tool's URL allowlist (a strict subset of Atlassian's
-/// `isSafeUrl`): `http`, `https`, `mailto`, `tel`, `ftp`, `ftps`, root-relative `/…` and `#…`.
+/// `isSafeUrl`): `http`, `https`, `mailto`, `tel`, `ftp`, `ftps`, root-relative `/…` and `#…`
+/// ([`ALLOWED_URL_FORMS`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Href(String);
 
 impl Href {
     /// Schemes are matched case-insensitively after trimming whitespace. Returns `None` for
     /// anything else (`javascript:`, `data:`, relative paths, empty strings, …).
+    ///
+    /// A root-relative path must not start with `//` or `/\`: browsers read both as a
+    /// protocol-relative URL to another host (`/\evil.com` resolves to `https://evil.com/`).
     pub fn parse(url: &str) -> Option<Self> {
         let url = url.trim();
         if url.is_empty() || url.chars().any(char::is_control) {
             return None;
         }
-        if url.starts_with('#') || (url.starts_with('/') && !url.starts_with("//")) {
+        if url.starts_with('#') {
             return Some(Self(url.to_owned()));
+        }
+        if let Some(path) = url.strip_prefix('/') {
+            return (!path.starts_with(['/', '\\'])).then(|| Self(url.to_owned()));
         }
         let (scheme, rest) = url.split_once(':')?;
         let scheme = scheme.to_ascii_lowercase();
@@ -1293,10 +1333,7 @@ mod tests {
 
     #[test]
     fn marks_are_canonical_and_code_only_takes_link() {
-        let link = Link {
-            href: Href::parse("https://example.com").unwrap(),
-            title: None,
-        };
+        let link = Link::new(Href::parse("https://example.com").unwrap(), None);
         let formatted = Text {
             text: NonEmptyString::new("x").unwrap(),
             marks: TextMarks::Formatted(Formatting {
@@ -1329,8 +1366,10 @@ mod tests {
             "mailto:a@b.c",
             "tel:+31",
             "/browse/X-1",
+            "/a\\b",
             "#top",
             "ftp://x",
+            "ftps://x",
         ] {
             assert!(Href::parse(ok).is_some(), "{ok}");
         }
@@ -1340,6 +1379,9 @@ mod tests {
             "",
             " ",
             "//evil.com",
+            "/\\evil.com",
+            "/\\\\evil.com",
+            " /\\evil.com",
             "relative/path",
             "http:",
             "https://",
@@ -1376,10 +1418,10 @@ mod tests {
         let schema: serde_json::Value =
             serde_json::from_str(include_str!("../../schemas/adf/full.json")).unwrap();
         let validator = jsonschema::draft4::new(&schema).unwrap();
-        let link = Link {
-            href: Href::parse("https://example.com").unwrap(),
-            title: NonEmptyString::new("t"),
-        };
+        let link = Link::new(
+            Href::parse("https://example.com").unwrap(),
+            NonEmptyString::new("t"),
+        );
         let task = TaskItem {
             local_id: "a".into(),
             state: TaskState::Done,
