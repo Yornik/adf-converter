@@ -130,8 +130,9 @@ JSON fields are minor changes; renames, removals and behaviour changes are break
   convert it and post it safely. Copy the directory into your agent's skills directory (for
   example `~/.claude/skills/` for Claude Code). It is also included in every release zip.
 - **Discover, don't guess.** `adf capabilities --json` lists the supported features, extensions,
-  envelopes, exit codes, diagnostic codes and limits. `adf examples` prints Markdown → ADF pairs,
-  and `adf schema diagnostic` prints the JSON Schema of a diagnostic line.
+  envelopes, exit codes, diagnostic codes and the main limits (all limits are in
+  [docs/cli-contract.md](docs/cli-contract.md#limits)). `adf examples FEATURE` prints a
+  Markdown → ADF pair, and `adf schema diagnostic` prints the JSON Schema of a diagnostic line.
 - **Machine-readable diagnostics.** When stderr is not a terminal, every warning and error is
   one JSON object per line, with `code`, `severity`, `message`, `location` (`line`/`column`, or a
   JSON Pointer for ADF input) and an optional `hint`. Force it with `--error-format json`.
@@ -205,9 +206,11 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
-them. ADF → Markdown writes the same syntax, so for these constructs, converting back gives the
-same document. Nodes Markdown cannot express become ```` ```adf ```` blocks
-(`W_ADF_PASSTHROUGH`).
+them. ADF → Markdown writes the same syntax, so for these constructs, converting back with
+`--images external` gives the same document (with the default `--images link`, embedded external
+images become links). Nodes Markdown cannot express become ```` ```adf ```` blocks
+(`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
+Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
 ## Exit codes
 

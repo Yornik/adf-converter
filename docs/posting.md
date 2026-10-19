@@ -8,22 +8,26 @@ Data Center and Server do not use ADF.
 
 ## Before you start
 
-The recipes read three environment variables. You set them; `adf` itself ignores them.
+The recipes read these environment variables. You set them; `adf` itself ignores them.
 
 ```sh
-export JIRA_BASE_URL=https://your-site.atlassian.net    # no trailing slash
+export JIRA_BASE_URL=https://your-site.atlassian.net          # no trailing slash
+export CONFLUENCE_BASE_URL="$JIRA_BASE_URL/wiki"              # only for the Confluence recipes
 export JIRA_EMAIL=you@example.com
-read -rs JIRA_API_TOKEN && export JIRA_API_TOKEN          # paste the token; it is not echoed
+read -rs JIRA_API_TOKEN && export JIRA_API_TOKEN                # paste the token; it is not echoed
 ```
 
 - Create an API token at <https://id.atlassian.com/manage-profile/security/api-tokens>. It
   authenticates as you, with HTTP basic auth (`-u "$JIRA_EMAIL:$JIRA_API_TOKEN"`).
-- Jira and Confluence on the same Atlassian Cloud site share the URL and the token, so the
-  Confluence recipes use `$JIRA_BASE_URL/wiki/…`.
-- **Scoped API tokens** go through Atlassian's API gateway instead of your site URL:
-  `https://api.atlassian.com/ex/jira/<cloudId>` for Jira (set `JIRA_BASE_URL` to it) and
-  `https://api.atlassian.com/ex/confluence/<cloudId>` for Confluence. These recipes have not been
-  tested with scoped tokens.
+- With a classic (unscoped) token, Jira and Confluence on the same Atlassian Cloud site share the
+  site URL and the token, so `CONFLUENCE_BASE_URL` is the site URL plus `/wiki`.
+- **Scoped API tokens** go through Atlassian's API gateway instead of your site URL, with a
+  different base URL per product:
+  - `JIRA_BASE_URL=https://api.atlassian.com/ex/jira/<cloudId>`;
+  - `CONFLUENCE_BASE_URL=https://api.atlassian.com/ex/confluence/<cloudId>/wiki`.
+
+  A scoped token is created for one product, so the Confluence recipes need a token made for
+  Confluence. These recipes have not been tested with scoped tokens.
 - Never print the token, paste it into a command line that ends up in your shell history, or
   commit it. On a shared machine, prefer a netrc file (`curl --netrc-file FILE`) over `-u`, so the
   token does not appear in the process list.
@@ -117,8 +121,8 @@ adf convert description.md -e jira-description -o description.json &&
 
 `adf convert --from adf` unwraps Jira's responses itself (see
 [envelopes.md](envelopes.md#reading---from-adf)). Use `--md-flavor plain` for compact text to
-read or give to an LLM; leave the default (`roundtrip`) if you want to edit the Markdown and post
-it back without losing anything.
+read or give to an LLM. Leave the default (`roundtrip`) if you want to edit the Markdown and post
+it back; see [Edit and post back](#edit-and-post-back).
 
 ```sh
 # Description
@@ -147,6 +151,31 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o comments.json \
 An empty description is `null` in Jira's response; `adf` reports that as `E_INPUT_NOT_ADF`
 (exit 3).
 
+### Edit and post back
+
+Convert with the default `roundtrip` flavour, edit the Markdown, and convert it back with
+`--images external`:
+
+```sh
+curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o issue.json \
+    "$JIRA_BASE_URL/rest/api/3/issue/PROJ-123?fields=description" &&
+  adf convert --from adf issue.json -o description.md
+# Edit description.md. Leave ```adf blocks unchanged: they hold nodes Markdown cannot express.
+adf convert description.md -e jira-description --images external -o description.json &&
+  curl --fail-with-body -sS -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+    -H 'Content-Type: application/json' --data-binary @description.json \
+    "$JIRA_BASE_URL/rest/api/3/issue/PROJ-123"
+```
+
+- **`--images external`**: roundtrip Markdown writes an embedded external image as
+  `![alt](url)`. With the default `--images link`, it would come back as a text link
+  (`W_IMAGE_AS_LINK`). With `--images external`, images you add are embedded by URL too.
+- Use the envelope of the place you post to: `-e jira-comment` for a comment, `-e confluence` for
+  a Confluence page (see [Update a page](#update-a-page)).
+- `W_ATTR_DROPPED` from `--from adf` means that posting back loses something Markdown cannot
+  express: column widths, cell colours, alignment, or the anchors of Confluence inline comments,
+  for example. Check before you overwrite such content.
+
 ## Confluence
 
 Confluence takes the document as a JSON *string* inside `body` (see
@@ -159,7 +188,7 @@ Pages are created in a space by its numeric ID, not its key. Look the ID up once
 
 ```sh
 curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-  "$JIRA_BASE_URL/wiki/api/v2/spaces?keys=DOCS" | jq -r '.results[0].id'
+  "$CONFLUENCE_BASE_URL/api/v2/spaces?keys=DOCS" | jq -r '.results[0].id'
 ```
 
 ```sh
@@ -168,7 +197,7 @@ adf convert page.md -e confluence -o body.json &&
     '{spaceId: $space, status: "current", title: $title, body: .}' body.json > page.json &&
   curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @page.json \
-    "$JIRA_BASE_URL/wiki/api/v2/pages"
+    "$CONFLUENCE_BASE_URL/api/v2/pages"
 ```
 
 Add `parentId` to place the page under another page.
@@ -179,14 +208,14 @@ An update must send the page's `id`, `status`, `title`, `body` and the next `ver
 
 ```sh
 curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o current.json \
-    "$JIRA_BASE_URL/wiki/api/v2/pages/$PAGE_ID" &&
+    "$CONFLUENCE_BASE_URL/api/v2/pages/$PAGE_ID" &&
   adf convert page.md -e confluence -o body.json &&
   jq --slurpfile cur current.json \
     '{id: $cur[0].id, status: "current", title: $cur[0].title, body: .,
       version: {number: ($cur[0].version.number + 1)}}' body.json > update.json &&
   curl --fail-with-body -sS -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @update.json \
-    "$JIRA_BASE_URL/wiki/api/v2/pages/$PAGE_ID"
+    "$CONFLUENCE_BASE_URL/api/v2/pages/$PAGE_ID"
 ```
 
 ### Add a footer comment
@@ -196,14 +225,14 @@ adf convert comment.md -e confluence -o body.json &&
   jq --arg page "$PAGE_ID" '{pageId: $page, body: .}' body.json > comment.json &&
   curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @comment.json \
-    "$JIRA_BASE_URL/wiki/api/v2/footer-comments"
+    "$CONFLUENCE_BASE_URL/api/v2/footer-comments"
 ```
 
 ### Read a page as Markdown
 
 ```sh
 curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o page.json \
-    "$JIRA_BASE_URL/wiki/api/v2/pages/$PAGE_ID?body-format=atlas_doc_format" &&
+    "$CONFLUENCE_BASE_URL/api/v2/pages/$PAGE_ID?body-format=atlas_doc_format" &&
   adf convert --from adf page.json --md-flavor plain
 ```
 
@@ -269,7 +298,7 @@ save the raw API response.
 
 | Response | Likely cause | What to do |
 |---|---|---|
-| `400` with `INVALID_INPUT` or "not valid Atlassian Document Format" | The body is not valid ADF for this endpoint, or it is the wrong envelope. | Run `adf validate FILE`; check the envelope against [envelopes.md](envelopes.md). |
+| `400` with `INVALID_INPUT` or "not valid Atlassian Document Format" | The body is not valid ADF for this endpoint, or it is the wrong envelope. | Run `adf validate` on the file `adf convert` wrote (for Confluence, `body.json`: `adf` does not read the request that `jq` builds around it); check the envelope against [envelopes.md](envelopes.md). |
 | `400` "Operation value must be an Atlassian Document" | A string or wiki markup was sent to an ADF field. | Send `adf` output instead. |
 | `400` "Comment body can not be empty" | An empty body, often from piping a failed `adf` into curl. | Convert to a file first. |
 | `400` "Invalid message" (Confluence) | `value` was an object instead of a string. | Use `-e confluence`. |

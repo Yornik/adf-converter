@@ -39,15 +39,25 @@ latest release (see [references/posting.md](references/posting.md#install-adf)),
 `cargo install --git https://github.com/Yornik/adf-converter --locked`. Don't install software
 without the user's agreement.
 
-Use `adf capabilities --json` to see what this version supports, `adf examples` for Markdown →
-ADF pairs, and `adf explain <CODE>` for any diagnostic code.
+Use `adf capabilities --json` to see what this version supports, `adf examples <feature>` for a
+Markdown → ADF pair (the full `adf examples` output is long), and `adf explain <CODE>` for any
+diagnostic code.
 
 ## 2. Post Markdown to Jira or Confluence
 
-**Write the content** to a file in a scratch directory:
+**Create a scratch directory** once and note the path it prints:
 
 ```sh
-work=$(mktemp -d)
+work=$(mktemp -d) && echo "$work"
+```
+
+The commands below use `"$work"`. Shell variables often do not survive between your commands
+(many agent tools start a new shell for each one). In that case, start each command with
+`work=<the printed path>;`, or write the path out.
+
+**Write the content** to a file there:
+
+```sh
 cat > "$work/comment.md" <<'EOF'
 ## Deploy finished
 
@@ -67,9 +77,10 @@ adf validate --from md -e jira-comment --json "$work/comment.md"
 
 The report on stdout lists `warnings` (and `errors`), each with a `code`, a `message`, a
 `location` (`line`, `column`) and often a `hint`. Fix the Markdown for every warning that loses
-something the user cares about, and run it again. Some warnings are usually fine, such as
-`W_IMAGE_AS_LINK`. [references/troubleshooting.md](references/troubleshooting.md) explains every
-code.
+something the user cares about, and run it again. Some warnings are usually fine for new
+content, such as `W_IMAGE_AS_LINK`, but not when you post back edited content (see
+[section 4](#4-edit-existing-content)).
+[references/troubleshooting.md](references/troubleshooting.md) explains every code.
 
 **Convert** with the envelope that matches the endpoint:
 
@@ -95,12 +106,16 @@ All recipes (descriptions, custom fields, new issues, Confluence pages and comme
 [references/posting.md](references/posting.md).
 
 **Check the result.** Look at the HTTP status and tell the user what was posted where. A `400`
-from Jira rarely says why; run `adf validate` on the file you sent and check the envelope.
+from Jira rarely says why; run `adf validate` on the file `adf convert` wrote and check the
+envelope. For Confluence that is `body.json`, not the request `jq` built around it, which `adf`
+does not read.
 
 Avoid `acli jira workitem comment create` for formatted comments: it posts ADF as plain text
 (raw JSON in the comment). Use the REST recipe instead.
 
 ## 3. Read Jira or Confluence content as Markdown
+
+With a scratch directory `$work` as in section 2:
 
 ```sh
 curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o "$work/issue.json" \
@@ -119,10 +134,20 @@ and drops what Markdown cannot show.
    `adf convert --from adf "$work/issue.json" -o "$work/description.md"`.
 2. Edit the Markdown. Leave any ```` ```adf ```` blocks unchanged: they hold nodes Markdown cannot
    express and are restored exactly.
-3. Convert and `PUT` it back as in section 2.
+3. Convert it back **with `--images external`** and the envelope of the destination, then `PUT`
+   it as in section 2:
 
-If step 1 reports `W_ATTR_DROPPED` (column widths, cell colours and similar), those details are
-lost when you post the Markdown back. Tell the user before overwriting such content.
+   ```sh
+   adf convert "$work/description.md" -e jira-description --images external \
+     -o "$work/description.json"
+   ```
+
+   Without `--images external`, every embedded external image becomes a text link
+   (`W_IMAGE_AS_LINK`). Use `-e jira-comment` for a comment, and `-e confluence` for a page.
+
+If step 1 reports `W_ATTR_DROPPED` (column widths, cell colours, alignment, the anchors of
+Confluence inline comments and similar), those details are lost when you post the Markdown back.
+Tell the user before overwriting such content.
 
 ## Markdown that `adf` understands
 

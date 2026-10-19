@@ -38,27 +38,36 @@ The recipes expect these environment variables. They are the user's; `adf` doesn
 | Variable | Example |
 |---|---|
 | `JIRA_BASE_URL` | `https://your-site.atlassian.net` (no trailing slash) |
+| `CONFLUENCE_BASE_URL` | Confluence recipes only: `https://your-site.atlassian.net/wiki` |
 | `JIRA_EMAIL` | the Atlassian account email |
 | `JIRA_API_TOKEN` | an API token from <https://id.atlassian.com/manage-profile/security/api-tokens> |
 
 - Check that they are set without printing them:
-  `for v in JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN; do printenv "$v" >/dev/null || echo "$v is not set"; done`.
+  `for v in JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN; do printenv "$v" >/dev/null || echo "$v is not set"; done`
+  (add `CONFLUENCE_BASE_URL` for Confluence).
 - If they are missing, ask the user to set them. Never ask the user to paste a token into the
   chat, and never write a token into a file or a command you print.
-- Confluence on the same site uses the same URL and token: `$JIRA_BASE_URL/wiki/…`.
-- Scoped API tokens use `https://api.atlassian.com/ex/jira/<cloudId>` as the Jira base URL
-  instead of the site URL.
+- With a classic token, Confluence on the same site uses the same token, and
+  `CONFLUENCE_BASE_URL` is the site URL plus `/wiki`. If only `JIRA_BASE_URL` is set, use
+  `"$JIRA_BASE_URL/wiki"`.
+- Scoped API tokens use Atlassian's gateway instead of the site URL:
+  `https://api.atlassian.com/ex/jira/<cloudId>` for Jira and
+  `https://api.atlassian.com/ex/confluence/<cloudId>/wiki` for Confluence. A scoped token is
+  created for one product, so Confluence needs its own.
 
 ## The pattern
 
 ```sh
-work=$(mktemp -d)
-# 1. write $work/x.md   2. adf validate --from md -e ENVELOPE --json $work/x.md
+work=$(mktemp -d) && echo "$work"    # once; note the path
+# 1. write $work/x.md   2. adf validate --from md -e ENVELOPE --json "$work/x.md"
 adf convert "$work/x.md" -e ENVELOPE -o "$work/x.json" &&
   curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @"$work/x.json" URL
 ```
 
+- The recipes use `"$work"` for the scratch directory. If your shell does not keep variables
+  between commands (many agent tools start a new shell for each one), start every command with
+  `work=<the printed path>;`, or write the path out.
 - `-o` writes atomically and only on success; `&&` stops curl when `adf` fails.
 - Never `adf … | curl --data-binary @-`: a failed conversion still sends an (empty) request.
 - `--fail-with-body` makes HTTP errors fail the command and still shows Jira's message.
@@ -105,31 +114,31 @@ Restrict a comment's visibility by adding it before posting:
 document as a JSON string>"}`). Wrap it with `jq`; never re-encode `value`.
 
 ```sh
-# Create a page (spaceId is numeric: GET $JIRA_BASE_URL/wiki/api/v2/spaces?keys=KEY → .results[0].id)
+# Create a page (spaceId is numeric: GET $CONFLUENCE_BASE_URL/api/v2/spaces?keys=KEY → .results[0].id)
 adf convert "$work/p.md" -e confluence -o "$work/body.json" &&
   jq --arg space "$SPACE_ID" --arg title "Page title" \
     '{spaceId: $space, status: "current", title: $title, body: .}' "$work/body.json" > "$work/page.json" &&
   curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @"$work/page.json" \
-    "$JIRA_BASE_URL/wiki/api/v2/pages"
+    "$CONFLUENCE_BASE_URL/api/v2/pages"
 
 # Update a page: send id, status, title, body and the next version number
 curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o "$work/current.json" \
-    "$JIRA_BASE_URL/wiki/api/v2/pages/$PAGE_ID" &&
+    "$CONFLUENCE_BASE_URL/api/v2/pages/$PAGE_ID" &&
   adf convert "$work/p.md" -e confluence -o "$work/body.json" &&
   jq --slurpfile cur "$work/current.json" \
     '{id: $cur[0].id, status: "current", title: $cur[0].title, body: .,
       version: {number: ($cur[0].version.number + 1)}}' "$work/body.json" > "$work/update.json" &&
   curl --fail-with-body -sS -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @"$work/update.json" \
-    "$JIRA_BASE_URL/wiki/api/v2/pages/$PAGE_ID"
+    "$CONFLUENCE_BASE_URL/api/v2/pages/$PAGE_ID"
 
 # Add a footer comment
 adf convert "$work/c.md" -e confluence -o "$work/body.json" &&
   jq --arg page "$PAGE_ID" '{pageId: $page, body: .}' "$work/body.json" > "$work/comment.json" &&
   curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
     -H 'Content-Type: application/json' --data-binary @"$work/comment.json" \
-    "$JIRA_BASE_URL/wiki/api/v2/footer-comments"
+    "$CONFLUENCE_BASE_URL/api/v2/footer-comments"
 ```
 
 ## Reading content as Markdown
@@ -154,6 +163,27 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o "$work/comments.js
 ```
 
 An empty Jira field is `null` and gives `E_INPUT_NOT_ADF` (exit 3): there is nothing to convert.
+
+## Editing and posting back
+
+```sh
+curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o "$work/issue.json" \
+    "$JIRA_BASE_URL/rest/api/3/issue/PROJ-123?fields=description" &&
+  adf convert --from adf "$work/issue.json" -o "$work/d.md"
+# edit $work/d.md, leaving ```adf blocks unchanged, then:
+adf convert "$work/d.md" -e jira-description --images external -o "$work/d.json" &&
+  curl --fail-with-body -sS -X PUT -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+    -H 'Content-Type: application/json' --data-binary @"$work/d.json" \
+    "$JIRA_BASE_URL/rest/api/3/issue/PROJ-123"
+```
+
+- Use the default `roundtrip` flavour (no `--md-flavor`) for the Markdown you edit.
+- Convert back with `--images external`. Roundtrip Markdown writes embedded external images as
+  `![alt](url)`; without the flag they come back as text links (`W_IMAGE_AS_LINK`).
+- Use the envelope of the destination: `-e jira-comment` for a comment, `-e confluence` (wrapped
+  as in [Confluence](#confluence)) for a page.
+- If `--from adf` reported `W_ATTR_DROPPED`, posting back loses those details (column widths, cell
+  colours, alignment, Confluence inline-comment anchors). Tell the user before overwriting.
 
 ## acli
 
