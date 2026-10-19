@@ -1,0 +1,39 @@
+# https://editorconfig.org — matches rustfmt defaults and .gitattributes (LF everywhere).
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json,toml,sh}]
+indent_size = 2
+
+# Two trailing spaces are a hard line break in Markdown.
+[*.md]
+trim_trailing_whitespace = false
+
+# Fixtures and blessed goldens are byte-exact test data (some deliberately lack a final newline
+# or contain trailing whitespace); editors must not touch them.
+[tests/fixtures/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+
+# Vendored, unmodified upstream file (see schemas/adf/PROVENANCE).
+[schemas/adf/full.json]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+
+[Cargo.lock]
+indent_size = unset

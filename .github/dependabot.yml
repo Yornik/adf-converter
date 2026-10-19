@@ -1,0 +1,52 @@
+# Dependabot version updates. PR titles must be Conventional Commits (pr-title.yml), and the
+# commit type decides what release-please does with the change:
+#   deps:      Rust dependencies; listed under "Dependencies" and released (patch)
+#   ci(deps):  GitHub Actions; hidden from the changelog, no release
+#   build(deps): the pinned Rust toolchain; hidden from the changelog, no release
+# A cooldown lets the ecosystem catch broken or malicious releases before they reach this repo.
+# Security updates are not delayed by the cooldown.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: cargo
+    # /fuzz is a separate cargo workspace (cargo-fuzz).
+    directories: [/, /fuzz]
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    commit-message:
+      prefix: deps
+    groups:
+      cargo-minor-patch:
+        update-types: [minor, patch]
+        # For 0.x crates a "minor" bump is a breaking release; keep these in their own PRs so a
+        # failure is easy to attribute. jsonschema is pinned exactly (=0.59.0) for the same reason.
+        exclude-patterns: [jsonschema, pulldown-cmark, linkify]
+
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
