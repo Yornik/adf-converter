@@ -121,8 +121,8 @@ and drops what Markdown cannot show.
    express and are restored exactly.
 3. Convert and `PUT` it back as in section 2.
 
-Roundtrip warnings such as `W_ATTR_DROPPED` (column widths, cell colours) mean those details
-are lost when you post back. Tell the user before overwriting such content.
+If step 1 reports `W_ATTR_DROPPED` (column widths, cell colours and similar), those details are
+lost when you post the Markdown back. Tell the user before overwriting such content.
 
 ## Markdown that `adf` understands
 
@@ -140,8 +140,8 @@ tables, links), plus:
 | `[😄](adf:emoji/:smile:)` | emoji |
 | `[https://site.atlassian.net/browse/PROJ-1](adf:card)` | smart link card |
 
-Keep tables, headings, rules, panels and `<details>` at the top level, not inside lists or
-quotes; `adf` moves them out otherwise (`W_BLOCK_HOISTED`, `W_HEADING_DEMOTED`). The full
+Keep tables, headings, rules, panels and `<details>` out of lists and quotes; otherwise `adf`
+moves or converts them (`W_BLOCK_HOISTED`, `W_HEADING_DEMOTED`, `W_BLOCK_FLATTENED`). The full
 cheat sheet is [references/syntax.md](references/syntax.md).
 
 ## Exit codes

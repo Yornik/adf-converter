@@ -27,9 +27,9 @@ own code.
   (`h2.`, `{code}`) only works with the older Jira v2 API.
 - **Hand-made ADF is easy to get wrong, and Jira's error messages don't say where.** An empty
   text node, bold on inline code, a heading inside a list item or a task item without a
-  `localId` all get a generic `400 INVALID_INPUT`. `adf` checks every document against the
-  vendored ADF JSON schema *and* the rules Jira enforces beyond it, repairs what it can, and
-  reports anything lossy with a code and a `line:column`.
+  `localId` all get a generic `400` error, often just `INVALID_INPUT`. `adf` checks every
+  document against the vendored ADF JSON schema *and* the rules Jira enforces beyond it, repairs
+  what it can, and reports anything lossy with a code and a `line:column`.
 - **Atlassian has no official ADF → Markdown converter.** Reading a ticket into a diff, a review
   or an LLM prompt means wading through deeply nested JSON. `adf convert --from adf` turns
   issues, comments and Confluence pages back into Markdown.
@@ -190,7 +190,8 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | Fenced and indented code | `codeBlock` with `language` |
 | `>` quotes, `---` rules | `blockquote`, `rule` |
 | GFM tables, with column alignment | `table` with `tableHeader` cells and `alignment` marks |
-| `<u>`, `<sub>`, `<sup>`, `<span style="color: #rrggbb">`, `<br>` | `underline`, `subsup`, `textColor`, `backgroundColor`, `hardBreak` |
+| `<u>`, `<sub>`, `<sup>`, `<br>` | `underline`, `subsup`, `hardBreak` |
+| `<span style="color: #rrggbb">`, `<span style="background-color: #rrggbb">` | `textColor`, `backgroundColor` |
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | `panel` (info, success, note, warning, error) |
 | `<details><summary>Title</summary>` … `</details>` | `expand` / `nestedExpand` |
 | `::: cell` … `:::` | a 1×1 `table` used as a box |
@@ -204,8 +205,9 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
-them. ADF → Markdown uses the same syntax, so converting back gives the same document. Nodes
-Markdown cannot express become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`).
+them. ADF → Markdown writes the same syntax, so for these constructs, converting back gives the
+same document. Nodes Markdown cannot express become ```` ```adf ```` blocks
+(`W_ADF_PASSTHROUGH`).
 
 ## Exit codes
 
