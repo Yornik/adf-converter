@@ -118,7 +118,8 @@ pub(super) fn render_doc(root: &Node<'_>, cx: &mut Ctx) -> Result<String, crate:
             .at(crate::Location::pointer(pointer)));
         }
     };
-    let mut out = join_blocks(&blocks);
+    // Blocks never end with a newline; trimming makes "exactly one" hold regardless.
+    let mut out = join_blocks(&blocks).trim_end_matches('\n').to_owned();
     out.push('\n');
     Ok(out)
 }
@@ -604,6 +605,9 @@ fn task_list(node: &Node<'_>, prev: Option<Marker>, cx: &mut Ctx) -> Result<Stri
                 let nested = task_list(child, nested_prev, cx);
                 cx.leave();
                 let nested = nested?;
+                if nested.is_empty() {
+                    continue;
+                }
                 nested_prev = Some(Marker::Bullet(bullet_after(nested_prev)));
                 let indented: String = nested
                     .split('\n')

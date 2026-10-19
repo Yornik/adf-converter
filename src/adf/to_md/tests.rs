@@ -1051,3 +1051,153 @@ fn plain_flavour_reports_no_lossy_warnings() {
     let result = to_markdown(&doc(content), &opts(MdFlavor::Plain)).unwrap();
     assert!(result.warnings.is_empty(), "{:?}", result.warnings);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Robustness: arbitrary ADF-like trees never fail, and output is well-formed and deterministic.
+// ---------------------------------------------------------------------------------------------
+
+mod arbitrary {
+    use proptest::prelude::*;
+    use serde_json::{Value, json};
+
+    use super::super::to_markdown;
+    use crate::options::{AdfToMdOptions, MdFlavor};
+
+    fn text() -> impl Strategy<Value = String> {
+        let pieces = prop::sample::select(vec![
+            "a",
+            " ",
+            "\n",
+            "*",
+            "_",
+            "`",
+            "~",
+            "[",
+            "]",
+            "<",
+            ">",
+            "#",
+            "-",
+            "1.",
+            "|",
+            "!",
+            "&",
+            "\\",
+            ":",
+            "https://x.y",
+            "é",
+            "\t",
+        ]);
+        prop::collection::vec(pieces, 0..6).prop_map(|v| v.concat())
+    }
+
+    fn marks() -> impl Strategy<Value = Value> {
+        let mark = prop::sample::select(vec![
+            json!({"type": "em"}),
+            json!({"type": "strong"}),
+            json!({"type": "strike"}),
+            json!({"type": "underline"}),
+            json!({"type": "code"}),
+            json!({"type": "link", "attrs": {"href": "https://e.com/x"}}),
+            json!({"type": "link", "attrs": {"href": "javascript:x"}}),
+            json!({"type": "subsup", "attrs": {"type": "sup"}}),
+            json!({"type": "textColor", "attrs": {"color": "#112233"}}),
+            json!({"type": "annotation", "attrs": {"id": "a", "annotationType": "inlineComment"}}),
+            json!("junk"),
+        ]);
+        prop::collection::vec(mark, 0..3).prop_map(Value::Array)
+    }
+
+    fn leaf() -> impl Strategy<Value = Value> {
+        prop_oneof![
+            (text(), marks()).prop_map(|(t, m)| json!({"type": "text", "text": t, "marks": m})),
+            Just(json!({"type": "hardBreak"})),
+            Just(json!({"type": "mention", "attrs": {"id": "abc", "text": "@A"}})),
+            Just(json!({"type": "status", "attrs": {"text": "OK", "color": "green"}})),
+            Just(json!({"type": "date", "attrs": {"timestamp": "86400000"}})),
+            Just(json!({"type": "emoji", "attrs": {"shortName": ":x:", "text": "❌"}})),
+            Just(json!({"type": "inlineCard", "attrs": {"url": "https://e.com"}})),
+            Just(json!({"type": "mediaInline", "attrs": {"id": "m", "collection": ""}})),
+            Just(json!({"type": "rule"})),
+            Just(json!({"type": "paragraph"})),
+            Just(
+                json!({"type": "codeBlock", "attrs": {"language": "sh"}, "content": [{"type": "text", "text": "ls\n```"}]})
+            ),
+            Just(
+                json!({"type": "media", "attrs": {"type": "external", "url": "https://e.com/a.png"}})
+            ),
+            Just(json!(42)),
+            Just(json!({"content": "nope"})),
+        ]
+    }
+
+    fn node() -> impl Strategy<Value = Value> {
+        leaf().prop_recursive(5, 48, 4, |inner| {
+            let ty = prop::sample::select(vec![
+                "paragraph",
+                "heading",
+                "bulletList",
+                "orderedList",
+                "listItem",
+                "taskList",
+                "taskItem",
+                "blockquote",
+                "panel",
+                "table",
+                "tableRow",
+                "tableCell",
+                "tableHeader",
+                "expand",
+                "nestedExpand",
+                "mediaSingle",
+                "decisionList",
+                "layoutSection",
+                "weird",
+            ]);
+            let attrs = prop::sample::select(vec![
+                json!({}),
+                json!({"level": 2, "order": 3, "state": "DONE", "panelType": "warning", "title": "T"}),
+                json!({"localId": "x", "colspan": 2, "colwidth": [10], "layout": "wide"}),
+                json!({"panelType": "custom", "level": 0, "order": -1, "state": "?"}),
+            ]);
+            (ty, attrs, prop::collection::vec(inner, 0..4)).prop_map(|(ty, attrs, content)| {
+                json!({"type": ty, "attrs": attrs, "content": content})
+            })
+        })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(400))]
+
+        #[test]
+        fn never_fails_and_is_well_formed(content in prop::collection::vec(node(), 0..5)) {
+            let document = json!({"type": "doc", "version": 1, "content": content});
+            for flavor in [MdFlavor::Roundtrip, MdFlavor::Plain] {
+                let opts = AdfToMdOptions { flavor, ..AdfToMdOptions::default() };
+                let first = to_markdown(&document, &opts);
+                prop_assert!(first.is_ok(), "{:?}", first);
+                let first = first.unwrap_or_else(|_| unreachable!());
+                prop_assert!(first.output.ends_with('\n'));
+                prop_assert!(
+                    first.output == "\n" || !first.output.ends_with("\n\n"),
+                    "{:?}",
+                    first.output
+                );
+                for warning in &first.warnings {
+                    let pointer = warning
+                        .location
+                        .as_ref()
+                        .and_then(|l| l.pointer.clone())
+                        .unwrap_or_default();
+                    prop_assert!(document.pointer(&pointer).is_some(), "dangling pointer {}", pointer);
+                }
+                if flavor == MdFlavor::Plain {
+                    prop_assert!(first.warnings.is_empty(), "{:?}", first.warnings);
+                    prop_assert!(!first.output.contains("```adf"), "{}", first.output);
+                }
+                let again = to_markdown(&document, &opts).unwrap_or_else(|_| unreachable!());
+                prop_assert_eq!(&again, &first);
+            }
+        }
+    }
+}
