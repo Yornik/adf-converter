@@ -9,7 +9,7 @@ use crate::adf::reader::Node;
 
 use super::escape::{
     TextContext, TextEscape, escape_text, has_unsafe_control, html_text, info_string,
-    link_destination, longest_run, replace_controls,
+    link_destination, longest_run, normalize_cr, replace_controls,
 };
 use super::inline::{InlineKind, is_blank, plain_autolink, render_inline};
 use super::passthrough::raw_block;
@@ -529,6 +529,14 @@ fn code_block(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
             }
             _ => text.push_str(&child.text_content()),
         }
+    }
+    let (normalized, had_cr) = normalize_cr(&text);
+    if had_cr {
+        text = normalized.into_owned();
+        cx.warn_control_chars(
+            &node.pointer(),
+            "Carriage returns in a code block were written as line breaks",
+        );
     }
     if has_unsafe_control(&text) || language.is_some_and(has_unsafe_control) {
         if cx.roundtrip {

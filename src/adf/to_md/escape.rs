@@ -184,6 +184,19 @@ pub(super) fn is_unsafe_control(c: char) -> bool {
     c.is_control() && c != '\t' && c != '\n'
 }
 
+/// `text` with CR LF and lone CR written as LF, and whether anything changed. Windows line
+/// endings carry no meaning in ADF text, so they are written as line breaks (with
+/// `W_CONTROL_CHAR`) instead of forcing a raw `adf` block.
+pub(super) fn normalize_cr(text: &str) -> (std::borrow::Cow<'_, str>, bool) {
+    if !text.contains('\r') {
+        return (std::borrow::Cow::Borrowed(text), false);
+    }
+    (
+        std::borrow::Cow::Owned(text.replace("\r\n", "\n").replace('\r', "\n")),
+        true,
+    )
+}
+
 /// Whether `text` holds a character that [`is_unsafe_control`].
 pub(super) fn has_unsafe_control(text: &str) -> bool {
     text.chars().any(is_unsafe_control)

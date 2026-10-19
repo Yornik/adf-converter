@@ -342,6 +342,10 @@ reported with `W_ATTR_DROPPED`, whose `pointer` locates the node or the mark. Th
   [URL allowlist](#url-allowlist) (the text is kept), a `textColor`/`backgroundColor` that is not
   `#RRGGBB`, a `subsup` without a valid `type`.
 
+Carriage returns in text and code blocks (Windows CR LF line endings, or a lone CR) are written as
+line breaks, with `W_CONTROL_CHAR`. Other control characters can't be written in Markdown: in
+roundtrip the node becomes a ```` ```adf ```` block, and in plain they become U+FFFD.
+
 Attributes whose value carries no information (`null`, `""`, `false`, or the default, such as
 mention `userType: "DEFAULT"`) are dropped silently, and so are `localId`s, because they are editor
 bookkeeping. The plain flavour drops all of these without warnings.

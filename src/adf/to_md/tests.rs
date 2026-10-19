@@ -1412,7 +1412,13 @@ fn warnings_per_code_are_capped_and_counted() {
         let of_code: Vec<_> = found.iter().filter(|w| w.code == code).collect();
         assert_eq!(of_code.len(), 101, "{code:?}");
         let last = of_code.last().unwrap();
-        assert_eq!(last.message, "150 more warnings like this were not listed");
+        // The shared summary format, so the CLI's per-code cap merges instead of re-counting it.
+        assert_eq!(
+            crate::diagnostics::omitted_count(last),
+            Some(150),
+            "{}",
+            last.message
+        );
         assert!(last.location.is_none());
     }
     // Warnings of an abandoned attempt are not counted: each list drops attributes in its first
@@ -1434,8 +1440,8 @@ fn warnings_per_code_are_capped_and_counted() {
         .collect();
     assert_eq!(passthrough.len(), 101);
     assert_eq!(
-        passthrough[100].message,
-        "50 more warnings like this were not listed"
+        crate::diagnostics::omitted_count(passthrough[100]),
+        Some(50)
     );
 }
 
@@ -1873,4 +1879,22 @@ mod arbitrary {
             }
         }
     }
+}
+
+/// Windows line endings must not force raw `adf` blocks: CR LF (and a lone CR) become line
+/// breaks, reported with `W_CONTROL_CHAR`.
+#[test]
+fn carriage_returns_become_line_breaks() {
+    let content = json!([
+        {"type": "codeBlock", "attrs": {"language": "sh"}, "content": [{"type": "text", "text": "a\r\nb\rc"}]},
+        para("x\r\ny")
+    ]);
+    assert_eq!(md(content.clone()), "```sh\na\nb\nc\n```\n\nx\\\ny\n");
+    assert_eq!(
+        warnings(content),
+        vec![
+            (Code::ControlChar, "/content/0".to_owned()),
+            (Code::ControlChar, "/content/1/content/0".to_owned())
+        ]
+    );
 }

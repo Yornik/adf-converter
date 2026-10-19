@@ -253,7 +253,7 @@ included in `adf capabilities --json`.
 | <a id="w_image_as_link"></a>`W_IMAGE_AS_LINK` | An image became a link; ADF images need media uploaded to Jira/Confluence. |
 | <a id="w_image_dropped"></a>`W_IMAGE_DROPPED` | An image was dropped (`--images drop`). |
 | <a id="w_unsafe_url"></a>`W_UNSAFE_URL` | A link target is not an allowed URL and became plain text. |
-| <a id="w_control_char"></a>`W_CONTROL_CHAR` | Control characters were removed from text. |
+| <a id="w_control_char"></a>`W_CONTROL_CHAR` | Control characters were removed from text. ADF → Markdown also reports it when carriage returns (CR LF or a lone CR) in text or code are written as line breaks. |
 | <a id="w_table_cell_dropped"></a>`W_TABLE_CELL_DROPPED` | Table cells beyond the header row's width were dropped. |
 | <a id="w_footnote_flattened"></a>`W_FOOTNOTE_FLATTENED` | Footnotes became superscript numbers plus a numbered list at the end. |
 | <a id="w_task_numbering_lost"></a>`W_TASK_NUMBERING_LOST` | An ordered task list lost its numbering; ADF task lists are unordered. |

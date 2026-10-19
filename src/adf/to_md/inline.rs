@@ -14,7 +14,7 @@ use crate::adf::reader::Node;
 
 use super::escape::{
     TextContext, TextEscape, code_span, escape_text, has_unsafe_control, link_destination,
-    link_title,
+    link_title, normalize_cr,
 };
 use super::verify::{self, Run};
 use super::{Ctx, Fail};
@@ -153,7 +153,14 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
     match node.ty {
         "text" => {
             let style = parse_marks(node, cx);
-            let text = node.text.unwrap_or("");
+            let (text, had_cr) = normalize_cr(node.text.unwrap_or(""));
+            if had_cr {
+                cx.warn_control_chars(
+                    &node.pointer(),
+                    "Carriage returns in text were written as line breaks",
+                );
+            }
+            let text = text.as_ref();
             let title = style.link.as_ref().and_then(|l| l.title.as_deref());
             if cx.roundtrip && (has_unsafe_control(text) || title.is_some_and(has_unsafe_control)) {
                 return Err(Fail::unrepresentable(

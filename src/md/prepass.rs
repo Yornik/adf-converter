@@ -205,13 +205,16 @@ fn front_matter_end(lines: &[&str]) -> Option<usize> {
     None
 }
 
-/// A line that can continue YAML front matter: a mapping key, an indented line or a sequence
-/// item.
+/// A line that can continue YAML front matter: a mapping key, an indented line, a sequence
+/// item, or a `#` comment (only after the first key, so `---` followed by a Markdown heading is
+/// not mistaken for front matter).
 fn looks_like_yaml_line(line: &str) -> bool {
     looks_like_yaml_key(line)
         || line.starts_with([' ', '\t'])
         || line.trim_end() == "-"
         || line.starts_with("- ")
+        || line.trim_end() == "#"
+        || line.starts_with("# ")
 }
 
 /// `key:` followed by a space or the end of the line; the key does not start with whitespace,
@@ -316,6 +319,12 @@ mod tests {
         assert_eq!(p.front_matter, Some((3, 4)));
         // A leading rule followed by ordinary Markdown is not front matter.
         let src = "---\n# Title\n\ntext\n---\n";
+        assert_eq!(run(src, true).text, src);
+        // YAML comments after the first key are part of the front matter.
+        let yaml = "---\ntitle: Runbook\n# owner is the on-call team\nowner: sre\n#\n---\n# H\n";
+        assert_eq!(run(yaml, true).text, "\n\n\n\n\n\n# H\n");
+        // A comment-like first line is a heading after a rule, not front matter.
+        let src = "---\n# Title\nkey: value\n---\n";
         assert_eq!(run(src, true).text, src);
         // Empty front matter is two rules (CommonMark examples 43 and 47).
         assert_eq!(run("---\n---\nx", true).text, "---\n---\nx");

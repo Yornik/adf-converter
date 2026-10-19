@@ -40,7 +40,7 @@ const MAX_SCHEMA_WARNINGS: usize = 20;
 /// At most this many `W_ADF_PASSTHROUGH` and `W_ATTR_DROPPED` warnings are listed each; one more
 /// warning of the same code counts the rest. Every warning carries a pointer as long as its node
 /// is deep, so one per node would cost nodes × depth memory on large, deeply nested documents.
-const MAX_WARNINGS_PER_CODE: usize = 100;
+const MAX_WARNINGS_PER_CODE: usize = crate::limits::MAX_LISTED_PER_CODE;
 
 /// Maximum size of the Markdown output in bytes (64 MiB). Larger output fails with
 /// `E_INPUT_TOO_LARGE` (`docs/cli-contract.md#limits`).
@@ -103,12 +103,9 @@ fn schema_warnings(doc: &Value) -> Vec<Diagnostic> {
         })
         .collect();
     if total > MAX_SCHEMA_WARNINGS {
-        out.push(Diagnostic::new(
+        out.push(crate::diagnostics::omitted(
             Code::InputSchema,
-            format!(
-                "{} more schema problems in the input were not listed",
-                total - MAX_SCHEMA_WARNINGS
-            ),
+            total - MAX_SCHEMA_WARNINGS,
         ));
     }
     out
@@ -192,15 +189,21 @@ impl Ctx {
     fn take_warnings(&mut self) -> Vec<Diagnostic> {
         let mut out = std::mem::take(&mut self.warnings);
         for (code, count) in std::mem::take(&mut self.unlisted) {
-            out.push(Diagnostic::new(
-                code,
-                format!("{count} more warnings like this were not listed"),
-            ));
+            out.push(crate::diagnostics::omitted(code, count));
         }
         out
     }
 
     /// `W_ATTR_DROPPED` (roundtrip only; plain is lossy by design).
+    /// `W_CONTROL_CHAR` for control characters written differently (CR as a line break); both
+    /// flavours report it because the text changes.
+    fn warn_control_chars(&mut self, pointer: &str, message: &str) {
+        if self.listing(Code::ControlChar) {
+            self.warnings
+                .push(Diagnostic::new(Code::ControlChar, message).at(Location::pointer(pointer)));
+        }
+    }
+
     fn warn_attr_dropped(&mut self, pointer: &str, message: &str) {
         if self.roundtrip && self.listing(Code::AttrDropped) {
             self.warnings
