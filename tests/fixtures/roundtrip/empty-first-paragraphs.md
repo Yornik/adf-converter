@@ -2,4 +2,4 @@
   - child of empty
 -
 
-  second paragraph of an empty item
+  not part of the empty item: an item can start with at most one blank line

@@ -5,13 +5,13 @@
     {
       "type": "taskList",
       "attrs": {
-        "localId": "cef1e4f2-1a30-810a-b043-6890cfef14c8"
+        "localId": "09860dc2-812a-8ef1-976a-20903a5d5458"
       },
       "content": [
         {
           "type": "taskItem",
           "attrs": {
-            "localId": "daf2891a-de40-8f6e-b0b5-31e6c855c21a",
+            "localId": "8b64a0d9-3466-8ea1-948d-ffb23d66fa8d",
             "state": "TODO"
           },
           "content": [
@@ -22,15 +22,70 @@
           ]
         },
         {
+          "type": "taskList",
+          "attrs": {
+            "localId": "118bb53c-e99f-8936-9788-1ae238efcc2f"
+          },
+          "content": [
+            {
+              "type": "taskItem",
+              "attrs": {
+                "localId": "5dc68f59-98eb-883a-a625-7bd7bd8d8516",
+                "state": "TODO"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "nested task"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "plain nested item"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "ab939f39-3ce9-83db-b20c-b97cf1c06ea7"
+      },
+      "content": [
+        {
           "type": "taskItem",
           "attrs": {
-            "localId": "aac8f74f-df97-867c-a53b-07726b2512a9",
+            "localId": "36f13cb7-c672-8e0a-bf45-ca9e1cd101f7",
             "state": "DONE"
           },
           "content": [
             {
               "type": "text",
               "text": "done"
+            },
+            {
+              "type": "hardBreak"
+            },
+            {
+              "type": "text",
+              "text": "A second paragraph in a done item."
             }
           ]
         }

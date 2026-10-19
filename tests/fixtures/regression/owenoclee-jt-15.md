@@ -9,5 +9,7 @@
 > > nested quote
 
 - # heading in a list
-- ---
+- a rule in a list
+
+  ---
 - > quote in a list

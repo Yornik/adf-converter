@@ -7,7 +7,14 @@
       "content": [
         {
           "type": "text",
-          "text": "Two trailing spaces make a hard break."
+          "text": "Two trailing spaces"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "make a hard break."
         }
       ]
     },
@@ -32,7 +39,21 @@
       "content": [
         {
           "type": "text",
-          "text": "Several hard breaks in a row."
+          "text": "Several"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "hard"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "breaks in a row."
         }
       ]
     },
@@ -41,7 +62,19 @@
       "content": [
         {
           "type": "text",
-          "text": "Emphasis across a hard break",
+          "text": "Emphasis across a",
+          "marks": [
+            {
+              "type": "em"
+            }
+          ]
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "hard break",
           "marks": [
             {
               "type": "em"

@@ -137,6 +137,20 @@
               ]
             }
           ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "a rule in a list"
+                }
+              ]
+            }
+          ]
         }
       ]
     },

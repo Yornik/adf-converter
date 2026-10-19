@@ -10,7 +10,7 @@ short example snippets.
 
 | Fixture | Issue | What went wrong elsewhere |
 |---|---|---|
-| `marklassian-10.md` | <https://github.com/jamsinclair/marklassian/issues/10> | Task lists produced `taskList` nodes that the Confluence v2 API rejected (target `confluence`). |
+| `marklassian-10.md` | <https://github.com/jamsinclair/marklassian/issues/10> | The Confluence v2 API rejected pages with task lists (target `confluence`). The issue (still open) suspects `taskList` itself, but Confluence accepts it. The likely cause is that marklassian puts nested lists, and the paragraphs of loose items, inside `taskItem`, which allows only inline content. Here a nested task list becomes a sibling task list, a plain sub-list is moved after the task list, and further paragraphs are joined with hard breaks. |
 | `marklassian-11.md` | <https://github.com/jamsinclair/marklassian/issues/11> | Random `localId`s made the output non-reproducible; ours are derived from the input. |
 | `marklassian-12.md` | <https://github.com/jamsinclair/marklassian/issues/12> (fix: [#13](https://github.com/jamsinclair/marklassian/pull/13)) | A soft line break before emphasis was dropped, gluing words together. |
 | `extended-markdown-adf-parser-5.md` | <https://github.com/JeromeErasmus/extended-markdown-adf-parser/issues/5> | Inline code inside bold produced `code` + `strong` marks (invalid ADF). |

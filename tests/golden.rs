@@ -155,9 +155,14 @@ fn orphan_files() -> Vec<String> {
 }
 
 /// Every Markdown → ADF warning code is triggered by at least one fixture (`lossy/` has one per
-/// code). `W_NODE_NOT_IN_TARGET`, `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` are not required here:
-/// they may come from output validation in the CLI rather than from `md_to_adf`, and are covered
-/// by the CLI cases.
+/// code). Three codes are not required here:
+///
+/// - `W_NODE_NOT_IN_TARGET` is reserved and never emitted (see
+///   `markdown_output_does_not_depend_on_the_target`).
+/// - `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` come from the CLI's self-check of the output
+///   (`validate_adf`), not from `md_to_adf`, so this harness never sees them.
+///   `markdown_fixtures_warn_from_the_self_check` in `tests/cli.rs` converts the `lossy/`
+///   fixtures for them with the CLI.
 #[test]
 fn every_markdown_warning_is_covered_by_a_fixture() {
     use adf_converter::Code;
@@ -190,6 +195,134 @@ fn every_markdown_warning_is_covered_by_a_fixture() {
         missing.is_empty(),
         "no blessed .diag.jsonl contains {missing:?}; add or fix a fixture in tests/fixtures/lossy/"
     );
+}
+
+/// Markdown never produces a node, mark or attribute that only one product accepts, so the target
+/// changes nothing: every fixture converts to the same document and warnings for Jira and for
+/// Confluence. That is why `W_NODE_NOT_IN_TARGET` is never emitted. The target matters only for
+/// raw ```` ```adf ```` blocks, which fail (`E_RAW_ADF`) where the target rejects their nodes.
+#[test]
+fn markdown_output_does_not_depend_on_the_target() {
+    use adf_converter::Target;
+    let mut failures = Vec::new();
+    for fixture in support::fixtures() {
+        let other = adf_converter::MdToAdfOptions {
+            target: match fixture.options.target {
+                Target::Jira => Target::Confluence,
+                Target::Confluence => Target::Jira,
+            },
+            ..fixture.options.clone()
+        };
+        let Ok((doc, warnings)) = support::md_to_value(&fixture.source, &fixture.options) else {
+            continue; // reported by fixtures_match_blessed_output
+        };
+        match support::md_to_value(&fixture.source, &other) {
+            Ok((other_doc, other_warnings)) => {
+                if other_doc != doc {
+                    failures.push(format!("{}: the document differs", fixture.name));
+                }
+                if support::render_diag_jsonl(&other_warnings)
+                    != support::render_diag_jsonl(&warnings)
+                {
+                    failures.push(format!("{}: the warnings differ", fixture.name));
+                }
+            }
+            // A raw block with a node the other target rejects.
+            Err(_) if fixture.source.contains("```adf") => {}
+            Err(e) => failures.push(format!("{}: fails for the other target: {e}", fixture.name)),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    // Most fixtures are for Jira; this one runs the extension nodes for Confluence.
+    let path = support::fixtures_dir().join("extensions/target-confluence.md");
+    let fixture = support::load_fixture(&path).expect("extensions/target-confluence fixture");
+    assert_eq!(fixture.options.target, Target::Confluence);
+}
+
+/// Whether a node of type `outer` has a descendant of type `inner`.
+fn holds(doc: &serde_json::Value, outer: &str, inner: &str) -> bool {
+    support::nodes_of_type(doc, outer).into_iter().any(|node| {
+        node.get("content")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|children| {
+                children
+                    .iter()
+                    .any(|child| !support::nodes_of_type(child, inner).is_empty())
+            })
+    })
+}
+
+/// A blessed output agrees with whatever it is compared with, so a fixture can lose its point
+/// without any test failing: an editor strips the trailing spaces of a hard break, or an input
+/// edit turns a code block into a paragraph, and blessing records the new output. These checks
+/// pin what the fixtures are about.
+#[test]
+fn fixtures_still_test_what_they_say() {
+    use serde_json::Value;
+    type Claim = (&'static str, &'static str, fn(&Value) -> bool);
+    let claims: &[Claim] = &[
+        (
+            "commonmark/hard-breaks",
+            "at least 5 hardBreak nodes (editors and write tools strip two trailing spaces)",
+            |doc| support::nodes_of_type(doc, "hardBreak").len() >= 5,
+        ),
+        (
+            "commonmark/soft-breaks-as-hardbreak-containers",
+            "hard breaks in a heading, a task item, a list item and a quote",
+            |doc| {
+                ["heading", "taskItem", "listItem", "blockquote"]
+                    .iter()
+                    .all(|outer| holds(doc, outer, "hardBreak"))
+            },
+        ),
+        (
+            "commonmark/tabs",
+            "a top-level code block indented with a tab",
+            |doc| {
+                doc["content"]
+                    .as_array()
+                    .is_some_and(|blocks| blocks.iter().any(|b| b["type"] == "codeBlock"))
+            },
+        ),
+        (
+            "commonmark/ordered-lists",
+            "an ordered list starting at 0",
+            |doc| {
+                support::nodes_of_type(doc, "orderedList")
+                    .iter()
+                    .any(|list| list["attrs"]["order"] == 0)
+            },
+        ),
+        (
+            "extensions/alert-in-nested-expand",
+            "a panel inside a nested expand",
+            |doc| holds(doc, "nestedExpand", "panel"),
+        ),
+        (
+            "regression/marklassian-10",
+            "a task list nested in a task list",
+            |doc| holds(doc, "taskList", "taskList"),
+        ),
+        (
+            "schema-gotchas/image-external-containers",
+            "external images in a panel, an expand, a nested expand and a table cell",
+            |doc| {
+                ["panel", "expand", "nestedExpand", "tableCell"]
+                    .iter()
+                    .all(|outer| holds(doc, outer, "mediaSingle"))
+            },
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (name, claim, check) in claims {
+        let path = support::fixtures_dir().join(format!("{name}.adf.json"));
+        let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let doc: Value = serde_json::from_str(&text).expect("blessed JSON");
+        if !check(&doc) {
+            failures.push(format!("{name}: expected {claim}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 /// The support code itself must not be vacuous: known-bad documents are rejected by the
