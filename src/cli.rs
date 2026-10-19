@@ -1,9 +1,9 @@
 //! The `adf` command line. Contract: `docs/cli-contract.md`.
 //!
-//! Every command returns an [`Outcome`] (the result bytes, the diagnostics, the exit code);
-//! nothing is written until the command has finished, and all writing goes through
-//! [`output`]. Usage errors from clap become `E_USAGE` diagnostics (exit 2) so that agents get
-//! JSON for them too.
+//! Every command returns an `Outcome` (the result bytes, the diagnostics, the exit code);
+//! nothing is written until the command has finished, and all writing goes through the private
+//! `output` module. Usage errors from clap become `E_USAGE` diagnostics (exit 2) so that agents
+//! get JSON for them too.
 
 mod args;
 mod convert;
@@ -191,9 +191,30 @@ fn usage_diagnostic(err: &clap::Error) -> Diagnostic {
     } else if rest.is_empty() {
         "See `adf --help`".to_owned()
     } else {
-        rest.join(" ")
+        rest.iter()
+            .map(|line| hint_sentence(line))
+            .collect::<Vec<_>>()
+            .join(" ")
     };
     Diagnostic::new(Code::Usage, message).with_hint(hint)
+}
+
+/// Turns one of clap's continuation lines (`[possible values: …]`, `tip: …`, `Usage: …`) into a
+/// sentence for the one-line hint.
+fn hint_sentence(line: &str) -> String {
+    let line = line
+        .strip_prefix('[')
+        .and_then(|inner| inner.strip_suffix(']'))
+        .unwrap_or(line);
+    let line = line.strip_prefix("tip: ").unwrap_or(line);
+    let mut sentence: String = match line.chars().next() {
+        Some(first) => first.to_uppercase().chain(line.chars().skip(1)).collect(),
+        None => String::new(),
+    };
+    if !sentence.ends_with('.') {
+        sentence.push('.');
+    }
+    sentence
 }
 
 /// Prints the diagnostics, writes the result (to the output file atomically, or to stdout) and
@@ -274,6 +295,11 @@ mod tests {
         assert!(!hint.contains('\n'), "{hint}");
         let missing = usage(&["adf"]);
         assert_eq!(missing.message, "a command is required");
+        let target = usage(&["adf", "convert", "-t", "x"]);
+        assert_eq!(
+            target.hint.as_deref(),
+            Some("Possible values: auto, jira, confluence. For more information, try '--help'.")
+        );
     }
 
     #[test]

@@ -4,7 +4,7 @@
 //! Three layers, all located with JSON Pointers relative to the document root:
 //!
 //! 1. **Schema** (`E_SCHEMA`): the vendored `@atlaskit/adf-schema` draft-04 schema. Failures are
-//!    explained node by node (see [`schema`]) instead of as raw `anyOf` noise.
+//!    explained node by node (see the `schema` submodule) instead of as raw `anyOf` noise.
 //! 2. **Target** (`E_TARGET`): nodes, marks and attributes the product does not accept
 //!    ([`crate::adf::targets`]).
 //! 3. **Invariants** (`E_INVARIANT`): list items start with a paragraph, unique non-empty task

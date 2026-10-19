@@ -141,7 +141,11 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
             crate::validate_adf(&unwrapped.doc, target),
             &unwrapped.pointer,
         );
-        apply_strict(args.strict, &mut diagnostics, "the document has warnings");
+        apply_strict(
+            args.strict,
+            &mut diagnostics,
+            "--strict: the document has warnings ({codes})",
+        );
         return Ok(Checked {
             from: "adf",
             target,
@@ -159,7 +163,11 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
         Ok(converted) => converted.warnings,
         Err(diagnostics) => diagnostics,
     };
-    apply_strict(args.strict, &mut diagnostics, "the conversion is lossy");
+    apply_strict(
+        args.strict,
+        &mut diagnostics,
+        "--strict: the conversion would be lossy ({codes})",
+    );
     Ok(Checked {
         from: "md",
         target,
@@ -170,9 +178,9 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
 }
 
 /// Under `--strict`, warnings without errors fail with `E_LOSSY`.
-fn apply_strict(strict: bool, diagnostics: &mut Vec<Diagnostic>, what: &str) {
+fn apply_strict(strict: bool, diagnostics: &mut Vec<Diagnostic>, template: &str) {
     if strict && !diagnostics.is_empty() && !diagnostics.iter().any(Diagnostic::is_error) {
-        *diagnostics = strict_failure(std::mem::take(diagnostics), what);
+        *diagnostics = strict_failure(std::mem::take(diagnostics), template);
     }
 }
 

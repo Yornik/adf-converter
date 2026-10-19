@@ -17,7 +17,7 @@ use crate::diagnostics::{Code, Diagnostic};
 use crate::limits::Limits;
 use crate::options::{AdfToMdOptions, MdToAdfOptions, Target};
 
-const LOSSY_CONVERSION: &str = "the conversion is lossy; nothing was written";
+const LOSSY_CONVERSION: &str = "--strict: the conversion is lossy ({codes}); nothing was written";
 
 /// Runs `adf convert`.
 pub(crate) fn run(args: &ConvertArgs) -> Outcome {
@@ -179,19 +179,17 @@ pub(crate) fn prefix_pointers(diagnostics: Vec<Diagnostic>, prefix: &str) -> Vec
 }
 
 /// The diagnostics for `--strict` with warnings: the warnings, then `E_LOSSY` (the only error,
-/// so it sets the exit code). `what` completes "--strict: …", e.g. "the conversion is lossy".
-pub(crate) fn strict_failure(mut warnings: Vec<Diagnostic>, what: &str) -> Vec<Diagnostic> {
+/// so it sets the exit code). `template` is the message, with `{codes}` replaced by the warning
+/// codes.
+pub(crate) fn strict_failure(mut warnings: Vec<Diagnostic>, template: &str) -> Vec<Diagnostic> {
     let mut codes: Vec<&str> = Vec::new();
     for warning in &warnings {
         if !codes.contains(&warning.code.as_str()) {
             codes.push(warning.code.as_str());
         }
     }
-    let lossy = Diagnostic::new(
-        Code::Lossy,
-        format!("--strict: {what} ({})", codes.join(", ")),
-    )
-    .with_hint("Fix the input so the warnings disappear, or drop --strict");
+    let lossy = Diagnostic::new(Code::Lossy, template.replace("{codes}", &codes.join(", ")))
+        .with_hint("Fix the input so the warnings disappear, or drop --strict");
     warnings.push(lossy);
     warnings
 }
@@ -592,11 +590,11 @@ mod tests {
             Diagnostic::new(Code::ImageAsLink, "b"),
             Diagnostic::new(Code::HtmlAsText, "c"),
         ];
-        let out = strict_failure(warnings, "x");
+        let out = strict_failure(warnings, LOSSY_CONVERSION);
         assert_eq!(out[3].code, Code::Lossy);
         assert_eq!(
             out[3].message,
-            "--strict: x (W_IMAGE_AS_LINK, W_HTML_AS_TEXT)"
+            "--strict: the conversion is lossy (W_IMAGE_AS_LINK, W_HTML_AS_TEXT); nothing was written"
         );
         assert_eq!(out.len(), 4);
     }

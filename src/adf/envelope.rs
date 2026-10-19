@@ -187,7 +187,8 @@ pub fn unwrap(input: &Value, field: Option<&str>) -> Result<Unwrapped, Diagnosti
             Some(Value::Null) => Err(not_adf(format!(
                 "fields.{name} is null (the issue has no {name})"
             ))
-            .at(Location::pointer(pointer))),
+            .at(Location::pointer(pointer))
+            .with_hint(field_hint(fields))),
             Some(other) => Err(not_adf(format!(
                 "fields.{name} is {}, not an ADF document",
                 json_kind(other)
