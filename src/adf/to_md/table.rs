@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use crate::adf::reader::Node;
 
-use super::block::{Container, is_single_empty_paragraph, render_children};
+use super::block::{Container, is_single_empty_paragraph, media_single, render_children};
 use super::escape::{TextContext, TextEscape, code_span, escape_text};
 use super::inline::{InlineKind, render_inline};
 use super::{Ctx, Fail};
@@ -144,8 +144,11 @@ fn render_gfm(table: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
             if !span_is_one(cell) {
                 return Err(not_gfm(cell, "cells span several rows or columns"));
             }
-            match cell.content.as_slice() {
-                [p] if p.ty == "paragraph" => {}
+            // Markdown → ADF (`--images external`) moves the images of a cell after its
+            // paragraph; they are written back at the end of the cell's line.
+            match cell.content.split_first() {
+                Some((p, images))
+                    if p.ty == "paragraph" && images.iter().all(|n| n.ty == "mediaSingle") => {}
                 _ => {
                     return Err(not_gfm(
                         cell,
@@ -186,10 +189,16 @@ fn render_gfm(table: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
             if let Some(p) = paragraph {
                 cx.drop_attrs(p, &[], &[]);
             }
-            let content = match paragraph {
+            let mut content = match paragraph {
                 Some(p) => render_inline(&p.content, InlineKind::TableCell, cx)?,
                 None => String::new(),
             };
+            for image in cell.content.get(1..).unwrap_or_default() {
+                cx.enter(image)?;
+                let md = media_single(image, true, cx);
+                cx.leave();
+                content.push_str(&md?);
+            }
             cells.push(content);
         }
         lines.push(table_row(&cells));
@@ -346,6 +355,7 @@ fn cell_text(text: &str) -> String {
                 context: TextContext::TableCell,
                 roundtrip: false,
                 line_start: i == 0,
+                block_start: false,
                 line_end: i == last,
                 in_link: false,
             },

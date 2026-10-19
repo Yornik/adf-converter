@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use super::to_markdown;
 use crate::diagnostics::Code;
 use crate::limits::Limits;
-use crate::options::{AdfToMdOptions, MdFlavor};
+use crate::options::{AdfToMdOptions, ImagePolicy, MdFlavor, MdToAdfOptions};
 
 /// No warnings, for `assert_eq!` against [`warnings`].
 const NO_WARNINGS: &[(Code, String)] = &[];
@@ -1067,6 +1067,247 @@ fn plain_flavour_reports_no_lossy_warnings() {
     ]);
     let result = to_markdown(&doc(content), &opts(MdFlavor::Plain)).unwrap();
     assert!(result.warnings.is_empty(), "{:?}", result.warnings);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Round-trip regressions: shrunk failures of `tests/properties.rs`. Each document is what
+// Markdown → ADF produced; it must render to exactly this Markdown, which converts back to it.
+// ---------------------------------------------------------------------------------------------
+
+/// Asserts the roundtrip Markdown of `content` and that `md_to_adf` gives `content` back.
+#[track_caller]
+fn assert_round_trip(content: Value, expected: &str) {
+    assert_round_trip_with(content, expected, &MdToAdfOptions::default());
+}
+
+#[track_caller]
+fn assert_round_trip_with(content: Value, expected: &str, md_opts: &MdToAdfOptions) {
+    let markdown = md(content.clone());
+    assert_eq!(markdown, expected);
+    let back = crate::md_to_adf(&markdown, md_opts)
+        .unwrap_or_else(|e| panic!("md -> adf failed: {e}\n{markdown}"))
+        .output
+        .to_value()
+        .unwrap();
+    assert_eq!(back, doc(content), "\n--- markdown ---\n{markdown}");
+}
+
+fn hard_break() -> Value {
+    json!({"type": "hardBreak"})
+}
+
+#[test]
+fn spaces_at_the_block_end_inside_marks_use_character_references() {
+    // Markdown → ADF trims spaces at a block's end even before `</u>`.
+    assert_round_trip(
+        json!([p(&[t("a"), hard_break(), tm("&>  ", &["underline"])])]),
+        "a\\\n<u>&>&#32;&#32;</u>\n",
+    );
+    assert_round_trip(
+        json!([p(&[
+            t("a"),
+            tm("b ", &["underline"]),
+            tm(" \t", &["strong"])
+        ])]),
+        "a<u>b&#32;</u><strong>&#32;&#9;</strong>\n",
+    );
+    // Before a hard break, the parser keeps them.
+    assert_round_trip(
+        json!([p(&[tm("a  ", &["underline"]), hard_break(), t("b")])]),
+        "<u>a  </u>\\\nb\n",
+    );
+}
+
+#[test]
+fn spaces_at_the_block_start_inside_marks_use_character_references() {
+    assert_round_trip(
+        json!([p(&[tm("  ", &["em"]), tm(" x", &["underline"])])]),
+        "<em>&#32;&#32;</em><u>&#32;x</u>\n",
+    );
+    // After a hard break only spaces written first on the line are stripped.
+    assert_round_trip(
+        json!([p(&[t("a"), hard_break(), tm("  b", &["underline"])])]),
+        "a\\\n<u>  b</u>\n",
+    );
+    assert_round_trip(
+        json!([{"type": "heading", "attrs": {"level": 2}, "content": [tm(" x ", &["underline"])]}]),
+        "## <u>&#32;x&#32;</u>\n",
+    );
+    assert_round_trip(
+        json!([bullets(&[li(&[p(&[link(" x", "https://e.com"), t(" ")])])])]),
+        "- [&#32;x](https://e.com)&#32;\n",
+    );
+}
+
+#[test]
+fn blank_marked_text_at_a_cell_edge_uses_character_references() {
+    let row0 = row(&[
+        cell(
+            "tableHeader",
+            &[p(&[
+                tm("b", &["code"]),
+                tm("  ", &["em", "strong", "strike"]),
+            ])],
+        ),
+        cell("tableHeader", &[p(&[tm(" ", &["strong"]), t("x")])]),
+    ]);
+    assert_round_trip(
+        json!([table(&[row0])]),
+        "| `b`<del><strong><em>&#32;&#32;</em></strong></del> | <strong>&#32;</strong>x |\n| --- | --- |\n",
+    );
+}
+
+#[test]
+fn quote_holding_one_empty_paragraph_is_a_lone_marker() {
+    // `> [^1]: a`: the footnote definition leaves the quote empty.
+    assert_round_trip(
+        json!([
+            {"type": "blockquote", "content": [{"type": "paragraph"}]},
+            para("x")
+        ]),
+        ">\n\nx\n",
+    );
+}
+
+#[test]
+fn lists_that_cannot_interrupt_a_paragraph_get_a_blank_line() {
+    let info = |content: Value| json!({"type": "panel", "attrs": {"panelType": "info"}, "content": content});
+    // `> [!NOTE]\n> 2. x` would be one paragraph.
+    assert_round_trip(
+        json!([info(json!([ordered(2, &[li(&[p(&[tm("L", &["em"])])])])]))]),
+        "> [!NOTE]\n>\n> 2. *L*\n",
+    );
+    // A marker alone on its line would even underline the paragraph as a heading.
+    let empty_first = bullets(&[li(&[
+        json!({"type": "paragraph"}),
+        bullets(&[li(&[para("x")])]),
+    ])]);
+    assert_round_trip(
+        json!([info(json!([empty_first.clone()]))]),
+        "> [!NOTE]\n>\n> -\n>   - x\n",
+    );
+    assert_round_trip(
+        json!([bullets(&[li(&[para("para"), empty_first])])]),
+        "- para\n\n  -\n    - x\n",
+    );
+    // Lists that can interrupt stay tight.
+    assert_round_trip(
+        json!([info(json!([ordered(1, &[li(&[para("x")])])]))]),
+        "> [!NOTE]\n> 1. x\n",
+    );
+}
+
+#[test]
+fn byte_order_mark_at_the_document_start_is_a_character_reference() {
+    // Markdown → ADF strips a leading BOM from its input.
+    assert_round_trip(json!([para("\u{feff}# x")]), "&#65279;# x\n");
+    assert_round_trip(json!([para("a\u{feff}")]), "a\u{feff}\n");
+}
+
+#[test]
+fn images_in_gfm_cells_follow_the_cell_text() {
+    // `--images external` moves an image in a cell after the cell's paragraph.
+    let image = json!({"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+        {"type": "media", "attrs": {"type": "external", "url": "https://e.com/a|b.png", "alt": "a|b"}}
+    ]});
+    let row0 = row(&[
+        cell(
+            "tableHeader",
+            &[p(&[link("x", "http://e.org/a")]), image.clone()],
+        ),
+        cell("tableHeader", &[json!({"type": "paragraph"}), image]),
+    ]);
+    let opts = MdToAdfOptions {
+        images: ImagePolicy::External,
+        ..MdToAdfOptions::default()
+    };
+    assert_round_trip_with(
+        json!([table(&[row0])]),
+        "| [x](http://e.org/a)![a\\|b](https://e.com/a\\|b.png) | ![a\\|b](https://e.com/a\\|b.png) |\n| --- | --- |\n",
+        &opts,
+    );
+}
+
+#[test]
+fn code_languages_escape_backslashes_and_entities() {
+    // Info strings decode backslash escapes and entities: "```\*a" would be the language `*a`.
+    assert_round_trip(
+        json!([{"type": "codeBlock", "attrs": {"language": "\\*a&amp;"}}]),
+        "```\\\\*a\\&amp;\n```\n",
+    );
+}
+
+#[test]
+fn code_language_starting_with_the_fence_character_is_spaced() {
+    // "~~~~~`" would be a five-tilde fence with the language "`".
+    assert_round_trip(
+        json!([{"type": "codeBlock", "attrs": {"language": "~~`"}}]),
+        "~~~ ~~`\n~~~\n",
+    );
+}
+
+#[test]
+fn email_like_text_with_unicode_is_escaped() {
+    // Markdown → ADF links emails with non-ASCII or RFC 5321 punctuation in the local part.
+    assert_round_trip(json!([para("ῖ@A.Aa")]), "ῖ\\@A.Aa\n");
+    assert_round_trip(json!([para("a{b@ü.de")]), "a{b\\@ü.de\n");
+    assert_eq!(md(json!([para("see @team, a@ b")])), "see @team, a@ b\n");
+}
+
+#[test]
+fn code_in_the_language_adf_passes_through() {
+    // "```adf" is raw ADF to Markdown → ADF (`E_RAW_ADF` for this text).
+    let content =
+        json!([{"type": "codeBlock", "attrs": {"language": "adf"}, "content": [t("not json")]}]);
+    assert_round_trip(
+        content.clone(),
+        "```adf\n{\n  \"type\": \"codeBlock\",\n  \"attrs\": {\n    \"language\": \"adf\"\n  },\n  \"content\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"not json\"\n    }\n  ]\n}\n```\n",
+    );
+    assert_eq!(
+        warnings(content.clone()),
+        vec![(Code::AdfPassthrough, "/content/0".to_owned())]
+    );
+    assert_eq!(plain(content), "```adf\nnot json\n```\n");
+}
+
+#[test]
+fn leading_rule_is_not_front_matter() {
+    // `---`, a `key: value` line and `---` would be removed as YAML front matter.
+    assert_round_trip(
+        json!([
+            {"type": "rule"},
+            ordered(0, &[li(&[p(&[tm(": 0", &["em"])])])]),
+            {"type": "rule"}
+        ]),
+        "***\n\n0. *: 0*\n\n---\n",
+    );
+}
+
+#[test]
+fn list_item_holding_only_an_image_writes_it_on_the_marker_line() {
+    // `1. ![alt](url)` with `--images external`: an empty paragraph, then the image.
+    let image = json!({"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+        {"type": "media", "attrs": {"type": "external", "url": "https://example.com/i.png", "alt": "alt"}}
+    ]});
+    let opts = MdToAdfOptions {
+        images: ImagePolicy::External,
+        ..MdToAdfOptions::default()
+    };
+    assert_round_trip_with(
+        json!([ordered(
+            1,
+            &[li(&[
+                json!({"type": "paragraph"}),
+                image.clone(),
+                para("after")
+            ])]
+        )]),
+        "1. ![alt](https://example.com/i.png)\n\n   after\n",
+        &opts,
+    );
+    // An empty first paragraph followed by text has no Markdown form.
+    let content = json!([bullets(&[li(&[json!({"type": "paragraph"}), para("x")])])]);
+    assert!(md(content).starts_with("```adf\n"));
 }
 
 // ---------------------------------------------------------------------------------------------

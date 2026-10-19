@@ -8,7 +8,7 @@ use crate::adf::model::Href;
 use crate::adf::reader::Node;
 
 use super::escape::{
-    TextContext, TextEscape, escape_text, html_text, link_destination, longest_run,
+    TextContext, TextEscape, escape_text, html_text, info_string, link_destination, longest_run,
 };
 use super::inline::{InlineKind, is_blank, render_inline};
 use super::passthrough::raw_block;
@@ -91,7 +91,7 @@ pub(super) struct Rendered {
     pub md: String,
     pub marker: Option<Marker>,
     /// A list that may follow a paragraph line directly (bullet or task list, or an ordered
-    /// list starting at 1).
+    /// list starting at 1, whose first item does not start with an empty line).
     pub interrupts: bool,
 }
 
@@ -107,7 +107,7 @@ impl Rendered {
 
 /// Renders the whole document; output ends with exactly one newline.
 pub(super) fn render_doc(root: &Node<'_>, cx: &mut Ctx) -> Result<String, crate::Diagnostic> {
-    let blocks = match render_children(&root.content, Container::Doc, cx) {
+    let mut blocks = match render_children(&root.content, Container::Doc, cx) {
         Ok(blocks) => blocks,
         Err(Fail::Fatal(diagnostic)) => return Err(diagnostic),
         Err(Fail::Unrepresentable { pointer, reason }) => {
@@ -118,8 +118,21 @@ pub(super) fn render_doc(root: &Node<'_>, cx: &mut Ctx) -> Result<String, crate:
             .at(crate::Location::pointer(pointer)));
         }
     };
+    // A leading `---` could open YAML front matter, which Markdown → ADF removes.
+    if let Some(first) = blocks.first_mut()
+        && first.md == "---"
+    {
+        "***".clone_into(&mut first.md);
+    }
     // Blocks never end with a newline; trimming makes "exactly one" hold regardless.
-    let mut out = join_blocks(&blocks).trim_end_matches('\n').to_owned();
+    let joined = join_blocks(&blocks);
+    let joined = joined.trim_end_matches('\n');
+    // Markdown → ADF strips a byte order mark at the start of the input. Only paragraph text
+    // can start the output with U+FEFF, and there a character reference keeps it.
+    let mut out = match joined.strip_prefix('\u{feff}') {
+        Some(rest) => format!("&#65279;{rest}"),
+        None => joined.to_owned(),
+    };
     out.push('\n');
     Ok(out)
 }
@@ -271,7 +284,7 @@ fn render_block(
         "panel" => panel(node, cx).map(Rendered::plain),
         "table" => table::render_table(node, cx).map(Rendered::plain),
         "expand" | "nestedExpand" => expand(node, cx).map(Rendered::plain),
-        "mediaSingle" => media_single(node, cx).map(Rendered::plain),
+        "mediaSingle" => media_single(node, false, cx).map(Rendered::plain),
         other => {
             if cx.roundtrip {
                 Err(Fail::unrepresentable(
@@ -349,6 +362,13 @@ fn code_block(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
             }
             lang.split_whitespace().next()
         }
+        // The fence would be read back as raw ADF (or fail to parse as such).
+        Some("adf") if cx.roundtrip => {
+            return Err(Fail::unrepresentable(
+                &node.pointer,
+                "a code block in the language adf would be read back as raw ADF",
+            ));
+        }
         other => other,
     };
     let mut text = String::new();
@@ -374,7 +394,15 @@ fn code_block(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
     let fence = fence_char
         .to_string()
         .repeat((longest_run(&text, fence_char) + 1).max(3));
-    let mut md = format!("{fence}{}\n", language.unwrap_or(""));
+    let info = info_string(language.unwrap_or(""));
+    // A language starting with the fence character would lengthen the fence; the info string
+    // is trimmed, so a space keeps them apart.
+    let gap = if info.starts_with(fence_char) {
+        " "
+    } else {
+        ""
+    };
+    let mut md = format!("{fence}{gap}{info}\n");
     if !text.is_empty() {
         md.push_str(&text);
         md.push('\n');
@@ -383,7 +411,8 @@ fn code_block(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
     Ok(md)
 }
 
-fn media_single(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
+/// `![alt](url)` for a single external image. `in_table`: written inside a GFM table cell.
+pub(super) fn media_single(node: &Node<'_>, in_table: bool, cx: &mut Ctx) -> Result<String, Fail> {
     let media = match node.content.as_slice() {
         [media] if media.ty == "media" => Some(media),
         _ => None,
@@ -415,16 +444,21 @@ fn media_single(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
     escape_text(
         media.attr_str("alt").unwrap_or(""),
         TextEscape {
-            context: TextContext::Block,
+            context: if in_table {
+                TextContext::TableCell
+            } else {
+                TextContext::Block
+            },
             roundtrip: cx.roundtrip,
             line_start: false,
+            block_start: false,
             line_end: false,
             in_link: true,
         },
         &mut md,
     );
     md.push_str("](");
-    md.push_str(&link_destination(url, false));
+    md.push_str(&link_destination(url, in_table));
     md.push(')');
     Ok(md)
 }
@@ -489,6 +523,7 @@ fn list(node: &Node<'_>, prev: Option<Marker>, cx: &mut Ctx) -> Result<Rendered,
     let count = u64::try_from(node.content.len()).unwrap_or(u64::MAX);
     let sequential = start.saturating_add(count) <= MAX_ORDER + 1;
     let mut items = Vec::with_capacity(node.content.len());
+    let mut empty_first_line = false;
     for (i, item) in (0_u64..).zip(&node.content) {
         let marker_text = match marker {
             Marker::Bullet(c) => c.to_string(),
@@ -497,13 +532,19 @@ fn list(node: &Node<'_>, prev: Option<Marker>, cx: &mut Ctx) -> Result<Rendered,
                 format!("{n}{delim}")
             }
         };
-        items.push(list_item(item, &marker_text, cx)?);
+        let md = list_item(item, &marker_text, cx)?;
+        if i == 0 {
+            empty_first_line = md.split('\n').next() == Some(marker_text.as_str());
+        }
+        items.push(md);
     }
     let loose = items.iter().any(|md| md.contains("\n\n"));
     Ok(Rendered {
         md: items.join(if loose { "\n\n" } else { "\n" }),
         marker: Some(marker),
-        interrupts,
+        // A marker alone on its line cannot interrupt a paragraph (`-` would even underline it
+        // as a setext heading).
+        interrupts: interrupts && !empty_first_line,
     })
 }
 
@@ -540,17 +581,22 @@ fn list_item_body(item: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
         }
         _ => (String::new(), item.content.as_slice()),
     };
-    if cx.roundtrip
-        && first.is_empty()
-        && rest
-            .first()
-            .is_some_and(|n| matches!(n.ty, "paragraph" | "mediaSingle"))
-    {
-        return Err(Fail::unrepresentable(
-            &item.pointer,
-            "a list item whose empty first paragraph is followed by a paragraph has no Markdown form",
-        ));
-    }
+    let (first, rest) = match rest.split_first() {
+        // `- ![alt](url)`: Markdown → ADF puts the image after an empty first paragraph.
+        Some((image, after)) if cx.roundtrip && first.is_empty() && image.ty == "mediaSingle" => {
+            cx.enter(image)?;
+            let md = media_single(image, false, cx);
+            cx.leave();
+            (md?, after)
+        }
+        Some((next, _)) if cx.roundtrip && first.is_empty() && next.ty == "paragraph" => {
+            return Err(Fail::unrepresentable(
+                &item.pointer,
+                "a list item whose empty first paragraph is followed by a paragraph has no Markdown form",
+            ));
+        }
+        _ => (first, rest),
+    };
     let blocks = render_children(rest, Container::ListItem, cx)?;
     let mut body = first;
     for (k, block) in blocks.iter().enumerate() {
@@ -732,7 +778,13 @@ fn blockquote(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
         };
     }
     cx.drop_attrs(node, &[], &[]);
-    let body = join_blocks(&render_children(&node.content, Container::Blockquote, cx)?);
+    // A lone `>` parses as a quote holding one empty paragraph (what Markdown → ADF writes for
+    // a quote whose only content moved elsewhere, such as a footnote definition).
+    let body = if is_single_empty_paragraph(&node.content) {
+        String::new()
+    } else {
+        join_blocks(&render_children(&node.content, Container::Blockquote, cx)?)
+    };
     Ok(prefix_lines(&body, "> ", ">"))
 }
 
@@ -760,13 +812,22 @@ fn panel(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
         ));
     }
     cx.drop_attrs(node, &["panelType"], &[]);
-    let body = if is_single_empty_paragraph(&node.content) {
-        String::new()
+    let blocks = if is_single_empty_paragraph(&node.content) {
+        Vec::new()
     } else {
-        join_blocks(&render_children(&node.content, Container::Panel, cx)?)
+        render_children(&node.content, Container::Panel, cx)?
     };
+    let body = join_blocks(&blocks);
     let mut md = format!("> [!{kind}]");
     if !body.is_empty() {
+        // The `[!KIND]` line is a paragraph line to CommonMark: a list that cannot interrupt a
+        // paragraph (`2.`, or a marker alone on its line) needs a blank line before it.
+        if blocks
+            .first()
+            .is_some_and(|b| b.marker.is_some() && !b.interrupts)
+        {
+            md.push_str("\n>");
+        }
         md.push('\n');
         md.push_str(&prefix_lines(&body, "> ", ">"));
     }
@@ -855,6 +916,7 @@ fn plain_text_paragraph(text: &str) -> String {
                 context: TextContext::Block,
                 roundtrip: false,
                 line_start: true,
+                block_start: false,
                 line_end: i == last,
                 in_link: false,
             },

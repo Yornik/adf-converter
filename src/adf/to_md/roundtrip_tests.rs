@@ -1,7 +1,7 @@
 //! Round-trip tests: `md_to_adf(adf_to_md(x)) == normalize(x)` (`docs/syntax.md#round-trip-guarantee`).
 //!
-//! These need the Markdown → ADF direction (stream S1) and are ignored until it is merged. The
-//! self-contained checks at the bottom (CommonMark re-parse of escaped text) run now.
+//! They run both directions; the self-contained checks at the bottom only re-parse escaped text
+//! with CommonMark.
 
 #![allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 
@@ -346,7 +346,6 @@ fn synthetic_sample_renders_as_expected_shape() {
 }
 
 #[test]
-#[ignore = "needs S1 integration"]
 fn synthetic_sample_round_trips() {
     assert_roundtrip(&synthetic_sample());
 }
@@ -549,8 +548,10 @@ fn feature_docs() -> Vec<(&'static str, Value)> {
                     {"type": "tableCell", "content": [para("no header")]},
                     {"type": "tableCell", "content": [para("row")]}
                 ]})]),
-                {"type": "bulletList", "content": [li(&[para("item"), json!({"type": "decisionList", "attrs": {"localId": "d3"}, "content": [
-                    {"type": "decisionItem", "attrs": {"localId": "d4", "state": "DECIDED"}, "content": [t("nested decision")]}
+                // A nested passthrough must be valid ADF where it stands (a decisionList is not
+                // allowed in a list item), or the ```adf block cannot convert back.
+                {"type": "bulletList", "content": [li(&[para("item"), json!({"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+                    {"type": "media", "attrs": {"type": "file", "id": "6e7c7f2c-1b2a-4c3d-9e8f-0a1b2c3d4e5f", "collection": "contentId-1"}}
                 ]})])]},
             ])),
         ),
@@ -558,7 +559,6 @@ fn feature_docs() -> Vec<(&'static str, Value)> {
 }
 
 #[test]
-#[ignore = "needs S1 integration"]
 fn feature_documents_round_trip() {
     for (name, document) in feature_docs() {
         eprintln!("round trip: {name}");
@@ -567,7 +567,6 @@ fn feature_documents_round_trip() {
 }
 
 #[test]
-#[ignore = "needs S1 integration"]
 fn external_images_round_trip_with_images_external() {
     let document = doc(json!([
         {"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
