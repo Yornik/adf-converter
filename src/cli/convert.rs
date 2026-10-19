@@ -67,14 +67,21 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
             "Drop -e; use --field NAME to pick a Jira field",
         );
     }
+    let field = args.envelope.field.as_deref();
+    if let Err(outcome) = check_adf_field(field) {
+        return *outcome;
+    }
     let input = match read_input(args.input.as_deref(), "convert") {
         Ok(input) => input,
         Err(outcome) => return *outcome,
     };
-    let unwrapped = match parse_and_unwrap(&input.text, args.envelope.field.as_deref()) {
+    let unwrapped = match parse_and_unwrap(&input.text, field) {
         Ok(unwrapped) => unwrapped,
         Err(diagnostic) => return Outcome::failed(vec![diagnostic], Some(input.label)),
     };
+    if let Err(outcome) = check_field_used(field, &unwrapped) {
+        return *outcome;
+    }
     let opts = AdfToMdOptions {
         flavor: args.md_flavor.into(),
         limits: Limits::default(),
@@ -104,11 +111,52 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
     }
 }
 
+/// `--field NAME` with ADF input must name a field (non-empty, no control characters).
+pub(crate) fn check_adf_field(field: Option<&str>) -> Result<(), Box<Outcome>> {
+    match field.map(envelope::check_field_name) {
+        Some(Err(message)) => Err(Box::new(Outcome::usage(
+            &message,
+            "Pass the name of a Jira field, for example --field customfield_10010",
+        ))),
+        Some(Ok(())) | None => Ok(()),
+    }
+}
+
+/// `--field` only selects an entry of a `fields` object. With any other ADF input it would be
+/// ignored, and another document converted than the one asked for, so that is a usage error.
+pub(crate) fn check_field_used(
+    field: Option<&str>,
+    unwrapped: &envelope::Unwrapped,
+) -> Result<(), Box<Outcome>> {
+    if field.is_none() {
+        return Ok(());
+    }
+    let what = match unwrapped.envelope {
+        Envelope::JiraDescription | Envelope::JiraField(_) => return Ok(()),
+        Envelope::Doc => "a bare document",
+        Envelope::JiraComment => "a Jira comment ({\"body\": …})",
+        Envelope::Confluence => "a Confluence body",
+    };
+    Err(Box::new(Outcome::usage(
+        &format!(
+            "--field only applies to ADF input with a `fields` object, but this input is {what}"
+        ),
+        "Drop --field, or pass the Jira issue (GET /rest/api/3/issue/KEY) that holds the field",
+    )))
+}
+
 /// Parses `-e`/`--field` into an envelope (usage error on failure).
 pub(crate) fn parse_envelope(
     envelope: Option<EnvelopeArg>,
     field: Option<&str>,
 ) -> Result<Envelope, Box<Outcome>> {
+    if envelope.is_none() && field.is_some() {
+        // Without -e the envelope is the bare document; don't blame an -e the user never typed.
+        return Err(Box::new(Outcome::usage(
+            "--field needs -e jira-field when the input is Markdown",
+            "Add -e jira-field to wrap the document in that field, or use --from adf to read a field of a Jira issue",
+        )));
+    }
     let name = envelope.map_or("doc", EnvelopeArg::name);
     Envelope::parse(name, field).map_err(|message| {
         Box::new(Outcome::usage(

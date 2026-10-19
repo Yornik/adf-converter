@@ -5,8 +5,8 @@ use serde::Serialize;
 use super::Outcome;
 use super::args::{ValidateArgs, ValidateFrom};
 use super::convert::{
-    markdown_options, markdown_pipeline, parse_and_unwrap, parse_envelope, prefix_pointers,
-    read_input, resolve_target, strict_failure,
+    check_adf_field, check_field_used, markdown_options, markdown_pipeline, parse_and_unwrap,
+    parse_envelope, prefix_pointers, read_input, resolve_target, strict_failure,
 };
 use super::report::DiagnosticJson;
 use crate::adf::envelope::Envelope;
@@ -130,7 +130,9 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                 "Drop -e, or use --from md to validate a Markdown conversion",
             )));
         }
-        let unwrapped = match parse_and_unwrap(&input.text, args.envelope.field.as_deref()) {
+        let field = args.envelope.field.as_deref();
+        check_adf_field(field)?;
+        let unwrapped = match parse_and_unwrap(&input.text, field) {
             Ok(unwrapped) => unwrapped,
             Err(diagnostic) => {
                 return Ok(Checked {
@@ -142,6 +144,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                 });
             }
         };
+        check_field_used(field, &unwrapped)?;
         let target = resolve_target(args.target, &unwrapped.envelope);
         let mut diagnostics = prefix_pointers(
             crate::validate_adf(&unwrapped.doc, target),

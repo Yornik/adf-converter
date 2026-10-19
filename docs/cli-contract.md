@@ -130,6 +130,11 @@ Unknown topic: exit 2.
 
 Anything else fails with `E_INPUT_NOT_ADF` (exit 3).
 
+`--field NAME` is accepted only where it selects something: with `-e jira-field` for Markdown
+input, and with ADF input that has a `fields` object (step 3). Anywhere else, including Markdown
+input without `-e` and ADF input detected by steps 1, 2, 4 or 5, it is a usage error (`E_USAGE`,
+exit 2) instead of being ignored. An empty name is a usage error too.
+
 ## Exit codes
 
 | Code | Meaning | Retry? |

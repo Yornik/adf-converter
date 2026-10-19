@@ -95,7 +95,7 @@ impl Envelope {
 }
 
 /// Checks a `--field` name: non-empty and free of control characters.
-fn check_field_name(field: &str) -> Result<(), String> {
+pub(crate) fn check_field_name(field: &str) -> Result<(), String> {
     if field.trim().is_empty() {
         return Err("--field must not be empty".to_owned());
     }

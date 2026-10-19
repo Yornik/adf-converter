@@ -28,7 +28,7 @@ listed problems and run again.
 | Code | Exit | Meaning | Fix |
 |---|---|---|---|
 | `E_INTERNAL` | 1 | A bug in `adf`. Its own output failed its self-check, or it crashed. | Don't retry. Simplify the construct near the reported location, and tell the user; a minimal invented input reproducing it belongs in a bug report. |
-| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, an unknown `--extensions` name. |
+| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, `--field` where it selects nothing (Markdown without `-e jira-field`, or ADF input without a `fields` object), an unknown `--extensions` name. |
 | `E_INPUT_READ` | 3 | The input file or stdin could not be read. | Check the path and permissions. Pass `-` to read stdin. |
 | `E_INPUT_ENCODING` | 3 | The input is not valid UTF-8; `byte_offset` points at the first bad byte. | Save the file as UTF-8 (for example `iconv -f WINDOWS-1252 -t UTF-8 in.md > out.md`). |
 | `E_INPUT_TOO_LARGE` | 3 | The input is larger than 4 MiB, or its tables would have more than 100,000 cells in total (short rows are padded to the header width, so a wide header with many short rows counts fully). | Split the content; Jira would reject a body that large anyway. Attach big logs and data tables as files. |
