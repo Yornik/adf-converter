@@ -1,0 +1,4 @@
+# A Confluence body: the target follows the envelope (-t auto).
+bin.name = "adf"
+args = ["validate", "--json"]
+binary = true

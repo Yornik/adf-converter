@@ -1,0 +1,13 @@
+## tables (gfm)
+
+Syntax: | a | b |
+
+```markdown
+| Name | Value |
+|:-----|------:|
+| a    | 1     |
+```
+
+```json
+...
+```

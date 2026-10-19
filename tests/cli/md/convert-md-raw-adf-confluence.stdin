@@ -1,0 +1,3 @@
+```adf
+{"type":"layoutSection","content":[{"type":"layoutColumn","attrs":{"width":50},"content":[{"type":"paragraph"}]},{"type":"layoutColumn","attrs":{"width":50},"content":[{"type":"paragraph"}]}]}
+```

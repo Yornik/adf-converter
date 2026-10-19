@@ -1,0 +1,1 @@
+{"schema_version":1,"valid":true,"from":"adf","target":"jira","envelope":"jira-description","adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[],"warnings":[]}

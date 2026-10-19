@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--error-format", "text"]
+status.code = 3
+binary = true

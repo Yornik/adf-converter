@@ -1,0 +1,2 @@
+bin.name = "adf"
+args = ["completions", "zsh"]

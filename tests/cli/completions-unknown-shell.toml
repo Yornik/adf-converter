@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["completions", "tcsh"]
+status.code = 2
+binary = true

@@ -1,0 +1,4 @@
+# A raw ```adf block that is schema-valid but not accepted by the target is the user's error (E_RAW_ADF).
+bin.name = "adf"
+args = ["convert"]
+status.code = 3

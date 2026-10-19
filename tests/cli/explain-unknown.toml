@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["explain", "bogus"]
+status.code = 2
+binary = true

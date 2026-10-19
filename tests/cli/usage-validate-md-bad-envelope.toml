@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--from", "md", "-e", "jira-field"]
+status.code = 2
+binary = true

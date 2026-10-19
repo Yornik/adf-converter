@@ -1,0 +1,4 @@
+# Codes are matched case-insensitively.
+bin.name = "adf"
+args = ["explain", "w_image_as_link"]
+binary = true

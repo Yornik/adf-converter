@@ -1,0 +1,620 @@
+{
+  "schema_version": 1,
+  "version": "[VERSION]",
+  "adf_schema": "@atlaskit/adf-schema@57.7.18",
+  "directions": [
+    "md->adf",
+    "adf->md"
+  ],
+  "envelopes": [
+    {
+      "name": "doc",
+      "shape": "DOC",
+      "endpoint": "acli --body-adf / --description-file, or embedding in your own JSON",
+      "default_target": "jira",
+      "requires_field": false
+    },
+    {
+      "name": "jira-comment",
+      "shape": "{\"body\":DOC}",
+      "endpoint": "POST /rest/api/3/issue/{key}/comment, PUT /rest/api/3/issue/{key}/comment/{id}",
+      "default_target": "jira",
+      "requires_field": false
+    },
+    {
+      "name": "jira-description",
+      "shape": "{\"fields\":{\"description\":DOC}}",
+      "endpoint": "PUT /rest/api/3/issue/{key}",
+      "default_target": "jira",
+      "requires_field": false
+    },
+    {
+      "name": "jira-field",
+      "shape": "{\"fields\":{\"<NAME>\":DOC}}",
+      "endpoint": "PUT /rest/api/3/issue/{key} (rich-text custom fields; needs --field NAME)",
+      "default_target": "jira",
+      "requires_field": true
+    },
+    {
+      "name": "confluence",
+      "shape": "{\"representation\":\"atlas_doc_format\",\"value\":\"<DOC as a JSON string>\"}",
+      "endpoint": "body of POST /wiki/api/v2/pages and POST /wiki/api/v2/footer-comments",
+      "default_target": "confluence",
+      "requires_field": false
+    }
+  ],
+  "targets": [
+    "jira",
+    "confluence"
+  ],
+  "features": [
+    {
+      "name": "headings",
+      "kind": "commonmark",
+      "syntax": "# H1 … ###### H6, setext === / ---",
+      "adf": [
+        "heading"
+      ]
+    },
+    {
+      "name": "paragraphs",
+      "kind": "commonmark",
+      "syntax": "text separated by blank lines; a single newline is a space",
+      "adf": [
+        "paragraph",
+        "text"
+      ]
+    },
+    {
+      "name": "hard-breaks",
+      "kind": "commonmark",
+      "syntax": "two trailing spaces, \\ at line end, or <br>",
+      "adf": [
+        "hardBreak"
+      ]
+    },
+    {
+      "name": "emphasis",
+      "kind": "commonmark",
+      "syntax": "*em* _em_ **strong** __strong__ ***both***",
+      "adf": [
+        "em",
+        "strong"
+      ]
+    },
+    {
+      "name": "inline-code",
+      "kind": "commonmark",
+      "syntax": "`code` (any number of backticks)",
+      "adf": [
+        "code"
+      ],
+      "note": "code only combines with link; other marks around it are dropped (W_MARK_DROPPED)"
+    },
+    {
+      "name": "links",
+      "kind": "commonmark",
+      "syntax": "[text](https://example.com \"title\"), reference links, <https://…>",
+      "adf": [
+        "link"
+      ],
+      "note": "only http(s), ftp(s), mailto:, tel:, /paths and #anchors become links (W_UNSAFE_URL)"
+    },
+    {
+      "name": "images",
+      "kind": "commonmark",
+      "syntax": "![alt](https://example.com/a.png)",
+      "adf": [
+        "link",
+        "mediaSingle",
+        "media"
+      ],
+      "note": "a link by default (W_IMAGE_AS_LINK); --images external embeds by URL"
+    },
+    {
+      "name": "bullet-lists",
+      "kind": "commonmark",
+      "syntax": "- item, * item, + item; nest by indenting",
+      "adf": [
+        "bulletList",
+        "listItem"
+      ]
+    },
+    {
+      "name": "ordered-lists",
+      "kind": "commonmark",
+      "syntax": "1. item, 1) item; the first number is kept",
+      "adf": [
+        "orderedList",
+        "listItem"
+      ]
+    },
+    {
+      "name": "code-blocks",
+      "kind": "commonmark",
+      "syntax": "```lang fenced, or indented by four spaces",
+      "adf": [
+        "codeBlock"
+      ]
+    },
+    {
+      "name": "blockquotes",
+      "kind": "commonmark",
+      "syntax": "> quote",
+      "adf": [
+        "blockquote"
+      ]
+    },
+    {
+      "name": "rules",
+      "kind": "commonmark",
+      "syntax": "--- *** ___",
+      "adf": [
+        "rule"
+      ]
+    },
+    {
+      "name": "inline-html",
+      "kind": "commonmark",
+      "syntax": "<u> <sub> <sup> <s> <kbd> <br> <span style=\"color: #RRGGBB\">",
+      "adf": [
+        "underline",
+        "subsup",
+        "strike",
+        "textColor",
+        "backgroundColor"
+      ]
+    },
+    {
+      "name": "escapes",
+      "kind": "commonmark",
+      "syntax": "\\* and entities like &amp; &copy;",
+      "adf": [
+        "text"
+      ]
+    },
+    {
+      "name": "tables",
+      "kind": "gfm",
+      "syntax": "| a | b |",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "alignment"
+      ]
+    },
+    {
+      "name": "task-lists",
+      "kind": "gfm",
+      "syntax": "- [ ] task, - [x] done",
+      "adf": [
+        "taskList",
+        "taskItem"
+      ]
+    },
+    {
+      "name": "strikethrough",
+      "kind": "gfm",
+      "syntax": "~~strike~~ ~strike~",
+      "adf": [
+        "strike"
+      ]
+    },
+    {
+      "name": "autolinks",
+      "kind": "gfm",
+      "syntax": "bare https://example.com and www.example.com",
+      "adf": [
+        "link"
+      ]
+    },
+    {
+      "name": "footnotes",
+      "kind": "gfm",
+      "syntax": "text[^1] … [^1]: note",
+      "adf": [
+        "subsup",
+        "rule",
+        "orderedList"
+      ],
+      "note": "ADF has no footnotes: superscript numbers plus a list at the end (W_FOOTNOTE_FLATTENED)"
+    },
+    {
+      "name": "alerts",
+      "kind": "extension",
+      "extension": "alerts",
+      "syntax": "> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]",
+      "adf": [
+        "panel"
+      ]
+    },
+    {
+      "name": "details",
+      "kind": "extension",
+      "extension": "details",
+      "syntax": "<details><summary>Title</summary> … </details>",
+      "adf": [
+        "expand",
+        "nestedExpand"
+      ]
+    },
+    {
+      "name": "cells",
+      "kind": "extension",
+      "extension": "cells",
+      "syntax": "::: cell … :::",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableCell"
+      ]
+    },
+    {
+      "name": "raw-adf",
+      "kind": "extension",
+      "extension": "raw-adf",
+      "syntax": "```adf with a block node or an array of block nodes",
+      "adf": []
+    },
+    {
+      "name": "mention",
+      "kind": "extension",
+      "extension": "mention",
+      "syntax": "[@Display Name](adf:mention/ACCOUNT_ID)",
+      "adf": [
+        "mention"
+      ]
+    },
+    {
+      "name": "status",
+      "kind": "extension",
+      "extension": "status",
+      "syntax": "[TEXT](adf:status/neutral|purple|blue|red|yellow|green)",
+      "adf": [
+        "status"
+      ]
+    },
+    {
+      "name": "date",
+      "kind": "extension",
+      "extension": "date",
+      "syntax": "[YYYY-MM-DD](adf:date)",
+      "adf": [
+        "date"
+      ]
+    },
+    {
+      "name": "emoji",
+      "kind": "extension",
+      "extension": "emoji",
+      "syntax": "[😄](adf:emoji/:smile:)",
+      "adf": [
+        "emoji"
+      ]
+    },
+    {
+      "name": "card",
+      "kind": "extension",
+      "extension": "card",
+      "syntax": "[https://…](adf:card)",
+      "adf": [
+        "inlineCard"
+      ]
+    }
+  ],
+  "extensions": [
+    {
+      "name": "alerts",
+      "syntax": "> [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]",
+      "adf": [
+        "panel"
+      ],
+      "default": true
+    },
+    {
+      "name": "details",
+      "syntax": "<details><summary>Title</summary> … </details>",
+      "adf": [
+        "expand",
+        "nestedExpand"
+      ],
+      "default": true
+    },
+    {
+      "name": "cells",
+      "syntax": "::: cell … :::",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableCell"
+      ],
+      "default": true
+    },
+    {
+      "name": "raw-adf",
+      "syntax": "```adf with a block node or an array of block nodes",
+      "adf": [],
+      "default": true
+    },
+    {
+      "name": "mention",
+      "syntax": "[@Display Name](adf:mention/ACCOUNT_ID)",
+      "adf": [
+        "mention"
+      ],
+      "default": true
+    },
+    {
+      "name": "status",
+      "syntax": "[TEXT](adf:status/neutral|purple|blue|red|yellow|green)",
+      "adf": [
+        "status"
+      ],
+      "default": true
+    },
+    {
+      "name": "date",
+      "syntax": "[YYYY-MM-DD](adf:date)",
+      "adf": [
+        "date"
+      ],
+      "default": true
+    },
+    {
+      "name": "emoji",
+      "syntax": "[😄](adf:emoji/:smile:)",
+      "adf": [
+        "emoji"
+      ],
+      "default": true
+    },
+    {
+      "name": "card",
+      "syntax": "[https://…](adf:card)",
+      "adf": [
+        "inlineCard"
+      ],
+      "default": true
+    }
+  ],
+  "exit_codes": {
+    "0": "ok (warnings may have been printed)",
+    "1": "internal error (a bug in adf)",
+    "2": "usage error",
+    "3": "input or I/O error",
+    "4": "validation failed",
+    "5": "lossy conversion refused (--strict or --html error)"
+  },
+  "diagnostic_codes": [
+    {
+      "code": "E_INTERNAL",
+      "severity": "error",
+      "exit_code": 1,
+      "summary": "Internal error (a bug in adf); please report it with the input that caused it."
+    },
+    {
+      "code": "E_USAGE",
+      "severity": "error",
+      "exit_code": 2,
+      "summary": "Invalid command-line usage."
+    },
+    {
+      "code": "E_INPUT_READ",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The input file or stdin could not be read."
+    },
+    {
+      "code": "E_INPUT_ENCODING",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The input is not valid UTF-8."
+    },
+    {
+      "code": "E_INPUT_TOO_LARGE",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The input is larger than the size limit."
+    },
+    {
+      "code": "E_INPUT_TOO_DEEP",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The input nests deeper than the nesting limit."
+    },
+    {
+      "code": "E_INPUT_JSON",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The input is not valid JSON."
+    },
+    {
+      "code": "E_INPUT_NOT_ADF",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The JSON input is not an ADF document or a known envelope around one."
+    },
+    {
+      "code": "E_RAW_ADF",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "An ```adf block is not valid JSON, or not valid ADF where it is placed."
+    },
+    {
+      "code": "E_OUTPUT_WRITE",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The output could not be written."
+    },
+    {
+      "code": "E_SCHEMA",
+      "severity": "error",
+      "exit_code": 4,
+      "summary": "The ADF document does not match the ADF JSON schema."
+    },
+    {
+      "code": "E_TARGET",
+      "severity": "error",
+      "exit_code": 4,
+      "summary": "The ADF document uses a node, mark or attribute the target product does not accept."
+    },
+    {
+      "code": "E_INVARIANT",
+      "severity": "error",
+      "exit_code": 4,
+      "summary": "The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema."
+    },
+    {
+      "code": "E_LOSSY",
+      "severity": "error",
+      "exit_code": 5,
+      "summary": "The conversion would lose information and --strict (or --html error) is set."
+    },
+    {
+      "code": "W_MARK_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code)."
+    },
+    {
+      "code": "W_HEADING_DEMOTED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A heading inside a list item or quote became a bold paragraph."
+    },
+    {
+      "code": "W_BLOCK_HOISTED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A block was moved out of a container that cannot hold it (for example a table inside a list)."
+    },
+    {
+      "code": "W_BLOCK_FLATTENED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A nested container was merged into its parent (for example a quote inside a quote)."
+    },
+    {
+      "code": "W_HTML_AS_TEXT",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Raw HTML without an ADF equivalent was kept as literal text."
+    },
+    {
+      "code": "W_HTML_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Raw HTML was dropped (--html drop)."
+    },
+    {
+      "code": "W_IMAGE_AS_LINK",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An image became a link; ADF images need media uploaded to Jira/Confluence."
+    },
+    {
+      "code": "W_IMAGE_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An image was dropped (--images drop)."
+    },
+    {
+      "code": "W_UNSAFE_URL",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A link target is not an allowed URL (http, https, mailto, tel, ftp, /path, #anchor) and became plain text."
+    },
+    {
+      "code": "W_CONTROL_CHAR",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Control characters were removed from text."
+    },
+    {
+      "code": "W_TABLE_CELL_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Table cells beyond the header row's width were dropped."
+    },
+    {
+      "code": "W_FOOTNOTE_FLATTENED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Footnotes became superscript numbers plus a numbered list at the end; ADF has no footnotes."
+    },
+    {
+      "code": "W_TASK_NUMBERING_LOST",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An ordered task list lost its numbering; ADF task lists are unordered."
+    },
+    {
+      "code": "W_FRONT_MATTER_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Leading YAML front matter was removed."
+    },
+    {
+      "code": "W_UNKNOWN_EXTENSION",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An adf: link names an unknown extension and was kept as plain text."
+    },
+    {
+      "code": "W_INVALID_EXTENSION_ARG",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An adf: extension has an invalid argument and was kept as plain text."
+    },
+    {
+      "code": "W_EXTENSION_DISABLED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Extension syntax was found but the extension is disabled (--extensions), so it was converted as plain Markdown."
+    },
+    {
+      "code": "W_NODE_NOT_IN_TARGET",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A construct is not supported by the target product and was replaced by a fallback."
+    },
+    {
+      "code": "W_SIZE_LIMIT",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "The output is larger than Jira's 32,767-character field limit and may be rejected."
+    },
+    {
+      "code": "W_EMPTY_DOCUMENT",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "The document is empty; Jira rejects empty comment bodies."
+    },
+    {
+      "code": "W_ADF_PASSTHROUGH",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An ADF node without a Markdown equivalent was written as a raw ```adf block."
+    },
+    {
+      "code": "W_ATTR_DROPPED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours)."
+    },
+    {
+      "code": "W_INPUT_SCHEMA",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "The input ADF does not match the schema; it was converted anyway."
+    }
+  ],
+  "limits": {
+    "max_input_bytes": 4194304,
+    "max_nesting_depth": 64,
+    "jira_field_char_limit": 32767
+  }
+}
