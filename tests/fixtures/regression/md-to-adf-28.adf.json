@@ -1,0 +1,43 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Markdown may contain "
+        },
+        {
+          "type": "text",
+          "text": "hyper links",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " note that plural means more than merely one "
+        },
+        {
+          "type": "text",
+          "text": "link",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.org/"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

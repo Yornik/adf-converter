@@ -1,0 +1,27 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock"
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "text"
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Text between."
+        }
+      ]
+    },
+    {
+      "type": "codeBlock"
+    }
+  ]
+}

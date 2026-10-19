@@ -1,0 +1,29 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "underline that is never closed",
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Next paragraph."
+        }
+      ]
+    }
+  ]
+}

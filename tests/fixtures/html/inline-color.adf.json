@@ -1,0 +1,73 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "red",
+          "marks": [
+            {
+              "type": "textColor",
+              "attrs": {
+                "color": "#FF5630"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "green, no space",
+          "marks": [
+            {
+              "type": "textColor",
+              "attrs": {
+                "color": "#36b37e"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "background",
+          "marks": [
+            {
+              "type": "backgroundColor",
+              "attrs": {
+                "color": "#FFFAE6"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Not six digits: <span style=\"color: #f00\">short hex</span> and <span style=\"color: red\">named</span>."
+        }
+      ]
+    }
+  ]
+}

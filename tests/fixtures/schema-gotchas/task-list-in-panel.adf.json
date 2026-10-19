@@ -1,0 +1,35 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "info"
+      },
+      "content": [
+        {
+          "type": "taskList",
+          "attrs": {
+            "localId": "9744d99c-324c-85dd-b4a2-b1157d1bdc00"
+          },
+          "content": [
+            {
+              "type": "taskItem",
+              "attrs": {
+                "localId": "237a9410-0901-863f-a8bd-dad62782699a",
+                "state": "TODO"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "task in a panel"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

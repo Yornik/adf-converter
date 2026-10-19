@@ -1,0 +1,17 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Nothing inside"
+      },
+      "content": [
+        {
+          "type": "paragraph"
+        }
+      ]
+    }
+  ]
+}

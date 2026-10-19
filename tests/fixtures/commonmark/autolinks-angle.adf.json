@@ -1,0 +1,81 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Angle autolinks: "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/path?q=1&r=2",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/path?q=1&r=2"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "http://example.org",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "http://example.org"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Email autolink: "
+        },
+        {
+          "type": "text",
+          "text": "someone@example.com",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "mailto:someone@example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Not an autolink: <not a link>."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Run "
+        },
+        {
+          "type": "text",
+          "text": "make check",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " before "
+        },
+        {
+          "type": "text",
+          "text": "git push",
+          "marks": [
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "; see "
+        },
+        {
+          "type": "text",
+          "text": "docs/build.md",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/docs/build.md"
+              }
+            },
+            {
+              "type": "code"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

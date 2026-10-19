@@ -225,15 +225,21 @@ pub fn unwrap(input: &Value, field: Option<&str>) -> Result<Unwrapped, Diagnosti
 /// Unwraps a Confluence `value`, normally a JSON string holding the document.
 fn confluence_value(value: &Value, pointer: &str) -> Result<Unwrapped, Diagnostic> {
     let doc = if let Value::String(text) = value {
-        serde_json::from_str::<Value>(text).map_err(|err| {
-            Diagnostic::new(
-                json_error_code(&err),
+        let max_depth = crate::Limits::default().max_json_depth();
+        crate::json::parse_bounded(text, max_depth).map_err(|err| match err {
+            crate::json::JsonError::TooDeep { .. } => Diagnostic::new(
+                Code::InputTooDeep,
+                format!("the Confluence value string nests deeper than {max_depth} JSON levels"),
+            )
+            .at(Location::pointer(pointer)),
+            crate::json::JsonError::Syntax(err) => Diagnostic::new(
+                Code::InputJson,
                 format!(
                     "the Confluence value string is not valid JSON: {}",
                     strip_position(&err.to_string())
                 ),
             )
-            .at(Location::pointer(pointer))
+            .at(Location::pointer(pointer)),
         })?
     } else {
         // Lenient: accept an already-decoded document as well.
@@ -329,15 +335,6 @@ fn json_kind(value: &Value) -> &'static str {
 /// Escapes one JSON Pointer reference token (RFC 6901).
 pub(crate) fn escape_pointer_token(token: &str) -> String {
     token.replace('~', "~0").replace('/', "~1")
-}
-
-/// `E_INPUT_TOO_DEEP` for `serde_json`'s recursion limit (128 levels), `E_INPUT_JSON` otherwise.
-pub(crate) fn json_error_code(err: &serde_json::Error) -> Code {
-    if err.to_string().starts_with("recursion limit exceeded") {
-        Code::InputTooDeep
-    } else {
-        Code::InputJson
-    }
 }
 
 /// Removes the ` at line L column C` suffix of `serde_json` errors (the location is reported
@@ -538,7 +535,7 @@ mod tests {
             ),
             (Code::InputNotAdf, Some("/value".into()))
         );
-        let deep = format!("{}{}", "[".repeat(200), "]".repeat(200));
+        let deep = format!("{}{}", "[".repeat(600), "]".repeat(600));
         assert_eq!(
             not_adf(
                 json!({"representation":"atlas_doc_format","value": deep}),

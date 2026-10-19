@@ -1,0 +1,28 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "f79a1de9-3c9b-83a0-92da-355c61500271"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "b585ad13-4bd5-8d8b-9d2b-687122e057ac",
+            "state": "TODO"
+          }
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "532ba1e4-6b7a-8560-a758-50dd3aa3962f",
+            "state": "DONE"
+          }
+        }
+      ]
+    }
+  ]
+}

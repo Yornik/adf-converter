@@ -117,8 +117,9 @@ fn blocks_are_separated_by_blank_lines_and_end_with_one_newline() {
 fn rejects_non_adf_and_deep_input() {
     let err = to_markdown(&json!({"type": "paragraph"}), &AdfToMdOptions::default()).unwrap_err();
     assert_eq!(err.0[0].code, Code::InputNotAdf);
+    // 300 quotes = 600+ JSON levels, beyond the 512 (8 × 64) accepted.
     let mut deep = para("x");
-    for _ in 0..40 {
+    for _ in 0..300 {
         deep = json!({"type": "blockquote", "content": [deep]});
     }
     let err = to_markdown(&doc(json!([deep])), &AdfToMdOptions::default()).unwrap_err();
@@ -1031,9 +1032,13 @@ fn misplaced_blocks_pass_through() {
     let content = json!([{"type": "blockquote", "content": [{"type": "heading", "attrs": {"level": 1}, "content": [t("h")]}]}]);
     let out = md(content.clone());
     assert!(out.starts_with("> ```adf\n"), "{out}");
+    // The input is schema-invalid too, which is reported before the passthrough.
     assert_eq!(
         warnings(content),
-        vec![(Code::AdfPassthrough, "/content/0/content/0".to_owned())]
+        vec![
+            (Code::InputSchema, "/content/0/content/0".to_owned()),
+            (Code::AdfPassthrough, "/content/0/content/0".to_owned())
+        ]
     );
 }
 
@@ -1054,7 +1059,9 @@ fn local_ids_are_dropped_silently() {
 #[test]
 fn plain_flavour_reports_no_lossy_warnings() {
     let content = json!([
-        {"type": "decisionList", "attrs": {"localId": "d"}, "content": []},
+        {"type": "decisionList", "attrs": {"localId": "d"}, "content": [
+            {"type": "decisionItem", "attrs": {"localId": "i", "state": "DECIDED"}, "content": [t("x")]}
+        ]},
         {"type": "paragraph"},
         p(&[json!({"type": "emoji", "attrs": {"shortName": ":x:", "id": "1"}})]),
     ]);
@@ -1071,6 +1078,7 @@ mod arbitrary {
     use serde_json::{Value, json};
 
     use super::super::to_markdown;
+    use crate::diagnostics::Code;
     use crate::options::{AdfToMdOptions, MdFlavor};
 
     fn text() -> impl Strategy<Value = String> {
@@ -1202,7 +1210,11 @@ mod arbitrary {
                     prop_assert!(document.pointer(&pointer).is_some(), "dangling pointer {}", pointer);
                 }
                 if flavor == MdFlavor::Plain {
-                    prop_assert!(first.warnings.is_empty(), "{:?}", first.warnings);
+                    // Plain mode reports no lossy-simplification warnings; schema problems in
+                    // the (arbitrary, often invalid) input are still reported.
+                    let lossy: Vec<_> =
+                        first.warnings.iter().filter(|w| w.code != Code::InputSchema).collect();
+                    prop_assert!(lossy.is_empty(), "{:?}", lossy);
                     prop_assert!(!first.output.contains("```adf"), "{}", first.output);
                 }
                 let again = to_markdown(&document, &opts).unwrap_or_else(|_| unreachable!());

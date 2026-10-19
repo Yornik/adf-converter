@@ -174,7 +174,8 @@ fn split_lines(text: &str) -> Vec<&str> {
 /// Index of the line closing leading front matter (`---` … `---` or `...`), if any.
 ///
 /// To avoid swallowing a document that merely starts with a horizontal rule, the first
-/// non-blank line inside must look like a YAML mapping key (`key: value`).
+/// non-blank line inside must look like a YAML mapping key (`key: value`). Empty "front matter"
+/// (`---`, blank lines, `---`) is two thematic breaks, as CommonMark reads it.
 fn front_matter_end(lines: &[&str]) -> Option<usize> {
     let first = lines.first()?;
     if first.trim_end_matches([' ', '\t']) != "---" {
@@ -194,10 +195,7 @@ fn front_matter_end(lines: &[&str]) -> Option<usize> {
         .get(1..end)?
         .iter()
         .find(|line| !line.trim().is_empty());
-    match first_content {
-        None => Some(end),
-        Some(line) => looks_like_yaml_key(line).then_some(end),
-    }
+    first_content.and_then(|line| looks_like_yaml_key(line).then_some(end))
 }
 
 /// `key:` followed by a space or the end of the line; the key does not start with whitespace,
@@ -299,7 +297,9 @@ mod tests {
         // A leading rule followed by ordinary Markdown is not front matter.
         let src = "---\n# Title\n\ntext\n---\n";
         assert_eq!(run(src, true).text, src);
-        assert_eq!(run("---\n---\nx", true).text, "\n\nx");
+        // Empty front matter is two rules (CommonMark examples 43 and 47).
+        assert_eq!(run("---\n---\nx", true).text, "---\n---\nx");
+        assert_eq!(run("---\n\n---\n", true).text, "---\n\n---\n");
     }
 
     #[test]

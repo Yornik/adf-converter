@@ -1,0 +1,108 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "05c65930-11d0-87e1-8d70-76ddfcdee6a6"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "877e8821-cd40-8b27-94e0-99950fb91a7a",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "bold",
+              "marks": [
+                {
+                  "type": "strong"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " "
+            },
+            {
+              "type": "text",
+              "text": "code",
+              "marks": [
+                {
+                  "type": "code"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " "
+            },
+            {
+              "type": "text",
+              "text": "link",
+              "marks": [
+                {
+                  "type": "link",
+                  "attrs": {
+                    "href": "https://example.com"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " "
+            },
+            {
+              "type": "text",
+              "text": "strike",
+              "marks": [
+                {
+                  "type": "strike"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "90437c86-d87f-84af-9899-d417f4575dc3",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "underlined",
+              "marks": [
+                {
+                  "type": "underline"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " "
+            },
+            {
+              "type": "text",
+              "text": "1",
+              "marks": [
+                {
+                  "type": "subsup",
+                  "attrs": {
+                    "type": "sup"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

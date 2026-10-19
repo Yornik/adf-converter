@@ -12,6 +12,7 @@ categories = ["command-line-utilities", "text-processing"]
 include = [
   "src/**",
   "schemas/**",
+  "docs/**",
   "README.md",
   "LICENSE",
   "THIRD_PARTY_NOTICES.md",
@@ -35,7 +36,7 @@ linkify = "0.11"
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 # preserve_order keeps "type" first and makes output follow construction order, not key order.
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "unbounded_depth"] }
 thiserror = "2"
 
 [dev-dependencies]

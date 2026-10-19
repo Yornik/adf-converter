@@ -1,0 +1,122 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Bare URLs: "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "http://example.org/path?query=1&b=2",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "http://example.org/path?query=1&b=2"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A www link: "
+        },
+        {
+          "type": "text",
+          "text": "www.example.com/docs",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "http://www.example.com/docs"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Bare email: "
+        },
+        {
+          "type": "text",
+          "text": "someone@example.com",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "mailto:someone@example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "URL with a fragment: "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/page#section",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/page#section"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "item"
+                }
+              ]
+            },
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "sh"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "allowed here"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rust"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "fn main() {\n    println!(\"hello\");\n}"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "python"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "print(\"tildes\")"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "rust"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "let first_word_only = true;"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "no language"
+        }
+      ]
+    }
+  ]
+}

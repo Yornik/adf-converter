@@ -1,0 +1,47 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "outer ",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://outer.example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "https://inner.example.com",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://inner.example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://outer.example.com"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

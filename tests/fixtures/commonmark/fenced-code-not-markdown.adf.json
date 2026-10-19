@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "**not bold** _not em_ [not](a link) <u>not html</u>\n# not a heading\n- not a list\n> not a quote"
+        }
+      ]
+    }
+  ]
+}

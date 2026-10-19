@@ -8,7 +8,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::output::describe_io_error;
-use crate::adf::envelope::{json_error_code, strip_position};
+use crate::adf::envelope::strip_position;
 use crate::diagnostics::{Code, Diagnostic, LineIndex, Location};
 use crate::limits::Limits;
 
@@ -108,28 +108,41 @@ fn decode(bytes: Vec<u8>) -> Result<String, Diagnostic> {
     })
 }
 
-/// Parses JSON input. Errors are `E_INPUT_JSON` (or `E_INPUT_TOO_DEEP` past 128 levels) with the
-/// line and column (counted in characters).
+/// Parses JSON input. Errors are `E_INPUT_JSON`, or `E_INPUT_TOO_DEEP` beyond
+/// [`Limits::max_json_depth`](crate::Limits::max_json_depth) levels, with the line and column
+/// (counted in characters).
 pub(crate) fn parse_json(text: &str) -> Result<Value, Diagnostic> {
-    serde_json::from_str(text).map_err(|err| {
-        let code = json_error_code(&err);
-        let message = err.to_string();
-        let message = strip_position(&message);
-        let message = if code == Code::InputTooDeep {
-            "the JSON input nests deeper than 128 levels".to_owned()
-        } else {
-            format!("invalid JSON: {message}")
-        };
-        let mut diagnostic = Diagnostic::new(code, message);
-        if err.line() > 0 {
-            let column = char_column(text, err.line(), err.column());
-            diagnostic = diagnostic.at(Location {
-                line: u32::try_from(err.line()).ok(),
+    let max_depth = crate::Limits::default().max_json_depth();
+    crate::json::parse_bounded(text, max_depth).map_err(|err| match err {
+        crate::json::JsonError::TooDeep { offset } => {
+            let (line, column) = crate::LineIndex::new(text).line_col(offset);
+            Diagnostic::new(
+                Code::InputTooDeep,
+                format!("the JSON input nests deeper than {max_depth} levels"),
+            )
+            .at(Location {
+                line: Some(line),
                 column: Some(column),
+                byte_offset: Some(offset),
                 ..Location::default()
-            });
+            })
         }
-        diagnostic
+        crate::json::JsonError::Syntax(err) => {
+            let message = err.to_string();
+            let mut diagnostic = Diagnostic::new(
+                Code::InputJson,
+                format!("invalid JSON: {}", strip_position(&message)),
+            );
+            if err.line() > 0 {
+                let column = char_column(text, err.line(), err.column());
+                diagnostic = diagnostic.at(Location {
+                    line: u32::try_from(err.line()).ok(),
+                    column: Some(column),
+                    ..Location::default()
+                });
+            }
+            diagnostic
+        }
     })
 }
 
@@ -230,7 +243,12 @@ mod tests {
         // Columns count characters, not bytes.
         let err = parse_json("{\"é\": x}").unwrap_err();
         assert_eq!(err.location.unwrap().column, Some(7));
-        let deep = "[".repeat(200);
-        assert_eq!(parse_json(&deep).unwrap_err().code, Code::InputTooDeep);
+        // Deeper than serde_json's own limit (128) but within ours (512) parses fine.
+        let ok = format!("{}{}", "[".repeat(200), "]".repeat(200));
+        assert!(parse_json(&ok).is_ok());
+        let deep = "[".repeat(600);
+        let err = parse_json(&deep).unwrap_err();
+        assert_eq!(err.code, Code::InputTooDeep);
+        assert_eq!(err.location.unwrap().byte_offset, Some(512));
     }
 }

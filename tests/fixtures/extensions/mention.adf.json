@@ -1,0 +1,37 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Thanks "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5b10ac8d82e05b22cc7d4ef5",
+            "text": "@Jane Doe"
+          }
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "712020:a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "text": "@Ops Team"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

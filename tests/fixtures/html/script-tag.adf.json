@@ -1,0 +1,24 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "<script>alert(1)</script>"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Text with an inline <script>alert(2)</script> tag."
+        }
+      ]
+    }
+  ]
+}

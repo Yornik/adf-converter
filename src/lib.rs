@@ -20,6 +20,7 @@ pub mod adf;
 pub mod catalog;
 pub mod cli;
 pub mod diagnostics;
+pub mod json;
 pub mod limits;
 pub mod md;
 pub mod options;
@@ -31,11 +32,13 @@ pub use options::{
     Target,
 };
 
-/// The version of the vendored ADF JSON schema, e.g. `@atlaskit/adf-schema@57.7.18`.
-pub const ADF_SCHEMA_VERSION: &str = concat!(
+const ADF_SCHEMA_VERSION_RAW: &str = concat!(
     "@atlaskit/adf-schema@",
     include_str!("../schemas/adf/VERSION")
 );
+
+/// The version of the vendored ADF JSON schema, e.g. `@atlaskit/adf-schema@57.7.18`.
+pub const ADF_SCHEMA_VERSION: &str = ADF_SCHEMA_VERSION_RAW.trim_ascii_end();
 
 /// The vendored ADF JSON schema (`schemas/adf/full.json`, draft-04).
 pub const ADF_SCHEMA_JSON: &str = include_str!("../schemas/adf/full.json");

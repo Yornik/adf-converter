@@ -1,0 +1,92 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "9c3f47fd-9b60-8e0f-985c-1c4adebb10d7"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "1dc4d4c0-654f-8a82-952a-55aa2ab2833a",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "bold",
+              "marks": [
+                {
+                  "type": "strong"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " task with "
+            },
+            {
+              "type": "text",
+              "text": "code",
+              "marks": [
+                {
+                  "type": "code"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "31a7f538-f440-8af6-b7d4-c3808c09024e",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "task with a "
+            },
+            {
+              "type": "text",
+              "text": "link",
+              "marks": [
+                {
+                  "type": "link",
+                  "attrs": {
+                    "href": "https://example.com"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "74aefaa2-c9ac-820a-a1b6-cb53640762ed",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "struck",
+              "marks": [
+                {
+                  "type": "strike"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "text": " task"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

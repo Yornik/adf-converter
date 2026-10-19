@@ -1,0 +1,386 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "level 1"
+                }
+              ]
+            },
+            {
+              "type": "bulletList",
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "level 2"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "bulletList",
+                      "content": [
+                        {
+                          "type": "listItem",
+                          "content": [
+                            {
+                              "type": "paragraph",
+                              "content": [
+                                {
+                                  "type": "text",
+                                  "text": "level 3"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "bulletList",
+                              "content": [
+                                {
+                                  "type": "listItem",
+                                  "content": [
+                                    {
+                                      "type": "paragraph",
+                                      "content": [
+                                        {
+                                          "type": "text",
+                                          "text": "level 4"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "bulletList",
+                                      "content": [
+                                        {
+                                          "type": "listItem",
+                                          "content": [
+                                            {
+                                              "type": "paragraph",
+                                              "content": [
+                                                {
+                                                  "type": "text",
+                                                  "text": "level 5"
+                                                }
+                                              ]
+                                            },
+                                            {
+                                              "type": "bulletList",
+                                              "content": [
+                                                {
+                                                  "type": "listItem",
+                                                  "content": [
+                                                    {
+                                                      "type": "paragraph",
+                                                      "content": [
+                                                        {
+                                                          "type": "text",
+                                                          "text": "level 6"
+                                                        }
+                                                      ]
+                                                    },
+                                                    {
+                                                      "type": "bulletList",
+                                                      "content": [
+                                                        {
+                                                          "type": "listItem",
+                                                          "content": [
+                                                            {
+                                                              "type": "paragraph",
+                                                              "content": [
+                                                                {
+                                                                  "type": "text",
+                                                                  "text": "level 7"
+                                                                }
+                                                              ]
+                                                            },
+                                                            {
+                                                              "type": "bulletList",
+                                                              "content": [
+                                                                {
+                                                                  "type": "listItem",
+                                                                  "content": [
+                                                                    {
+                                                                      "type": "paragraph",
+                                                                      "content": [
+                                                                        {
+                                                                          "type": "text",
+                                                                          "text": "level 8"
+                                                                        }
+                                                                      ]
+                                                                    },
+                                                                    {
+                                                                      "type": "bulletList",
+                                                                      "content": [
+                                                                        {
+                                                                          "type": "listItem",
+                                                                          "content": [
+                                                                            {
+                                                                              "type": "paragraph",
+                                                                              "content": [
+                                                                                {
+                                                                                  "type": "text",
+                                                                                  "text": "level 9"
+                                                                                }
+                                                                              ]
+                                                                            },
+                                                                            {
+                                                                              "type": "bulletList",
+                                                                              "content": [
+                                                                                {
+                                                                                  "type": "listItem",
+                                                                                  "content": [
+                                                                                    {
+                                                                                      "type": "paragraph",
+                                                                                      "content": [
+                                                                                        {
+                                                                                          "type": "text",
+                                                                                          "text": "level 10"
+                                                                                        }
+                                                                                      ]
+                                                                                    },
+                                                                                    {
+                                                                                      "type": "bulletList",
+                                                                                      "content": [
+                                                                                        {
+                                                                                          "type": "listItem",
+                                                                                          "content": [
+                                                                                            {
+                                                                                              "type": "paragraph",
+                                                                                              "content": [
+                                                                                                {
+                                                                                                  "type": "text",
+                                                                                                  "text": "level 11"
+                                                                                                }
+                                                                                              ]
+                                                                                            },
+                                                                                            {
+                                                                                              "type": "bulletList",
+                                                                                              "content": [
+                                                                                                {
+                                                                                                  "type": "listItem",
+                                                                                                  "content": [
+                                                                                                    {
+                                                                                                      "type": "paragraph",
+                                                                                                      "content": [
+                                                                                                        {
+                                                                                                          "type": "text",
+                                                                                                          "text": "level 12"
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    },
+                                                                                                    {
+                                                                                                      "type": "bulletList",
+                                                                                                      "content": [
+                                                                                                        {
+                                                                                                          "type": "listItem",
+                                                                                                          "content": [
+                                                                                                            {
+                                                                                                              "type": "paragraph",
+                                                                                                              "content": [
+                                                                                                                {
+                                                                                                                  "type": "text",
+                                                                                                                  "text": "level 13"
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            },
+                                                                                                            {
+                                                                                                              "type": "bulletList",
+                                                                                                              "content": [
+                                                                                                                {
+                                                                                                                  "type": "listItem",
+                                                                                                                  "content": [
+                                                                                                                    {
+                                                                                                                      "type": "paragraph",
+                                                                                                                      "content": [
+                                                                                                                        {
+                                                                                                                          "type": "text",
+                                                                                                                          "text": "level 14"
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    },
+                                                                                                                    {
+                                                                                                                      "type": "bulletList",
+                                                                                                                      "content": [
+                                                                                                                        {
+                                                                                                                          "type": "listItem",
+                                                                                                                          "content": [
+                                                                                                                            {
+                                                                                                                              "type": "paragraph",
+                                                                                                                              "content": [
+                                                                                                                                {
+                                                                                                                                  "type": "text",
+                                                                                                                                  "text": "level 15"
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            },
+                                                                                                                            {
+                                                                                                                              "type": "bulletList",
+                                                                                                                              "content": [
+                                                                                                                                {
+                                                                                                                                  "type": "listItem",
+                                                                                                                                  "content": [
+                                                                                                                                    {
+                                                                                                                                      "type": "paragraph",
+                                                                                                                                      "content": [
+                                                                                                                                        {
+                                                                                                                                          "type": "text",
+                                                                                                                                          "text": "level 16"
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    },
+                                                                                                                                    {
+                                                                                                                                      "type": "bulletList",
+                                                                                                                                      "content": [
+                                                                                                                                        {
+                                                                                                                                          "type": "listItem",
+                                                                                                                                          "content": [
+                                                                                                                                            {
+                                                                                                                                              "type": "paragraph",
+                                                                                                                                              "content": [
+                                                                                                                                                {
+                                                                                                                                                  "type": "text",
+                                                                                                                                                  "text": "level 17"
+                                                                                                                                                }
+                                                                                                                                              ]
+                                                                                                                                            },
+                                                                                                                                            {
+                                                                                                                                              "type": "bulletList",
+                                                                                                                                              "content": [
+                                                                                                                                                {
+                                                                                                                                                  "type": "listItem",
+                                                                                                                                                  "content": [
+                                                                                                                                                    {
+                                                                                                                                                      "type": "paragraph",
+                                                                                                                                                      "content": [
+                                                                                                                                                        {
+                                                                                                                                                          "type": "text",
+                                                                                                                                                          "text": "level 18"
+                                                                                                                                                        }
+                                                                                                                                                      ]
+                                                                                                                                                    },
+                                                                                                                                                    {
+                                                                                                                                                      "type": "bulletList",
+                                                                                                                                                      "content": [
+                                                                                                                                                        {
+                                                                                                                                                          "type": "listItem",
+                                                                                                                                                          "content": [
+                                                                                                                                                            {
+                                                                                                                                                              "type": "paragraph",
+                                                                                                                                                              "content": [
+                                                                                                                                                                {
+                                                                                                                                                                  "type": "text",
+                                                                                                                                                                  "text": "level 19"
+                                                                                                                                                                }
+                                                                                                                                                              ]
+                                                                                                                                                            },
+                                                                                                                                                            {
+                                                                                                                                                              "type": "bulletList",
+                                                                                                                                                              "content": [
+                                                                                                                                                                {
+                                                                                                                                                                  "type": "listItem",
+                                                                                                                                                                  "content": [
+                                                                                                                                                                    {
+                                                                                                                                                                      "type": "paragraph",
+                                                                                                                                                                      "content": [
+                                                                                                                                                                        {
+                                                                                                                                                                          "type": "text",
+                                                                                                                                                                          "text": "level 20"
+                                                                                                                                                                        }
+                                                                                                                                                                      ]
+                                                                                                                                                                    }
+                                                                                                                                                                  ]
+                                                                                                                                                                }
+                                                                                                                                                              ]
+                                                                                                                                                            }
+                                                                                                                                                          ]
+                                                                                                                                                        }
+                                                                                                                                                      ]
+                                                                                                                                                    }
+                                                                                                                                                  ]
+                                                                                                                                                }
+                                                                                                                                              ]
+                                                                                                                                            }
+                                                                                                                                          ]
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    }
+                                                                                                                                  ]
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            }
+                                                                                                                          ]
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

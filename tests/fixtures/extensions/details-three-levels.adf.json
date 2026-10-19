@@ -1,0 +1,45 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Level one"
+      },
+      "content": [
+        {
+          "type": "nestedExpand",
+          "attrs": {
+            "title": "Level two"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Level three",
+                  "marks": [
+                    {
+                      "type": "strong"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Deepest content."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

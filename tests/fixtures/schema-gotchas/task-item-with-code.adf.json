@@ -1,0 +1,36 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "439f2682-b934-8b6b-9bf5-149788e3a78b"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "a74f45dc-c4ee-8521-b0de-c930c52eec27",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "task with code below"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "hoisted"
+        }
+      ]
+    }
+  ]
+}

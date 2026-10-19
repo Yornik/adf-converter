@@ -127,8 +127,8 @@ pub fn is_inline_type(ty: &str) -> bool {
 }
 
 /// Reads a bare `doc`. Fails with `E_INPUT_NOT_ADF` if the value is not a JSON object with
-/// `"type": "doc"`, and with `E_INPUT_TOO_DEEP` if it nests deeper than `limits.max_depth`
-/// (JSON depth: every object and array counts one level).
+/// `"type": "doc"`, and with `E_INPUT_TOO_DEEP` if it nests deeper than
+/// [`Limits::max_json_depth`] (JSON depth: every object and array counts one level).
 pub fn read_doc<'a>(doc: &'a Value, limits: &Limits) -> Result<Node<'a>, Diagnostic> {
     let Some(object) = doc.as_object() else {
         return Err(not_adf("the input is not a JSON object"));
@@ -136,17 +136,15 @@ pub fn read_doc<'a>(doc: &'a Value, limits: &Limits) -> Result<Node<'a>, Diagnos
     if object.get("type").and_then(Value::as_str) != Some("doc") {
         return Err(not_adf("the root object does not have \"type\": \"doc\""));
     }
-    if let Some(pointer) = find_too_deep(doc, limits.max_depth) {
+    let max_depth = limits.max_json_depth();
+    if let Some(pointer) = find_too_deep(doc, max_depth) {
         return Err(Diagnostic::new(
             Code::InputTooDeep,
-            format!(
-                "The ADF document nests deeper than the limit of {} levels",
-                limits.max_depth
-            ),
+            format!("The ADF document nests deeper than the limit of {max_depth} JSON levels"),
         )
         .at(Location::pointer(pointer)));
     }
-    read_node(doc, String::new(), 0, limits.max_depth)
+    read_node(doc, String::new(), 0, max_depth)
 }
 
 fn not_adf(reason: &str) -> Diagnostic {
@@ -200,7 +198,7 @@ fn read_node(
     if depth > max_depth {
         return Err(Diagnostic::new(
             Code::InputTooDeep,
-            format!("The ADF document nests deeper than the limit of {max_depth} levels"),
+            format!("The ADF document nests deeper than the limit of {max_depth} JSON levels"),
         )
         .at(Location::pointer(pointer)));
     }
@@ -314,14 +312,18 @@ mod tests {
 
     #[test]
     fn depth_counts_json_levels() {
+        // max_depth 1 container level = 8 JSON levels.
         let limits = Limits {
-            max_depth: 4,
+            max_depth: 1,
             ..Limits::default()
         };
-        // doc(1) > content(2) > paragraph(3) > content(4) > text(5): too deep for 4.
-        let ok = json!({"type": "doc", "content": [{"type": "paragraph"}]});
+        // doc(1) > content(2) > paragraph(3) > content(4) > text(5): fine.
+        let ok = json!({"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "x"}]}]});
         assert!(read_doc(&ok, &limits).is_ok());
-        let deep = json!({"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "x"}]}]});
+        // doc(1) > content(2) > quote(3) > content(4) > quote(5) > content(6) > paragraph(7)
+        // > content(8) > text(9): too deep.
+        let deep = json!({"type": "doc", "content": [{"type": "blockquote", "content": [{"type": "blockquote", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "x"}]}]}]}]});
         assert_eq!(
             read_doc(&deep, &limits).unwrap_err().code,
             Code::InputTooDeep

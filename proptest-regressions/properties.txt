@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc c068390b80be0315e5cee4087b948adcdf76b6bfbf39549959172848b90bd7ab # shrinks to markdown = "a\\\n<details><u>&amp;>  ", options = MdToAdfOptions { target: Jira, softbreak: Space, html: Text, images: Link, extensions: Extensions { alerts: true, details: true, cells: true, raw_adf: true, mention: true, status: true, date: true, emoji: true, card: true }, limits: Limits { max_input_bytes: 4194304, max_depth: 64 } }
+cc 514425cb75ae2c9d003a5a95b63e2512e40c18dd7a01d2c87a7262b62aab2b3e # shrinks to markdown = "- - ***&#32;***\n", options = MdToAdfOptions { target: Jira, softbreak: Space, html: Text, images: Link, extensions: Extensions { alerts: true, details: true, cells: true, raw_adf: true, mention: true, status: true, date: true, emoji: true, card: true }, limits: Limits { max_input_bytes: 4194304, max_depth: 64 } }
+cc d0b4e4992b985418bb1ab56b6688154d1c3efc78998b702b5e3454b0e106374e # shrinks to markdown = "::: cell\n- <details>\n\n  | *_CpYl_* | **_~~[https://example.com/x](adf:card) ``t`` 1IjsaVM~~ <br> ` **lm`_ &#32;** |\n  |---:|:---|\n  | a \\| b | o haVQ https://example.com/bare \u{7} ``gcr`` after a hard break ` ***\\**** | <i>{ fpr9</i> [DONE](adf:status/green) [7d \\` <s>Fb d0P 36b4F1I</s>](relative/path) |\n  |  |\n  |  |\n\n  </details>\n:::\n"

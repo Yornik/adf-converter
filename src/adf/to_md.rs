@@ -42,7 +42,7 @@ pub fn to_markdown(doc: &Value, opts: &AdfToMdOptions) -> Result<Conversion<Stri
     let mut warnings = schema_warnings(doc);
     let mut cx = Ctx {
         roundtrip: opts.flavor == MdFlavor::Roundtrip,
-        max_depth: opts.limits.max_depth,
+        max_depth: opts.limits.max_json_depth(),
         depth: 0,
         warnings: Vec::new(),
     };
@@ -205,7 +205,7 @@ impl Ctx {
                 Diagnostic::new(
                     Code::InputTooDeep,
                     format!(
-                        "The ADF document nests deeper than the limit of {} levels",
+                        "The ADF document nests deeper than the limit of {} JSON levels",
                         self.max_depth
                     ),
                 )

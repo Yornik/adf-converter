@@ -1,0 +1,95 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An image: "
+        },
+        {
+          "type": "text",
+          "text": "architecture diagram",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/diagram.png"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An image with a title: "
+        },
+        {
+          "type": "text",
+          "text": "chart",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/chart.png",
+                "title": "Weekly chart"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An image without alt text: "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/no-alt.png",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/no-alt.png"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Block image",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/block.png"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

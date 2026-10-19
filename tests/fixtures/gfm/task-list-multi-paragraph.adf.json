@@ -1,0 +1,47 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "8798a830-220d-8093-a14e-f5270ab64754"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "c8c0d885-2096-8e7f-9a68-729fe2192021",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "first paragraph"
+            },
+            {
+              "type": "hardBreak"
+            },
+            {
+              "type": "text",
+              "text": "second paragraph of the same task"
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "e62d0f13-fe69-80ad-b3e8-8515530155a8",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "next task"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

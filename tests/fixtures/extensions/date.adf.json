@@ -1,0 +1,45 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Due "
+        },
+        {
+          "type": "date",
+          "attrs": {
+            "timestamp": "1792368000000"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", started "
+        },
+        {
+          "type": "date",
+          "attrs": {
+            "timestamp": "0"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", leap day "
+        },
+        {
+          "type": "date",
+          "attrs": {
+            "timestamp": "1709164800000"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 //! Diagnostics: the single source of truth for every error and warning this tool reports.
 //!
 //! Codes are part of the public contract (`docs/cli-contract.md`): they are stable, documented,
-//! and listed by `adf capabilities --json` and `adf help error-codes`. Add new codes at the end
+//! and listed by `adf capabilities --json` and `adf explain codes`. Add new codes at the end
 //! of their group; never rename or reuse one.
 
 use std::fmt;

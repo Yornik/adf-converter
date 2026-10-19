@@ -1,0 +1,40 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "c2605c0b-f75a-8fef-8f84-4546130ba95a"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "3fe298d4-66d4-8803-a825-911bf605647e",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "First criterion"
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "dd73478c-4116-88ce-bac9-329ce082f472",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Second criterion"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

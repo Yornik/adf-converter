@@ -80,7 +80,8 @@ fn has_adf_fence(markdown: &str) -> bool {
     markdown.lines().any(|line| {
         let line = line.trim_start_matches(['>', ' ']);
         let fence = line.trim_start_matches(['`', '~']);
-        line.len() - fence.len() >= 3 && fence.trim_start().starts_with("adf")
+        // The info string's first word must be exactly `adf` (```adf-not-raw is ordinary code).
+        line.len() - fence.len() >= 3 && fence.split_whitespace().next() == Some("adf")
     })
 }
 

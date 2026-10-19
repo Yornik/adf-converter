@@ -1,0 +1,42 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "e24a9a33-415a-85ab-9d45-611d661fa9bb"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "c73dced7-96f2-867a-b12a-1eaddaef7d8f",
+            "state": "TODO"
+          }
+        },
+        {
+          "type": "taskList",
+          "attrs": {
+            "localId": "a7b8338c-a1ac-8ee3-8783-7cf37f04b757"
+          },
+          "content": [
+            {
+              "type": "taskItem",
+              "attrs": {
+                "localId": "5ff5624f-ae1f-80ca-8b1d-d805a20a221e",
+                "state": "TODO"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "nested under an empty task"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

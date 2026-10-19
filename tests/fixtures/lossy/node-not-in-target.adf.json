@@ -1,0 +1,118 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "1ba26a97-0a3f-8dd4-a71d-676828825e91"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "e6539457-691d-8455-8a3a-e85d76a7a3bc",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "task list"
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "28ed11c1-fdec-8ff9-b261-8d7b22ac174e",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "done"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "abc123",
+            "text": "@Jane"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "status",
+          "attrs": {
+            "text": "DONE",
+            "color": "green"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "date",
+          "attrs": {
+            "timestamp": "1792368000000"
+          }
+        },
+        {
+          "type": "text",
+          "text": " "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":smile:",
+            "text": "😄"
+          }
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Expand"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Body."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "success"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Panel."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

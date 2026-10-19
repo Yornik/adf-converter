@@ -564,7 +564,7 @@ pub struct Capabilities {
 }
 
 /// The vendored schema version without the trailing newline of `schemas/adf/VERSION`.
-pub const ADF_SCHEMA: &str = crate::ADF_SCHEMA_VERSION.trim_ascii_end();
+pub const ADF_SCHEMA: &str = crate::ADF_SCHEMA_VERSION;
 
 /// Builds the capabilities document for this build.
 pub fn capabilities() -> Capabilities {

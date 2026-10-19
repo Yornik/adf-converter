@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An <abbr title=\"HyperText\">HTML</abbr> tag and a <custom-element>custom</custom-element>."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "3a5bd226-129d-8168-af5c-5077b1e77e33"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "69a9fc5b-08dc-880b-b2e3-12f13f8f6d10",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "# heading text in a task"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
