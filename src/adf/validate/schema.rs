@@ -1052,7 +1052,11 @@ mod tests {
     #[test]
     fn compiles_every_definition() {
         let engine = engine();
-        assert_eq!(engine.defs.len(), 84);
+        let schema: Value = serde_json::from_str(crate::ADF_SCHEMA_JSON).unwrap();
+        assert_eq!(
+            engine.defs.len(),
+            schema["definitions"].as_object().unwrap().len()
+        );
         assert_eq!(engine.defs[engine.root].name, "doc_node");
         for def in &engine.defs {
             assert!(def.shallow.is_some(), "{}", def.name);
@@ -1389,6 +1393,166 @@ mod tests {
                 "{value}: {:?}",
                 explainer.issues
             );
+        }
+    }
+
+    mod generated {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Node types the generator draws from: valid ones in every container, misplaced ones,
+        /// and a few that are only valid in some positions.
+        const TYPES: &[&str] = &[
+            "paragraph",
+            "heading",
+            "bulletList",
+            "orderedList",
+            "listItem",
+            "taskList",
+            "taskItem",
+            "blockquote",
+            "panel",
+            "table",
+            "tableRow",
+            "tableCell",
+            "tableHeader",
+            "expand",
+            "nestedExpand",
+            "codeBlock",
+            "mediaSingle",
+            "media",
+            "caption",
+            "rule",
+            "layoutSection",
+            "layoutColumn",
+            "decisionList",
+            "decisionItem",
+            "text",
+            "hardBreak",
+            "mention",
+            "status",
+            "bogus",
+        ];
+
+        fn attrs_for(ty: &str, pick: u8) -> Option<Value> {
+            let variant = pick % 3;
+            Some(match (ty, variant) {
+                ("heading", 0) => json!({"level": 2}),
+                ("heading", 1) => json!({"level": 9}),
+                ("orderedList", 0) => json!({"order": 3}),
+                ("taskList", 0 | 1) => json!({"localId": "t"}),
+                ("taskItem", 0 | 1) => json!({"localId": "i", "state": "TODO"}),
+                ("decisionList", 0 | 1) => json!({"localId": "d"}),
+                ("decisionItem", 0 | 1) => json!({"localId": "e", "state": "DECIDED"}),
+                ("panel", 0) => json!({"panelType": "info"}),
+                ("panel", 1) => json!({"panelType": "shiny"}),
+                ("nestedExpand" | "expand", 0 | 1) => json!({"title": "t"}),
+                ("mediaSingle", 0) => json!({"layout": "center"}),
+                ("media", 0 | 1) => json!({"type": "external", "url": "https://a.b/c.png"}),
+                ("layoutColumn", 0 | 1) => json!({"width": 50}),
+                ("mention", 0 | 1) => json!({"id": "abc"}),
+                ("status", 0) => json!({"text": "OK", "color": "green"}),
+                ("codeBlock", 0) => json!({"language": "rust"}),
+                ("tableCell" | "tableHeader", 0) => json!({"colspan": 1}),
+                (_, 2) => json!({"bogus": null}),
+                _ => return None,
+            })
+        }
+
+        fn marks_for(ty: &str, pick: u8) -> Option<Value> {
+            match (ty, pick % 6) {
+                ("text", 0) => Some(json!([{"type": "strong"}])),
+                ("text", 1) => Some(
+                    json!([{"type": "code"}, {"type": "link", "attrs": {"href": "https://a.b"}}]),
+                ),
+                ("text", 2) => Some(json!([{"type": "code"}, {"type": "em"}])),
+                ("paragraph" | "heading", 3) => {
+                    Some(json!([{"type": "alignment", "attrs": {"align": "center"}}]))
+                }
+                (_, 4) => Some(json!([])),
+                _ => None,
+            }
+        }
+
+        fn node(ty: &str, pick: u8, content: Option<Vec<Value>>) -> Value {
+            let mut object = serde_json::Map::new();
+            object.insert("type".into(), Value::from(ty));
+            if ty == "text" {
+                object.insert(
+                    "text".into(),
+                    Value::from(if pick.is_multiple_of(7) { "" } else { "x" }),
+                );
+            }
+            if let Some(attrs) = attrs_for(ty, pick) {
+                object.insert("attrs".into(), attrs);
+            }
+            if let Some(content) = content {
+                object.insert("content".into(), Value::Array(content));
+            }
+            if let Some(marks) = marks_for(ty, pick / 3) {
+                object.insert("marks".into(), marks);
+            }
+            Value::Object(object)
+        }
+
+        fn tree() -> impl Strategy<Value = Value> {
+            let leaf = (0..TYPES.len(), any::<u8>())
+                .prop_map(|(index, pick)| node(TYPES[index], pick, None));
+            leaf.prop_recursive(5, 48, 4, |inner| {
+                (
+                    0..TYPES.len(),
+                    any::<u8>(),
+                    prop::collection::vec(inner, 0..4),
+                )
+                    .prop_map(|(index, pick, children)| node(TYPES[index], pick, Some(children)))
+            })
+        }
+
+        /// Guards against a vacuous property: the generator must produce both verdicts.
+        #[test]
+        fn generator_produces_valid_and_invalid_documents() {
+            use proptest::strategy::ValueTree;
+            use proptest::test_runner::TestRunner;
+            let engine = super::engine();
+            let strategy = prop::collection::vec(tree(), 0..4);
+            let mut runner = TestRunner::deterministic();
+            let (mut valid, mut invalid) = (0, 0);
+            for _ in 0..2000 {
+                let children = strategy.new_tree(&mut runner).unwrap().current();
+                if engine.full.is_valid(&doc(Value::Array(children))) {
+                    valid += 1;
+                } else {
+                    invalid += 1;
+                }
+            }
+            assert!(
+                valid > 100 && invalid > 100,
+                "valid {valid}, invalid {invalid}"
+            );
+        }
+
+        proptest! {
+            #![proptest_config(ProptestConfig {
+                cases: 2048,
+                failure_persistence: None,
+                ..ProptestConfig::default()
+            })]
+
+            /// The node-by-node walk accepts exactly what the whole schema accepts, and always
+            /// explains a rejection.
+            #[test]
+            fn walker_matches_the_schema(children in prop::collection::vec(tree(), 0..4)) {
+                let engine = super::engine();
+                let value = doc(Value::Array(children));
+                let verdict = engine.full.is_valid(&value);
+                let mut explainer = Explainer { engine, memo: HashMap::new(), issues: Vec::new() };
+                prop_assert_eq!(explainer.valid_any(&value, &[engine.root], 0), verdict, "{}", value);
+                explainer.explain(&value, &[engine.root], "", None, 0);
+                prop_assert_eq!(explainer.issues.is_empty(), verdict, "{} {:?}", value, explainer.issues);
+                for issue in &explainer.issues {
+                    prop_assert!(value.pointer(&issue.pointer).is_some(), "{} {}", value, issue.pointer);
+                }
+            }
         }
     }
 }
