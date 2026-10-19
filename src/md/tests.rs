@@ -1487,3 +1487,174 @@ fn lib_doctest_example() {
     assert_eq!(json["type"], "doc");
     assert_eq!(json["content"][1]["type"], "taskList");
 }
+
+/// pulldown-cmark 0.13's offset iterator panics on these (an empty tight paragraph left by a
+/// link reference definition, then an indented blank line); the converter must not.
+#[test]
+fn pulldown_empty_tight_paragraph_does_not_panic() {
+    assert_eq!(
+        content("* [r]:e\n\t\t"),
+        json!([bullet(json!([li(json!([{"type": "paragraph"}]))]))])
+    );
+    let c = content("- a\n- [r]: https://x.example\n          \n- b [r]");
+    assert_eq!(c[0]["content"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        c[0]["content"][2]["content"][0]["content"][1],
+        tm("r", json!([link("https://x.example")]))
+    );
+    let c = content("> - [r]:e\n>\t\t\n\nafter");
+    assert_eq!(c[1], pt("after"));
+    // Whitespace on blank lines inside top-level fenced code is kept.
+    let c = content("* [r]:e\n\t\t\n\n```\na\n  \nb\n```");
+    assert_eq!(c[1]["content"][0]["text"], "a\n  \nb");
+}
+
+/// Markdown fragments that exercise container interactions when combined at random.
+const FRAGMENTS: &[&str] = &[
+    "- ",
+    "* ",
+    "1. ",
+    "3) ",
+    "> ",
+    "> [!NOTE]\n",
+    "> [!WARNING]\n",
+    "# ",
+    "### ",
+    "```\n",
+    "```adf\n{\"type\":\"rule\"}\n```\n",
+    "```adf\n{\"type\":\"paragraph\"}\n```\n",
+    "~~~\n",
+    "::: cell\n",
+    ":::\n",
+    "<details>\n",
+    "<summary>S</summary>\n",
+    "</details>\n",
+    "<details><summary>T</summary>",
+    "| a | b |\n|---|---|\n",
+    "| 1 | 2 |\n",
+    "---\n",
+    "***\n",
+    "\n",
+    "\n\n",
+    "  ",
+    "    ",
+    "\t",
+    "[ ] ",
+    "[x] ",
+    "*",
+    "**",
+    "_",
+    "~~",
+    "`",
+    "``",
+    "[",
+    "]",
+    "(",
+    ")",
+    "text ",
+    "word",
+    "https://example.com/x ",
+    "www.example.org ",
+    "a@b.co ",
+    "![alt](https://i.example/i.png)",
+    "[l](https://l.example)",
+    "[^1]",
+    "\n[^1]: note\n",
+    "<u>",
+    "</u>",
+    "<kbd>",
+    "</kbd>",
+    "<span style=\"color: #ff0000\">",
+    "</span>",
+    "<div>",
+    "</div>",
+    "<br>",
+    "<!-- c -->",
+    "<!--",
+    "-->",
+    "&amp;",
+    "&#10;",
+    "\\",
+    "\\|",
+    "[@A](adf:mention/x)",
+    "[2026-01-01](adf:date)",
+    "[S](adf:status/red)",
+    "[x](adf:nope)",
+    "\u{1}",
+    "é",
+    "😀",
+    "\r\n",
+    "[r]: https://r.example\n",
+    "[r]",
+    "  \n",
+    "<sub>",
+    "</sub>",
+];
+
+/// A tiny deterministic generator (xorshift64*), so the test needs no extra dependency.
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        usize::try_from(self.next() % (n as u64)).unwrap()
+    }
+}
+
+#[test]
+fn random_fragment_documents_are_always_valid() {
+    let mut rng = Rng(0x0BAD_C0DE_F00D_D00D);
+    let option_sets = [
+        MdToAdfOptions::default(),
+        opts_with(|o| {
+            o.images = ImagePolicy::External;
+            o.softbreak = SoftBreak::HardBreak;
+            o.html = HtmlPolicy::Drop;
+        }),
+        opts_with(|o| o.extensions = Extensions::none()),
+    ];
+    let cases = if cfg!(debug_assertions) { 1_500 } else { 6_000 };
+    let mut ok = 0;
+    for case in 0..cases {
+        let len = 1 + rng.below(120);
+        let md: String = (0..len)
+            .map(|_| FRAGMENTS[rng.below(FRAGMENTS.len())])
+            .collect();
+        let opts = &option_sets[case % option_sets.len()];
+        let caught = std::panic::catch_unwind(|| super::to_adf(&md, opts));
+        let Ok(result) = caught else {
+            panic!("PANIC on {md:?} with {opts:?}");
+        };
+        match result {
+            Ok(conversion) => {
+                ok += 1;
+                let value = conversion.output.to_value().unwrap();
+                let errors: Vec<String> = validator()
+                    .iter_errors(&value)
+                    .map(|e| format!("{e} at {}", e.instance_path()))
+                    .collect();
+                assert!(errors.is_empty(), "{md:?}\n{errors:#?}");
+                for w in &conversion.warnings {
+                    assert!(
+                        w.location.as_ref().is_some_and(|l| l.line.is_some()),
+                        "{md:?}: {w:?}"
+                    );
+                }
+            }
+            Err(diagnostics) => {
+                let error = diagnostics.iter().find(|d| d.is_error()).unwrap();
+                assert_eq!(error.code, Code::RawAdf, "{md:?}: {error}");
+            }
+        }
+    }
+    // Most documents must convert; only misplaced ```adf blocks may fail.
+    assert!(ok * 10 >= cases * 7, "only {ok} of {cases} converted");
+}
