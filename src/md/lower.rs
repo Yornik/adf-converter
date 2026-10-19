@@ -461,13 +461,11 @@ impl Lowerer<'_, '_> {
             Block::Quote { children, span } => match ctx {
                 Ctx::Doc | Ctx::Cell | Ctx::Expand | Ctx::NestedExpand => self.quote(ctx, children),
                 Ctx::Quote => {
-                    if !arrived {
-                        self.cx.warn(
-                            Code::BlockFlattened,
-                            "A quote inside a quote was merged into the outer quote",
-                            &span,
-                        );
-                    }
+                    self.cx.warn(
+                        Code::BlockFlattened,
+                        "A quote inside a quote was merged into the outer quote",
+                        &span,
+                    );
                     self.seq(Ctx::Quote, children)
                 }
                 Ctx::ListItem | Ctx::Panel => {
@@ -482,16 +480,15 @@ impl Lowerer<'_, '_> {
                 if ctx.allows_panel() {
                     return self.panel(ctx, panel, children);
                 }
-                if !arrived {
-                    self.cx.warn(
-                        Code::BlockFlattened,
-                        format!(
-                            "An alert cannot be a panel in {}; it was converted to a plain quote",
-                            ctx.describe()
-                        ),
-                        &span,
-                    );
-                }
+                // Reported even for hoisted blocks: the conversion is a separate step.
+                self.cx.warn(
+                    Code::BlockFlattened,
+                    format!(
+                        "An alert cannot be a panel in {}; it was converted to a plain quote",
+                        ctx.describe()
+                    ),
+                    &span,
+                );
                 if ctx == Ctx::Quote {
                     return self.seq(Ctx::Quote, children);
                 }
@@ -513,16 +510,14 @@ impl Lowerer<'_, '_> {
                 Ctx::Doc => self.expand(ctx, title.as_deref(), children),
                 Ctx::Expand | Ctx::Cell => self.nested_expand(ctx, title.as_deref(), children),
                 Ctx::ListItem | Ctx::Quote | Ctx::Panel | Ctx::NestedExpand => {
-                    if !arrived {
-                        self.cx.warn(
-                            Code::BlockFlattened,
-                            format!(
-                                "A <details> block cannot be an expand in {}; its title became a bold paragraph followed by its content",
-                                ctx.describe()
-                            ),
-                            &span,
-                        );
-                    }
+                    self.cx.warn(
+                        Code::BlockFlattened,
+                        format!(
+                            "A <details> block cannot be an expand in {}; its title became a bold paragraph followed by its content",
+                            ctx.describe()
+                        ),
+                        &span,
+                    );
                     let mut blocks = Vec::with_capacity(children.len() + 1);
                     if let Some(title) = title {
                         blocks.push(Block::Paragraph {

@@ -1030,6 +1030,28 @@ fn alerts_in_containers_that_cannot_hold_panels() {
         json!([{"type": "blockquote", "content": [pt("a"), pt("b")]}])
     );
     assert_eq!(codes(&warnings), vec![Code::BlockFlattened]);
+    // Hoisted out of a task item, the alert still becomes a panel where one is allowed...
+    let (mut value, warnings) = run("- [ ] t\n\n  > [!NOTE]\n  > x");
+    strip_ids(&mut value);
+    assert_eq!(
+        value["content"],
+        json!([
+            task_list(json!([task("TODO", json!([t("t")]))])),
+            {"type": "panel", "attrs": {"panelType": "info"}, "content": [pt("x")]}
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    // ...and its conversion to a quote is reported where it is not.
+    let (mut value, warnings) = run("- - [ ] t\n\n    > [!NOTE]\n    > x");
+    strip_ids(&mut value);
+    assert_eq!(
+        value["content"][1],
+        json!({"type": "blockquote", "content": [pt("x")]})
+    );
+    assert_eq!(
+        codes(&warnings),
+        vec![Code::BlockHoisted, Code::BlockFlattened]
+    );
 }
 
 #[test]
