@@ -38,6 +38,13 @@ pub const JIRA_FIELD_CHAR_LIMIT: usize = 32_767;
 /// at this limit and only counts the rest.
 pub const MAX_LISTED_PER_CODE: usize = 100;
 
+/// The hint of `E_INPUT_TOO_DEEP` for JSON (ADF) input deeper than `max_json_depth` levels.
+pub(crate) fn json_depth_hint(max_json_depth: usize) -> String {
+    format!(
+        "Flatten the document: ADF input may nest at most {max_json_depth} levels of JSON arrays and objects"
+    )
+}
+
 /// Limits applied to one conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {

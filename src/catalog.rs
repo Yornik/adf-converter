@@ -419,7 +419,7 @@ pub fn advice(code: Code) -> &'static str {
         }
         Code::InputTooLarge => "Split the input into smaller documents (the limit is 4 MiB).",
         Code::InputTooDeep => {
-            "Flatten the nesting of lists, quotes or JSON; the limit is 64 levels."
+            "Flatten the nesting: Markdown may nest 64 containers (lists, quotes, cells, expands), ADF input 512 levels of JSON arrays and objects."
         }
         Code::InputJson => "Fix the JSON syntax at the reported line and column.",
         Code::InputNotAdf => {

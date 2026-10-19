@@ -49,7 +49,8 @@ pub fn validate(doc: &Value, target: Target) -> Vec<Diagnostic> {
                 Code::InputTooDeep,
                 format!("the document nests deeper than {MAX_JSON_DEPTH} JSON levels"),
             )
-            .at(Location::pointer("")),
+            .at(Location::pointer(""))
+            .with_hint(crate::limits::json_depth_hint(MAX_JSON_DEPTH)),
         ];
     }
 

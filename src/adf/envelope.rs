@@ -231,7 +231,8 @@ fn confluence_value(value: &Value, pointer: &str) -> Result<Unwrapped, Diagnosti
                 Code::InputTooDeep,
                 format!("the Confluence value string nests deeper than {max_depth} JSON levels"),
             )
-            .at(Location::pointer(pointer)),
+            .at(Location::pointer(pointer))
+            .with_hint(crate::limits::json_depth_hint(max_depth)),
             crate::json::JsonError::Syntax(err) => Diagnostic::new(
                 Code::InputJson,
                 format!(
