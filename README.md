@@ -240,7 +240,8 @@ gh attestation verify adf-converter-vX.Y.Z-<target>.zip --repo Yornik/adf-conver
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, commit conventions and fixture rules,
 and [AGENTS.md](AGENTS.md) for the rules that coding agents (and humans) follow in this
-repository. `scripts/check.sh` runs everything CI checks locally.
+repository. `scripts/check.sh` runs the main CI checks (formatting, clippy, tests, rustdoc,
+cargo-deny) locally.
 
 ## Security
 

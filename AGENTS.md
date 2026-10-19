@@ -97,8 +97,8 @@ Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or
   `src/`; clippy denies them. Tests may.
 - ALWAYS build ADF output from the typed model in `src/adf/model.rs`. NEVER use `json!` or
   hand-assembled `serde_json::Value` for output.
-- ALWAYS check `Limits::max_depth` in every recursive walk. Untrusted input must never overflow
-  the stack.
+- ALWAYS check the depth limit (`limits.max_depth` in the options) in every recursive walk, or
+  walk iteratively. Untrusted input must never overflow the stack.
 - NEVER write to stdout or stderr outside the CLI output module; `print!`/`eprint!` are denied.
   stdout carries only the result.
 - Report errors as `Diagnostic`/`Diagnostics` with a `Code`, a one-sentence message, a location

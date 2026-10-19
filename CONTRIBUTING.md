@@ -43,7 +43,8 @@ Optional tools:
   package installs a command named `agentskills`) and `uvx zizmor .github/workflows`.
 - A nightly toolchain and `cargo-fuzz` for the fuzz targets; see `fuzz/README.md`.
 
-`scripts/check.sh` runs what CI runs on every pull request:
+`scripts/check.sh` runs the core checks of CI (which also tests on Linux, macOS and Windows,
+renders every fixture with the release binary, and lints the workflows):
 
 ```sh
 cargo fmt --all --check
