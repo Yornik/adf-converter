@@ -7,12 +7,17 @@
 #      the tag vX.Y.Z (force-tag-creation) and a DRAFT GitHub release.
 #   2. build: six targets, each on a native runner. Checks out the release commit, guards
 #      tag == Cargo.toml version, builds, smoke-tests and packages with scripts/package.sh.
-#   3. publish: SHA256SUMS, build-provenance attestation, asset upload, then the draft is
-#      published. Assets go up while the release is still a draft, so this also works with
-#      immutable releases enabled. If any build fails, nothing is published and the draft stays.
+#      A push that creates no release runs the same build as a dry run of the pushed commit, so
+#      a target, smoke-test or packaging failure shows up on `main` while the release PR is
+#      still open, before any tag or draft release exists.
+#   3. publish (new releases only): checks that there is exactly one zip per target, then
+#      SHA256SUMS, build-provenance attestation, asset upload, and the draft is published.
+#      Assets go up while the release is still a draft, so this also works with immutable
+#      releases enabled. If any build fails, nothing is published and the draft stays.
 #
-# Dry runs (build only; zips are uploaded as workflow artifacts, never to a release): manual
-# workflow_dispatch, and pull requests that touch the release plumbing (paths below).
+# Dry runs (build only; zips are uploaded as workflow artifacts, never to a release): pushes to
+# main that create no release, manual workflow_dispatch, and pull requests that touch the
+# release plumbing (paths below).
 #
 # Token: release-please uses secrets.RELEASE_PLEASE_TOKEN if it is set (a fine-grained PAT or a
 # GitHub App token with contents: write and pull-requests: write on this repository), else the
@@ -41,8 +46,12 @@ on:
 permissions: {}
 
 concurrency:
-  group: release-${{ github.event.pull_request.number || github.ref }}
-  # Never cancel a run on main: it may be in the middle of creating or publishing a release.
+  # Pushes to main share one group, and a running push is never cancelled: it may be in the
+  # middle of creating or publishing a release. GitHub keeps only the newest *pending* run of a
+  # group and cancels older pending ones; for pushes that is harmless, because release-please is
+  # stateless and the newest push still finds every merged release PR. Pull requests and manual
+  # runs get groups of their own, so a dry run can never cancel a pending push.
+  group: release-${{ github.event_name == 'push' && github.ref || github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('dispatch-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -76,15 +85,15 @@ jobs:
   build:
     name: build (${{ matrix.target }})
     needs: release-please
-    # Runs for a new release, and as a dry run on pull_request / workflow_dispatch (where the
-    # release-please job is skipped). Plain pushes to main without a release skip it.
+    # Runs on every push to main (for the new release, or as a dry run when there is none), and
+    # as a dry run on pull_request / workflow_dispatch, where the release-please job is skipped.
     if: >-
       !cancelled() &&
-      (needs.release-please.result == 'success' || needs.release-please.result == 'skipped') &&
-      (needs.release-please.outputs.release_created == 'true' || github.event_name != 'push')
+      (needs.release-please.result == 'success' || needs.release-please.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
+        # publish requires exactly one archive per target: keep its list in sync.
         include:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-24.04
@@ -174,7 +183,9 @@ jobs:
           name: dist-${{ matrix.target }}
           path: target/dist/*.zip
           if-no-files-found: error
-          retention-days: 7
+          # Release builds: 30 days, GitHub's window for re-running failed jobs, so a re-run of
+          # publish still finds every archive. Dry runs: 7 days.
+          retention-days: ${{ env.TAG != '' && 30 || 7 }}
           # Already zip-compressed.
           compression-level: 0
 
@@ -202,13 +213,36 @@ jobs:
       - name: SHA256SUMS
         working-directory: dist
         run: |
+          # Exactly one archive per build target, and nothing else: download-artifact does not
+          # fail when an artifact is missing (for example, expired before a re-run), and an
+          # incomplete release must never be published. Keep in sync with the build matrix.
+          targets=(
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
+            x86_64-apple-darwin
+            aarch64-apple-darwin
+            x86_64-pc-windows-msvc
+            aarch64-pc-windows-msvc
+          )
+          expected=()
+          for target in "${targets[@]}"; do
+            expected+=("adf-converter-$TAG-$target.zip")
+          done
           shopt -s nullglob
           archives=(*.zip)
-          if [[ ${#archives[@]} -eq 0 ]]; then
-            echo "::error::no release archives were downloaded"
-            exit 1
+          failed=0
+          for name in "${expected[@]}"; do
+            if [[ ! -f $name ]]; then
+              echo "::error::missing release archive $name"
+              failed=1
+            fi
+          done
+          if [[ ${#archives[@]} -ne ${#expected[@]} ]]; then
+            echo "::error::expected ${#expected[@]} release archives, found ${#archives[@]}: ${archives[*]}"
+            failed=1
           fi
-          sha256sum -- "${archives[@]}" >SHA256SUMS
+          [[ $failed -eq 0 ]] || exit 1
+          sha256sum -- "${expected[@]}" >SHA256SUMS
           cat SHA256SUMS
 
       - name: Attest build provenance

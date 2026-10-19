@@ -177,16 +177,21 @@ Conventional Commit messages on `main` (see
 2. Review the release PR: the version number, the changelog wording, and whether
    `THIRD_PARTY_NOTICES.md` still matches `Cargo.lock` (Dependabot updates change crate versions;
    regenerate the list in a normal PR as described in that file).
-3. Get CI to run on the release PR (see [`RELEASE_PLEASE_TOKEN`](#optional-release_please_token)),
-   then squash-merge it.
+3. Check that the `Release` workflow is green on the latest `main` commit: every push to `main`
+   dry-runs the six release builds, smoke tests and packaging, and a failure there would
+   otherwise only show up after the tag exists. Then get CI to run on the release PR (see
+   [`RELEASE_PLEASE_TOKEN`](#optional-release_please_token)), and squash-merge it.
 4. The next release-please run creates the tag `vX.Y.Z` and the GitHub release. `release.yml`
    then builds the six zips, checks that the tag matches the `Cargo.toml` version, smoke-tests
    each binary on its native runner, uploads the zips and `SHA256SUMS`, creates the build
    provenance attestation, and publishes the release.
 5. Verify the published release (below).
 
-If the build or publish job fails, re-run the failed jobs from the Actions tab. If the problem
-needs a code change, merge a `fix:` PR; release-please then proposes the next patch version.
+If the build or publish job fails, re-run the failed jobs from the Actions tab within 30 days
+(the build artifacts are kept that long; publish fails, and publishes nothing, unless all six
+zips are there).
+If the problem needs a code change, merge a `fix:` PR; release-please then proposes the next
+patch version.
 Never delete or move a published tag.
 
 ### Verifying a release
