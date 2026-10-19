@@ -58,8 +58,21 @@ impl Reporter {
         reporter
     }
 
-    pub fn from_args(global: &GlobalArgs) -> Self {
-        Self::new(global.error_format, global.no_color, global.quiet)
+    /// The reporter for parsed arguments: `--error-format`, else `ADF_ERROR_FORMAT`. An invalid
+    /// `ADF_ERROR_FORMAT` (without the flag) is returned as an `E_USAGE` diagnostic, together with
+    /// an `auto` reporter to print it.
+    pub fn from_args(global: &GlobalArgs) -> Result<Self, (Self, Diagnostic)> {
+        let format = match global.error_format {
+            Some(format) => format,
+            None => match env_error_format() {
+                Ok(format) => format,
+                Err(diagnostic) => {
+                    let reporter = Self::new(ErrorFormat::Auto, global.no_color, global.quiet);
+                    return Err((reporter, diagnostic));
+                }
+            },
+        };
+        Ok(Self::new(format, global.no_color, global.quiet))
     }
 
     /// Makes this the format the panic hook uses.
@@ -113,13 +126,43 @@ impl Reporter {
     }
 }
 
+/// The environment variable that sets the default of `--error-format`.
+const ERROR_FORMAT_ENV: &str = "ADF_ERROR_FORMAT";
+
+/// `ADF_ERROR_FORMAT`: unset or empty (after trimming) is `auto`; `auto`, `text` and `json` are
+/// matched ignoring ASCII case and surrounding whitespace. Anything else is an `E_USAGE`
+/// diagnostic that names the variable (the flag, which overrides it, is not consulted here).
+pub(crate) fn env_error_format() -> Result<ErrorFormat, Diagnostic> {
+    let Some(raw) = std::env::var_os(ERROR_FORMAT_ENV) else {
+        return Ok(ErrorFormat::Auto);
+    };
+    let value = raw.to_string_lossy();
+    if value.trim().is_empty() {
+        return Ok(ErrorFormat::Auto);
+    }
+    parse_format(&value).ok_or_else(|| {
+        let mut shown: String = value.chars().take(40).collect();
+        if shown.len() < value.len() {
+            shown.push('…');
+        }
+        Diagnostic::new(
+            Code::Usage,
+            format!(
+                "the {ERROR_FORMAT_ENV} environment variable has an invalid value {}; expected auto, text or json",
+                serde_json::Value::from(shown)
+            ),
+        )
+        .with_hint(format!(
+            "Set {ERROR_FORMAT_ENV} to auto, text or json, unset it, or pass --error-format"
+        ))
+    })
+}
+
 /// `ADF_ERROR_FORMAT` or `--error-format`, read from the raw arguments before clap has parsed
-/// them (for usage errors and early panics). Invalid values fall back to `auto`.
+/// them (for usage errors and early panics). Invalid values fall back to `auto` here: this only
+/// chooses how a usage error is printed.
 pub(crate) fn early_error_format() -> ErrorFormat {
-    let mut format = std::env::var("ADF_ERROR_FORMAT")
-        .ok()
-        .and_then(|value| parse_format(&value))
-        .unwrap_or(ErrorFormat::Auto);
+    let mut format = env_error_format().unwrap_or(ErrorFormat::Auto);
     let mut args = std::env::args_os().skip(1);
     while let Some(arg) = args.next() {
         let Some(arg) = arg.to_str() else { continue };
@@ -154,13 +197,17 @@ pub(crate) fn early_quiet() -> bool {
         .any(|arg| arg == "-q" || arg == "--quiet")
 }
 
+/// `auto`, `text` or `json`, ignoring ASCII case and surrounding whitespace.
 fn parse_format(value: &str) -> Option<ErrorFormat> {
-    match value.trim() {
-        "auto" => Some(ErrorFormat::Auto),
-        "text" => Some(ErrorFormat::Text),
-        "json" => Some(ErrorFormat::Json),
-        _ => None,
-    }
+    let value = value.trim();
+    [
+        ("auto", ErrorFormat::Auto),
+        ("text", ErrorFormat::Text),
+        ("json", ErrorFormat::Json),
+    ]
+    .into_iter()
+    .find(|(name, _)| value.eq_ignore_ascii_case(name))
+    .map(|(_, format)| format)
 }
 
 /// The `docs` anchor URL of a code.
@@ -376,6 +423,17 @@ mod tests {
         let nasty = Diagnostic::new(Code::Schema, "line one\nline two \u{1b}[31m");
         let line = reporter(Format::Text).line(&nasty, Some("a\nb"));
         assert!(!line.contains('\n') && !line.contains('\u{1b}'), "{line}");
+    }
+
+    #[test]
+    fn error_formats_ignore_case_and_spaces() {
+        assert_eq!(parse_format("json"), Some(ErrorFormat::Json));
+        assert_eq!(parse_format(" JSON\n"), Some(ErrorFormat::Json));
+        assert_eq!(parse_format("Text"), Some(ErrorFormat::Text));
+        assert_eq!(parse_format("AUTO"), Some(ErrorFormat::Auto));
+        assert_eq!(parse_format(""), None);
+        assert_eq!(parse_format("yaml"), None);
+        assert_eq!(parse_format("jsonl"), None);
     }
 
     #[test]

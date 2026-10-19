@@ -268,6 +268,72 @@ fn error_format_from_the_environment() {
     assert!(output.stderr.starts_with(b"{\"schema_version\":1,"));
 }
 
+/// Runs `adf` with `ADF_ERROR_FORMAT=value` on an empty document (one `W_EMPTY_DOCUMENT`).
+fn with_error_format_env(value: &str, args: &[&str]) -> Output {
+    let mut child = Command::new(bin())
+        .args(args)
+        .env("ADF_ERROR_FORMAT", value)
+        .env_remove("NO_COLOR")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn adf");
+    // adf may exit without reading stdin (`--help`, usage errors); ignore a closed pipe.
+    let _ = child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(br#"{"type":"doc","version":1,"content":[]}"#);
+    child.wait_with_output().expect("wait for adf")
+}
+
+#[test]
+fn error_format_environment_values() {
+    let json_warning = |output: &Output| {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert_eq!(codes(output), ["W_EMPTY_DOCUMENT"]);
+    };
+    let text_warning = |output: &Output| {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        let stderr = String::from_utf8(output.stderr.clone()).unwrap();
+        assert!(
+            stderr.starts_with("-#/content: warning[W_EMPTY_DOCUMENT]"),
+            "{stderr}"
+        );
+    };
+    // Empty is unset: `auto`, which is JSON because stderr is a pipe.
+    json_warning(&with_error_format_env("", &["validate"]));
+    json_warning(&with_error_format_env("  ", &["validate"]));
+    // Case and surrounding spaces are ignored.
+    text_warning(&with_error_format_env(" TEXT ", &["validate"]));
+    json_warning(&with_error_format_env("Json", &["validate"]));
+    // An invalid value names the variable, not the flag the user never typed.
+    let output = with_error_format_env("yaml", &["validate"]);
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let lines = stderr_lines(&output);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0]["code"], "E_USAGE");
+    let message = lines[0]["message"].as_str().unwrap();
+    assert!(
+        message.contains("ADF_ERROR_FORMAT") && message.contains("\"yaml\""),
+        "{message}"
+    );
+    assert!(!message.contains("--error-format"), "{message}");
+    // The flag overrides the variable, before or after the command.
+    text_warning(&with_error_format_env(
+        "yaml",
+        &["--error-format", "text", "validate"],
+    ));
+    json_warning(&with_error_format_env(
+        "",
+        &["validate", "--error-format", "json"],
+    ));
+    // Help still works.
+    let output = with_error_format_env("yaml", &["--help"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+}
+
 #[test]
 fn no_color_is_plain_text() {
     // Colour is only used on a terminal; with a pipe the text is plain either way.

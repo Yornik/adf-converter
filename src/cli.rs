@@ -132,11 +132,16 @@ pub fn install_panic_hook() {
 
 fn run_args(args: Vec<OsString>) -> u8 {
     match Cli::try_parse_from(args) {
-        Ok(cli) => {
-            let reporter = Reporter::from_args(&cli.global);
-            let outcome = dispatch(&cli.command);
-            finish(outcome, reporter)
-        }
+        Ok(cli) => match Reporter::from_args(&cli.global) {
+            Ok(reporter) => {
+                let outcome = dispatch(&cli.command);
+                finish(outcome, reporter)
+            }
+            Err((reporter, diagnostic)) => {
+                reporter.emit(&[diagnostic], None);
+                Code::Usage.exit_code()
+            }
+        },
         Err(err) => clap_error(&err),
     }
 }

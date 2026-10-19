@@ -89,14 +89,12 @@ Markdown options:
 
 Global options:
       --error-format <FORMAT>
-          How diagnostics are printed on stderr [env: ADF_ERROR_FORMAT]
+          How diagnostics are printed on stderr [default: auto] [env: ADF_ERROR_FORMAT]
 
           Possible values:
           - auto: Text on a terminal, JSON lines otherwise
           - text: `file:line:col: severity[CODE]: message`
           - json: One JSON object per line (schemas/diagnostic.v1.json)
-          
-          [default: auto]
 
   -q, --quiet
           Do not print warnings (errors are always printed; exit codes are unchanged)

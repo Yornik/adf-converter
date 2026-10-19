@@ -47,17 +47,12 @@ pub(crate) struct Cli {
 #[derive(Debug, Args)]
 #[command(next_help_heading = "Global options")]
 pub(crate) struct GlobalArgs {
-    /// How diagnostics are printed on stderr [env: ADF_ERROR_FORMAT]
-    #[arg(
-        long,
-        value_enum,
-        env = "ADF_ERROR_FORMAT",
-        hide_env = true,
-        default_value_t = ErrorFormat::Auto,
-        global = true,
-        value_name = "FORMAT"
-    )]
-    pub error_format: ErrorFormat,
+    /// How diagnostics are printed on stderr [default: auto] [env: ADF_ERROR_FORMAT]
+    // Not clap's `env`: clap would validate the variable as if it were the flag, so an empty or
+    // invalid value broke every command (even with the flag given) and blamed the flag. `None`
+    // means "not given"; `report::env_error_format` resolves the variable.
+    #[arg(long, value_enum, global = true, value_name = "FORMAT")]
+    pub error_format: Option<ErrorFormat>,
 
     /// Do not print warnings (errors are always printed; exit codes are unchanged)
     #[arg(short, long, global = true)]
@@ -441,7 +436,7 @@ mod tests {
         ])
         .unwrap();
         assert!(cli.global.quiet);
-        assert_eq!(cli.global.error_format, ErrorFormat::Json);
+        assert_eq!(cli.global.error_format, Some(ErrorFormat::Json));
         let Command::Convert(args) = cli.command else {
             panic!("expected convert");
         };
@@ -465,7 +460,10 @@ mod tests {
                 .render()
                 .to_string();
             assert!(usage.contains("Usage: adf convert [OPTIONS]"), "{usage}");
-            assert!(!usage.contains(".exe") && !usage.contains("adf-0.1"), "{usage}");
+            assert!(
+                !usage.contains(".exe") && !usage.contains("adf-0.1"),
+                "{usage}"
+            );
         }
     }
 

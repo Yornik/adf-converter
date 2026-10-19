@@ -225,7 +225,7 @@ included in `adf capabilities --json`.
 
 | Variable | Effect |
 |---|---|
-| `ADF_ERROR_FORMAT` | Default for `--error-format` (`auto`, `text`, `json`). |
+| `ADF_ERROR_FORMAT` | Default for `--error-format` (`auto`, `text`, `json`; ASCII case and surrounding spaces are ignored). Unset or empty means `auto`. `--error-format` overrides it. Any other value is a usage error (`E_USAGE`, exit 2) that names the variable, unless `--error-format` is given. |
 | `NO_COLOR` | Disables colour. |
 
 No other environment variables are read. `adf` never reads config files and never makes network

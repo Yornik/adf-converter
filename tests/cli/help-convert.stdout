@@ -39,8 +39,8 @@ ADF → Markdown options:
                             values: roundtrip, plain]
 
 Global options:
-      --error-format <FORMAT>  How diagnostics are printed on stderr [env: ADF_ERROR_FORMAT]
-                               [default: auto] [possible values: auto, text, json]
+      --error-format <FORMAT>  How diagnostics are printed on stderr [default: auto] [env:
+                               ADF_ERROR_FORMAT] [possible values: auto, text, json]
   -q, --quiet                  Do not print warnings (errors are always printed; exit codes are
                                unchanged)
       --no-color               Never use colour (also: the NO_COLOR environment variable)
