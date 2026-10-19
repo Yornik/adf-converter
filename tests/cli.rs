@@ -2,7 +2,7 @@
 //!
 //! - `tests/cli/*.toml`: trycmd cases that only need validation, envelopes and the CLI itself.
 //! - `tests/cli/md/*.toml`: cases that need Markdown → ADF; `tests/cli/to-md/*.toml`: cases that
-//!   need ADF → Markdown. Each group runs as soon as its converter is implemented.
+//!   need ADF → Markdown.
 //! - Plain tests below for what trycmd cannot express: atomic `-o`, a closed stdout, inputs of
 //!   several MiB, environment variables, and that JSON outputs match `schemas/*.v1.json`.
 //!
@@ -16,7 +16,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use adf_converter::{AdfToMdOptions, MdToAdfOptions};
 use serde_json::{Value, json};
 
 fn bin() -> PathBuf {
@@ -31,20 +30,6 @@ fn cases(glob: &str) {
         .case(glob);
 }
 
-/// Markdown → ADF works (it is implemented by another part of the crate).
-fn markdown_to_adf_available() -> bool {
-    adf_converter::md_to_adf("# probe\n", &MdToAdfOptions::default()).is_ok()
-}
-
-/// ADF → Markdown works.
-fn adf_to_markdown_available() -> bool {
-    adf_converter::adf_to_md(
-        &json!({"type":"doc","version":1,"content":[]}),
-        &AdfToMdOptions::default(),
-    )
-    .is_ok()
-}
-
 #[test]
 fn cli_cases() {
     cases("tests/cli/*.toml");
@@ -52,19 +37,11 @@ fn cli_cases() {
 
 #[test]
 fn cli_markdown_to_adf_cases() {
-    if !markdown_to_adf_available() {
-        eprintln!("skipped: Markdown -> ADF is not implemented in this build");
-        return;
-    }
     cases("tests/cli/md/*.toml");
 }
 
 #[test]
 fn cli_adf_to_markdown_cases() {
-    if !adf_to_markdown_available() {
-        eprintln!("skipped: ADF -> Markdown is not implemented in this build");
-        return;
-    }
     cases("tests/cli/to-md/*.toml");
 }
 
@@ -173,9 +150,6 @@ fn failed_conversion_keeps_the_existing_output_file() {
 
 #[test]
 fn strict_failure_creates_no_output_file() {
-    if !markdown_to_adf_available() {
-        return;
-    }
     let dir = scratch("strict-output");
     let output = adf(
         &["convert", "--strict", "-o", "out.json"],
@@ -190,9 +164,6 @@ fn strict_failure_creates_no_output_file() {
 
 #[test]
 fn successful_conversion_writes_the_file_atomically() {
-    if !adf_to_markdown_available() {
-        return;
-    }
     let dir = scratch("write-output");
     fs::write(dir.join("out.md"), "previous\n").unwrap();
     let output = adf(
@@ -209,9 +180,6 @@ fn successful_conversion_writes_the_file_atomically() {
 
 #[test]
 fn output_to_a_directory_is_an_output_error() {
-    if !adf_to_markdown_available() {
-        return;
-    }
     let dir = scratch("output-dir");
     fs::create_dir(dir.join("sub")).unwrap();
     let output = adf(

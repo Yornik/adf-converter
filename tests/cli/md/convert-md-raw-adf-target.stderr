@@ -1,1 +1,1 @@
-{"schema_version":1,"severity":"error","code":"E_RAW_ADF","message":"an ```adf block is not valid for jira: `layoutSection` is not accepted by Jira: layouts are a Confluence feature",[..]"exit_code":3}
+{"schema_version":1,"severity":"error","code":"E_RAW_ADF","message":"```adf block is invalid for jira: `layoutSection` is not accepted by Jira: layouts are a Confluence feature (E_TARGET)","location":{"file":"-","line":1,"column":1,"end_line":3,"end_column":4},"docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_raw_adf","exit_code":3}

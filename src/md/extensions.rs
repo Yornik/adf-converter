@@ -394,11 +394,11 @@ pub(crate) fn validate_raw(nodes: &[Value], place: RawPlace, target: Target) -> 
         });
     if let Some((relative, d)) = problem {
         return Err(format!(
-            "not accepted by {}{}: {}: {}",
+            "invalid for {}{}: {} ({})",
             target.as_str(),
             at(&relative),
-            d.code,
-            truncate(&d.message, 200)
+            truncate(&d.message, 200),
+            d.code
         ));
     }
     Ok(())
