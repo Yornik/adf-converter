@@ -31,8 +31,7 @@ trademarks of Atlassian.";
     version,
     after_help = AFTER_HELP,
     term_width = 100,
-    subcommand_required = true,
-    disable_help_subcommand = true
+    subcommand_required = true
 )]
 pub(crate) struct Cli {
     #[command(flatten)]

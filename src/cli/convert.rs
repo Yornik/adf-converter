@@ -259,9 +259,12 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
                 })
             })
     };
+    // A document too deep to check, or a validator failure, is reported as it is.
+    let (mut out, errors): (Vec<Diagnostic>, Vec<Diagnostic>) = errors
+        .into_iter()
+        .partition(|error| matches!(error.code, Code::InputTooDeep | Code::Internal));
     let (raw_errors, own_errors): (Vec<Diagnostic>, Vec<Diagnostic>) =
         errors.into_iter().partition(in_raw);
-    let mut out = Vec::new();
     if !own_errors.is_empty() {
         let mut details: Vec<String> = own_errors
             .iter()
@@ -638,6 +641,10 @@ mod tests {
                 .unwrap()
                 .contains("E_SCHEMA at /content/10: bad")
         );
+        let deep = vec![Diagnostic::new(Code::InputTooDeep, "deep").at(Location::pointer(""))];
+        let out = self_check_failure(deep, &raw, Target::Jira);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].code, Code::InputTooDeep);
     }
 
     #[test]

@@ -204,7 +204,8 @@ fn summary(checked: &Checked, errors: usize, warnings: usize) -> String {
     );
     let lossy = checked.diagnostics.iter().any(|d| d.code == Code::Lossy);
     let verdict = if lossy {
-        "lossy (--strict)"
+        // --strict, or --html error during a Markdown conversion
+        "lossy"
     } else if errors == 0 {
         "valid"
     } else {

@@ -11,6 +11,7 @@ Commands:
   explain       Explain a topic or a diagnostic code
   completions   Print a shell completion script
   version       Print version information
+  help          Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help

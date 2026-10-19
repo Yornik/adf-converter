@@ -104,9 +104,20 @@ pub fn run() -> ExitCode {
 /// message. `main` catches the unwind and exits with code 1.
 pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(|info| {
+        // Paths of dependencies are absolute (and contain the builder's home directory); keep
+        // only the file name for those.
         let place = info
             .location()
-            .map(|location| format!(" at {}:{}", location.file(), location.line()))
+            .map(|location| {
+                let file = std::path::Path::new(location.file());
+                let shown = if file.is_absolute() {
+                    file.file_name()
+                        .map_or_else(String::new, |name| name.to_string_lossy().into_owned())
+                } else {
+                    location.file().to_owned()
+                };
+                format!(" at {shown}:{}", location.line())
+            })
             .unwrap_or_default();
         let diagnostic = Diagnostic::new(
             Code::Internal,
