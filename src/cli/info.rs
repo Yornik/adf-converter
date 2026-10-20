@@ -14,7 +14,9 @@ use super::output;
 use super::report::docs_url;
 use crate::catalog::{self, ADF_SCHEMA, EXIT_CODES, FEATURES, Feature};
 use crate::diagnostics::{Code, Diagnostic, Severity};
-use crate::limits::{DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, JIRA_FIELD_CHAR_LIMIT};
+use crate::limits::{
+    DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MAX_MARKDOWN_BYTES, JIRA_FIELD_CHAR_LIMIT,
+};
 use crate::options::{Extensions, MdToAdfOptions};
 
 const CLI_CONTRACT: &str = include_str!("../../docs/cli-contract.md");
@@ -76,7 +78,8 @@ pub(crate) fn capabilities(json: bool) -> Outcome {
     }
     let _ = writeln!(
         text,
-        "\nLimits: input {} MiB, nesting depth {DEFAULT_MAX_DEPTH}, Jira field {JIRA_FIELD_CHAR_LIMIT} characters",
+        "\nLimits: Markdown input {} MiB, ADF input {} MiB, nesting depth {DEFAULT_MAX_DEPTH}, Jira field {JIRA_FIELD_CHAR_LIMIT} characters",
+        DEFAULT_MAX_MARKDOWN_BYTES / (1024 * 1024),
         DEFAULT_MAX_INPUT_BYTES / (1024 * 1024)
     );
     let _ = writeln!(

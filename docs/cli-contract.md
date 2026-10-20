@@ -104,7 +104,7 @@ full shape):
  "extensions":[{"name":"alerts","syntax":"> [!NOTE] / …","adf":["panel"],"default":true}…],
  "exit_codes":{"0":"ok (warnings may have been printed)","1":"internal error (a bug in adf)",…},
  "diagnostic_codes":[{"code":"W_IMAGE_AS_LINK","severity":"warning","exit_code":0,"summary":"…"}…],
- "limits":{"max_input_bytes":4194304,"max_nesting_depth":64,"max_json_depth":512,"max_table_cells":100000,"max_output_bytes":67108864,"jira_field_char_limit":32767}}
+ "limits":{"max_input_bytes":4194304,"max_markdown_bytes":1048576,"max_emphasis_delimiters":20000,"max_nesting_depth":64,"max_json_depth":512,"max_table_cells":100000,"max_output_bytes":67108864,"jira_field_char_limit":32767}}
 ```
 
 `limits` holds the input size, the Markdown nesting depth and Jira's field size. The other limits
@@ -229,7 +229,7 @@ included in `adf capabilities --json`.
 | <a id="e_usage"></a>`E_USAGE` | 2 | Invalid command-line usage. |
 | <a id="e_input_read"></a>`E_INPUT_READ` | 3 | The input file or stdin could not be read. |
 | <a id="e_input_encoding"></a>`E_INPUT_ENCODING` | 3 | The input is not valid UTF-8 (location has `byte_offset`). |
-| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (4 MiB), or its Markdown tables would expand to more than 100,000 cells, or (ADF → Markdown) the Markdown would be larger than 64 MiB or its plain-flavour tables would need more than 100,000 empty cells (see [Limits](#limits)). |
+| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (1 MiB of Markdown, 4 MiB of ADF), or its Markdown tables would expand to more than 100,000 cells, or (ADF → Markdown) the Markdown would be larger than 64 MiB or its plain-flavour tables would need more than 100,000 empty cells (see [Limits](#limits)). |
 | <a id="e_input_too_deep"></a>`E_INPUT_TOO_DEEP` | 3 | The input nests deeper than the nesting limit (64 container levels; 512 JSON levels for ADF input). |
 | <a id="e_input_json"></a>`E_INPUT_JSON` | 3 | The input is not valid JSON. |
 | <a id="e_input_not_adf"></a>`E_INPUT_NOT_ADF` | 3 | The JSON input is not an ADF document or a known envelope around one. |
@@ -298,7 +298,8 @@ requests.
 
 | Limit | Value | Error |
 |---|---|---|
-| Input size | 4 MiB | `E_INPUT_TOO_LARGE` |
+| Input size | Markdown: 1 MiB; ADF (JSON): 4 MiB | `E_INPUT_TOO_LARGE` |
+| `*` and `_` characters in one paragraph of Markdown (a block between blank lines, code included) | 20,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
@@ -313,6 +314,11 @@ exceeds 100,000 cells (it counts the cells it actually builds as well). The esti
 high side: a line that directly follows a table without a blank line counts as a row. Table-like
 lines in fenced code are not counted, except towards a safety bound of 1,000,000 cells over the
 whole input.
+
+pulldown-cmark 0.13.4, the Markdown parser, resolves some emphasis patterns in quadratic time
+(`*a_` repeated; [pulldown-cmark#1154](https://github.com/pulldown-cmark/pulldown-cmark/issues/1154),
+fixed upstream but not released). Until a fixed version is released, `adf` refuses paragraphs with
+more than 20,000 `*` and `_` characters before parsing, located at the start of the paragraph.
 
 In Markdown → ADF, every text node of a link repeats the link's URL and title, so a long URL over
 link text with many differently formatted runs multiplies. `adf` estimates the size of the JSON as

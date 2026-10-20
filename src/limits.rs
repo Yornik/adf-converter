@@ -1,7 +1,19 @@
 //! Hard limits that keep the converter safe on untrusted input (agents generate it).
 
-/// Default maximum input size in bytes (4 MiB). Larger inputs fail with `E_INPUT_TOO_LARGE`.
+/// Default maximum input size in bytes (4 MiB), for ADF (JSON) input and as an upper bound for
+/// Markdown. Larger inputs fail with `E_INPUT_TOO_LARGE`.
 pub const DEFAULT_MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
+
+/// Default maximum Markdown input size in bytes (1 MiB). Markdown → ADF needs up to about 700
+/// bytes of memory per input byte on adversarial input (linear, but large); Jira fields hold at
+/// most 32,767 characters anyway. Larger inputs fail with `E_INPUT_TOO_LARGE`.
+pub const DEFAULT_MAX_MARKDOWN_BYTES: usize = 1024 * 1024;
+
+/// Maximum number of `*` and `_` characters in one paragraph (a block between blank lines) of
+/// Markdown input. pulldown-cmark 0.13.4 resolves some emphasis patterns in quadratic time
+/// (`*a_` repeated; pulldown-cmark issue #1154, fixed upstream but not released), so a large
+/// paragraph of them would take minutes. Remove once a fixed pulldown-cmark is released.
+pub const MAX_EMPHASIS_DELIMITERS: usize = 20_000;
 
 /// Default maximum nesting depth of containers (lists, quotes, cells, …) in either direction.
 /// Deeper input fails with `E_INPUT_TOO_DEEP`; no code path may recurse without checking it.
@@ -55,7 +67,10 @@ pub(crate) fn json_depth_hint(max_json_depth: usize) -> String {
 /// Limits applied to one conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
+    /// Input size in bytes, for any input.
     pub max_input_bytes: usize,
+    /// Markdown input size in bytes (the smaller of this and `max_input_bytes` applies).
+    pub max_markdown_bytes: usize,
     pub max_depth: usize,
 }
 
@@ -70,6 +85,7 @@ impl Default for Limits {
     fn default() -> Self {
         Self {
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
+            max_markdown_bytes: DEFAULT_MAX_MARKDOWN_BYTES,
             max_depth: DEFAULT_MAX_DEPTH,
         }
     }

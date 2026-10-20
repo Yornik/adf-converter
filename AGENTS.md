@@ -114,7 +114,7 @@ Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or
 
 ## Security
 
-- All input is untrusted: agents generate it. Keep the limits (4 MiB input, depth 64) and return
+- All input is untrusted: agents generate it. Keep the limits (1 MiB Markdown and 4 MiB ADF input, depth 64, table cells, emphasis delimiters, 64 MiB output) and return
   `E_INPUT_TOO_LARGE`/`E_INPUT_TOO_DEEP` instead of crashing.
 - Links and smart links must pass `Href::parse` (http, https, ftp, ftps, mailto, tel, `/path`,
   `#anchor`). Everything else becomes plain text with `W_UNSAFE_URL`.

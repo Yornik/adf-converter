@@ -614,6 +614,8 @@
   ],
   "limits": {
     "max_input_bytes": 4194304,
+    "max_markdown_bytes": 1048576,
+    "max_emphasis_delimiters": 20000,
     "max_nesting_depth": 64,
     "max_json_depth": 512,
     "max_table_cells": 100000,

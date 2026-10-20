@@ -237,7 +237,8 @@ fn closed_stdout_exits_quietly() {
 
 #[test]
 fn input_over_the_size_limit() {
-    let big = vec![b'a'; 4 * 1024 * 1024 + 1];
+    // Markdown: 1 MiB; ADF (JSON): 4 MiB.
+    let big = vec![b'a'; 1024 * 1024 + 1];
     let output = adf(&["validate", "--from", "md"], &big, None);
     assert_eq!(output.status.code(), Some(3));
     assert_eq!(codes(&output), ["E_INPUT_TOO_LARGE"]);

@@ -21,7 +21,7 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use adf_converter::limits::{DEFAULT_MAX_INPUT_BYTES, MAX_TABLE_CELLS};
+use adf_converter::limits::{DEFAULT_MAX_MARKDOWN_BYTES, MAX_TABLE_CELLS};
 use adf_converter::{
     AdfToMdOptions, Code, Diagnostics, Extensions, HtmlPolicy, ImagePolicy, Limits, MdFlavor,
     MdToAdfOptions, SoftBreak, Target,
@@ -972,19 +972,19 @@ fn padded_table_rows_keep_output_bounded() {
     }
 }
 
-/// Close to 4 MiB of padded tables (about 300 million cells) is refused before the Markdown
+/// Close to 1 MiB of padded tables (about 75 million cells) is refused before the Markdown
 /// parser builds them, fast and with `E_INPUT_TOO_LARGE` at the table that crosses the limit;
-/// so is a single padded table after 4 MiB of table-free text, which the pre-scan reads in full.
+/// so is a single padded table after 1 MiB of table-free text, which the pre-scan reads in full.
 #[test]
 fn many_padded_tables_fail_fast() {
     let table = padded_table(256, 1_000);
-    let tables = vec![table.as_str(); DEFAULT_MAX_INPUT_BYTES / (table.len() + 1)].join("\n");
-    let mut text = "| not | a | table |\n".repeat((DEFAULT_MAX_INPUT_BYTES - table.len()) / 20);
+    let tables = vec![table.as_str(); DEFAULT_MAX_MARKDOWN_BYTES / (table.len() + 1)].join("\n");
+    let mut text = "| not | a | table |\n".repeat((DEFAULT_MAX_MARKDOWN_BYTES - table.len()) / 20);
     let text_lines = text.matches('\n').count();
     text.push_str(&table);
     for (name, markdown, line) in [("tables", &tables, 1), ("text", &text, text_lines + 1)] {
         assert!(
-            markdown.len() > 4_000_000,
+            markdown.len() > 1_000_000,
             "{name}: {} bytes",
             markdown.len()
         );

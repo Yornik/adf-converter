@@ -10,8 +10,8 @@ use serde::Serialize;
 use crate::adf::envelope::{ENVELOPE_NAMES, Envelope};
 use crate::diagnostics::{Code, Severity};
 use crate::limits::{
-    DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, JIRA_FIELD_CHAR_LIMIT, JSON_LEVELS_PER_CONTAINER,
-    MAX_OUTPUT_BYTES, MAX_TABLE_CELLS,
+    DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MAX_MARKDOWN_BYTES, JIRA_FIELD_CHAR_LIMIT,
+    JSON_LEVELS_PER_CONTAINER, MAX_EMPHASIS_DELIMITERS, MAX_OUTPUT_BYTES, MAX_TABLE_CELLS,
 };
 use crate::options::Extensions;
 
@@ -420,7 +420,9 @@ pub fn advice(code: Code) -> &'static str {
         Code::InputEncoding => {
             "Convert the input to UTF-8 (for example `iconv -f latin1 -t utf-8`); the location gives the first invalid byte."
         }
-        Code::InputTooLarge => "Split the input into smaller documents (the limit is 4 MiB).",
+        Code::InputTooLarge => {
+            "Split the input into smaller documents (the limits are 1 MiB of Markdown and 4 MiB of ADF), split very large tables or paragraphs, or shorten long link URLs."
+        }
         Code::InputTooDeep => {
             "Flatten the nesting: Markdown may nest 64 containers (lists, quotes, cells, expands), ADF input 512 levels of JSON arrays and objects."
         }
@@ -544,7 +546,12 @@ pub struct ExtensionInfo {
 /// The limits as described by `capabilities`.
 #[derive(Debug, Clone, Serialize)]
 pub struct LimitsInfo {
+    /// Input size, for ADF (JSON) input.
     pub max_input_bytes: usize,
+    /// Markdown input size.
+    pub max_markdown_bytes: usize,
+    /// `*` and `_` characters per paragraph of Markdown input.
+    pub max_emphasis_delimiters: usize,
     /// Container levels in Markdown input.
     pub max_nesting_depth: usize,
     /// Levels of JSON arrays/objects in ADF input.
@@ -618,6 +625,8 @@ pub fn capabilities() -> Capabilities {
         diagnostic_codes: codes(),
         limits: LimitsInfo {
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
+            max_markdown_bytes: DEFAULT_MAX_MARKDOWN_BYTES,
+            max_emphasis_delimiters: MAX_EMPHASIS_DELIMITERS,
             max_nesting_depth: DEFAULT_MAX_DEPTH,
             max_json_depth: DEFAULT_MAX_DEPTH * JSON_LEVELS_PER_CONTAINER,
             max_table_cells: MAX_TABLE_CELLS,

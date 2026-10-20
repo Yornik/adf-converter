@@ -1385,7 +1385,7 @@ fn adf_link_extension_fallbacks() {
 
 #[test]
 fn input_size_limit() {
-    let big = "a".repeat(crate::limits::DEFAULT_MAX_INPUT_BYTES + 1);
+    let big = "a".repeat(crate::limits::DEFAULT_MAX_MARKDOWN_BYTES + 1);
     let err = error_of(&big, &MdToAdfOptions::default());
     assert_eq!(err.code, Code::InputTooLarge);
     let small = opts_with(|o| {
@@ -1404,9 +1404,9 @@ fn large_inputs_stay_fast() {
     // Full size in release builds; a quarter in debug builds, which are ~7x slower but still
     // show any quadratic behaviour clearly.
     let max = if cfg!(debug_assertions) {
-        crate::limits::DEFAULT_MAX_INPUT_BYTES / 4
+        crate::limits::DEFAULT_MAX_MARKDOWN_BYTES / 4
     } else {
-        crate::limits::DEFAULT_MAX_INPUT_BYTES
+        crate::limits::DEFAULT_MAX_MARKDOWN_BYTES
     };
     // Leave room for the short prefixes and suffixes some cases add.
     let fill = |unit: &str| unit.repeat((max - 64) / unit.len());
@@ -1416,7 +1416,8 @@ fn large_inputs_stay_fast() {
             "urls",
             fill("see https://example.com/a and www.example.org "),
         ),
-        ("emphasis", fill("*a **b** c* ")),
+        // One paragraph per unit: a single paragraph is capped at MAX_EMPHASIS_DELIMITERS.
+        ("emphasis", fill("*a **b** c*\n\n")),
         ("inline html", fill("<u>x</u><b>y ")),
         ("unknown html", fill("<x-y>z ")),
         ("html block", format!("<div>\n{}", fill("<a b='<!--"))),
@@ -1452,7 +1453,8 @@ fn large_inputs_stay_fast() {
         ),
         (
             "closers under deep emphasis",
-            "*a ".repeat(max / 16) + &"</u>".repeat(max / 8) + &" a*".repeat(max / 16),
+            // Up to the delimiter cap: 9,000 openers and 9,000 closers in one paragraph.
+            "*a ".repeat(9_000) + &"</u>".repeat(max / 8) + &" a*".repeat(9_000),
         ),
     ];
     for (name, md) in cases {
@@ -1586,7 +1588,8 @@ fn nesting_up_to_the_limit_is_fine() {
     let (value, _) = run(&lists);
     assert_eq!(value["content"][0]["type"], "bulletList");
     // Deep inline nesting has no limit and no recursion.
-    let deep_em = "*".repeat(20_000) + "x" + &"*".repeat(20_000);
+    // 20,000 delimiters: exactly MAX_EMPHASIS_DELIMITERS in one paragraph.
+    let deep_em = "*".repeat(10_000) + "x" + &"*".repeat(10_000);
     let _ = run(&deep_em);
 }
 
@@ -1960,11 +1963,8 @@ fn link_label_runs_share_the_link() {
 /// for every text event, quadratic under deeply nested emphasis (256 KB took 2.3 s, 4 MiB ~10 min).
 #[test]
 fn captured_alt_text_stays_fast_under_deep_emphasis() {
-    let n = if cfg!(debug_assertions) {
-        50_000
-    } else {
-        200_000
-    };
+    // 18,000 `_`: within MAX_EMPHASIS_DELIMITERS for one paragraph.
+    let n = 9_000;
     let md = format!(
         "![{}{}{}](https://example.com/i.png)",
         "_a ".repeat(n),
@@ -2423,6 +2423,25 @@ fn link_url_repetition_is_bounded_by_the_output_budget() {
     );
     assert!(
         start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+}
+
+/// pulldown-cmark 0.13.4 parses `*a_` repeated in quadratic time (issue #1154); paragraphs with
+/// more than `MAX_EMPHASIS_DELIMITERS` delimiters are refused before it runs.
+#[test]
+fn quadratic_emphasis_input_is_refused_fast() {
+    let limit = crate::limits::MAX_EMPHASIS_DELIMITERS;
+    let at_limit = "*a_".repeat(limit / 2);
+    assert!(super::to_adf(&at_limit, &MdToAdfOptions::default()).is_ok());
+    let over = format!("intro\n\n{}", "*a_".repeat(limit / 2 + 1));
+    let start = std::time::Instant::now();
+    let err = error_of(&over, &MdToAdfOptions::default());
+    assert_eq!(err.code, Code::InputTooLarge);
+    assert_eq!(err.location.as_ref().and_then(|l| l.line), Some(3));
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(1),
         "{:?}",
         start.elapsed()
     );

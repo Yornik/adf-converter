@@ -54,6 +54,6 @@ Exit codes:
   4  validation failed
   5  lossy conversion refused (--strict or --html error)
 
-Limits: input 4 MiB, nesting depth 64, Jira field 32767 characters
+Limits: Markdown input 1 MiB, ADF input 4 MiB, nesting depth 64, Jira field 32767 characters
 
 `adf capabilities --json` prints this as JSON; `adf explain codes` lists the diagnostic codes; `adf examples NAME` shows a feature.
