@@ -101,7 +101,7 @@ release; don't edit it by hand.
 | `perf:` | `perf: avoid re-parsing raw adf blocks` | patch, listed under Performance Improvements |
 | `revert:` | `revert: feat: add --images drop` | patch, listed under Reverts |
 | `docs:` | `docs: fix the Confluence recipe` | patch, listed under Documentation (`docs/` and the skill ship in every release zip) |
-| `deps:` | `deps: bump the cargo-minor-patch group with 2 updates` | patch, listed under Dependencies (Dependabot's prefix for Rust dependency updates) |
+| `deps:` | `deps: update rust crate serde to v1.0.230` | patch, listed under Dependencies (Renovate's type for crates in the shipped binary and for `Cargo.lock` maintenance) |
 | `feat!:`, `fix!:` (any type with `!`) | `feat!: rename the jira-field envelope` | major (1.4.0 → 2.0.0), listed under Breaking Changes |
 | `test:`, `refactor:`, `build:`, `ci:`, `chore:`, `style:` | `test: cover tables in box cells` | no release on their own, not in the changelog |
 

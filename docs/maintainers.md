@@ -19,7 +19,8 @@ State as read with read-only `gh api` calls on 2026-10-19:
 | Rulesets | none | branch ruleset and tag ruleset |
 | `release` deployment environment (used by the publish job) | does not exist | exists, deployment branches limited to `main`; optionally you as required reviewer |
 | Private vulnerability reporting | off | on |
-| Dependabot alerts / security updates | off / off | on / on |
+| Renovate GitHub App | not installed | installed on this repository (see [Renovate](#renovate)) |
+| Dependabot alerts / security updates | off / off | on / off (Renovate opens the security PRs) |
 | CodeQL | not configured | default setup |
 | Immutable releases | off | on, once a release has gone through the draft flow |
 | Secret scanning and push protection | on | keep |
@@ -149,10 +150,20 @@ To add yourself as a required reviewer from the command line, add
 `"reviewers": [{"type": "User", "id": <your user id>}]` to the `PUT` body (`gh api user --jq .id`
 prints the ID).
 
+### Renovate
+
+Install the [Renovate GitHub App](https://github.com/apps/renovate) for this repository only
+(**Only select repositories** → `adf-converter`). The configuration is already in
+`.github/renovate.json`, so Renovate skips its onboarding PR and opens a **Dependency Dashboard**
+issue instead. It merges its own PRs after all checks pass (`platformAutomerge` is off, so this
+does not depend on GitHub auto-merge); the branch ruleset's required checks (`ci-ok`,
+`conventional-title`) apply to it like to any other PR, so it needs no bypass.
+
 ### Security features
 
 **Settings → Advanced Security** (or "Code security"): turn on private vulnerability reporting,
-Dependabot alerts, Dependabot security updates, and CodeQL **default setup** (languages: Rust and
+Dependabot alerts (Renovate reads them to open security PRs; leave Dependabot security updates
+off so the same fix is not proposed twice), and CodeQL **default setup** (languages: Rust and
 GitHub Actions). [SECURITY.md](../SECURITY.md) points reporters at private vulnerability
 reporting, so enable it before the first release.
 
@@ -206,7 +217,7 @@ Conventional Commit messages on `main` (see
    `release.yml` opens or updates a release PR (`chore(main): release X.Y.Z`) that bumps the
    version in `Cargo.toml` and `Cargo.lock` and adds the changelog entry.
 2. Review the release PR: the version number, the changelog wording, and whether
-   `THIRD_PARTY_NOTICES.md` still matches `Cargo.lock` (Dependabot updates change crate versions;
+   `THIRD_PARTY_NOTICES.md` still matches `Cargo.lock` (Renovate updates change crate versions;
    regenerate the list in a normal PR as described in that file). The PR must also bump the
    `adf-converter` version in `fuzz/Cargo.lock` (the `extra-files` entry in
    `release-please-config.json`; its jsonpath needs `@.name.value`, because release-please's TOML
@@ -274,14 +285,16 @@ images, and the exact size limit. To check them:
 
 ## Routine maintenance
 
-- **Dependabot PRs** (actions, cargo, Rust toolchain): read the changelog of each update, let CI
-  run, and squash-merge with a Conventional Commit title. Action pins must stay full commit SHAs
-  with a version comment. A `deps:` PR releases a patch version; if it only bumps
-  dev-dependencies (`proptest`, `trycmd`), retitle it `test(deps): …` first, since the binary
-  does not change. Updates of the fuzz workspace arrive as `chore(deps):` and never release.
-  A Rust toolchain PR does not change the MSRV: the `msrv` CI job keeps checking `rust-version`
-  from `Cargo.toml`. If a dependency update needs a newer Rust, raise `rust-version` and the
-  "With Rust 1.99 or later" line in `README.md` together.
+- **Renovate PRs** (crates, `Cargo.lock` maintenance, GitHub Actions, the Rust toolchain, pinned
+  CI tools): Renovate proposes updates on Monday mornings, once a release is at least 7 days old
+  (security fixes skip the wait), and squash-merges each PR itself as soon as every CI check is
+  green. Its titles are Conventional Commits: `deps:` (shipped crates, lock maintenance) releases a
+  patch version; `test(deps)`, `chore(deps)` (fuzz workspace), `ci(deps)` and `build(deps)` (Rust
+  toolchain) do not. The **Dependency Dashboard** issue lists pending, waiting and failed updates;
+  check it now and then. A toolchain update moves `rust-toolchain.toml`, `rust-version` and the
+  README's "With Rust … or later" line together (this project targets the latest stable Rust).
+  If an automerged update breaks something CI does not cover, revert it with a `revert:` PR and
+  add a test.
 - **ADF schema drift.** The scheduled CI run validates all goldens against the latest published
   `@atlaskit/adf-schema`; a failure there means the schema changed. To update the vendored copy,
   replace `schemas/adf/full.json` with the new published file (unmodified), update

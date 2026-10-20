@@ -2,10 +2,10 @@
 # only when every other job succeeded or was skipped, so jobs can be added here without touching
 # branch protection.
 #
-# Every action is pinned to a full commit SHA (comment: the release it came from). Dependabot
-# (.github/dependabot.yml) proposes action updates. Bumped by hand: the actionlint image digest
-# and the pinned tools (cargo-deny, uv, zizmor, check-jsonschema in scripts/contract.sh and
-# below, skills-ref).
+# Every action is pinned to a full commit SHA (comment: the release it came from). Renovate
+# (.github/renovate.json) updates the actions, the actionlint image, the pinned tools (cargo-deny,
+# uv, zizmor, check-jsonschema here and in scripts/contract.sh, skills-ref) and the crates, and
+# merges each update once this workflow is green.
 name: CI
 
 on:
@@ -55,7 +55,7 @@ jobs:
       # fuzz/ is its own cargo workspace, so the steps above never compile it. Type-check it here
       # (stable is enough), so a library change that breaks the fuzz targets fails the PR rather
       # than the weekly Fuzz run. Not --locked: a requirement change in the root Cargo.toml (for
-      # example from a Dependabot PR) does not update fuzz/Cargo.lock, so that lock may lag
+      # example from a Renovate PR) does not update fuzz/Cargo.lock, so that lock may lag
       # behind and is re-resolved here. release-please keeps its adf-converter version in step.
       - name: cargo check (fuzz workspace)
         run: cargo check --manifest-path fuzz/Cargo.toml --bins --lib
@@ -86,7 +86,7 @@ jobs:
 
   msrv:
     name: msrv
-    # Every other job uses rust-toolchain.toml, which Dependabot moves forward. This one keeps
+    # Every other job uses rust-toolchain.toml, which Renovate moves forward. This one keeps
     # checking the oldest Rust that `rust-version` in Cargo.toml (and the README's
     # `cargo install --locked` instructions) promise, including the MSRV of locked dependencies.
     runs-on: ubuntu-24.04
@@ -176,10 +176,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The image bundles shellcheck, so `run:` scripts are checked too. Dependabot does not
-      # update docker:// digests; bump by hand (docker buildx imagetools inspect rhysd/actionlint:X).
+      # The image bundles shellcheck, so `run:` scripts are checked too. Renovate updates the tag
+      # and the digest together.
       - name: actionlint
-        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
+        uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
         with:
           args: -color
       - name: zizmor
@@ -194,10 +194,10 @@ jobs:
         with:
           version: "0.13.1"
           enable-cache: false
-      - name: Validate dependabot.yml and release-please-config.json against their schemas
+      - name: Validate renovate.json and release-please-config.json against their schemas
         run: |
           uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
-            --builtin-schema vendor.dependabot .github/dependabot.yml
+            --builtin-schema vendor.renovate .github/renovate.json
           uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
             --schemafile https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json \
             release-please-config.json

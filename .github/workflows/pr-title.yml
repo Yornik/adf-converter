@@ -31,7 +31,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          # The Conventional Commits types, plus `deps` (Dependabot's Rust updates; see
+          # The Conventional Commits types, plus `deps` (Renovate's updates of shipped crates; see
           # release-please-config.json for which types produce a release).
           types: |
             feat
