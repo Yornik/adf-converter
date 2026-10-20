@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"-e jira-field requires --field NAME (for example --field customfield_10010)","hint":"See `adf explain envelopes` for the envelopes and their fields","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

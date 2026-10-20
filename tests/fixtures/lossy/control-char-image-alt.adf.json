@@ -1,0 +1,22 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/i.png",
+            "alt": "alt"
+          }
+        }
+      ]
+    }
+  ]
+}

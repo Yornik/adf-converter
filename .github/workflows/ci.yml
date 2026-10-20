@@ -1,0 +1,256 @@
+# Continuous integration. `ci-ok` at the bottom is the single required status check: it passes
+# only when every other job succeeded or was skipped, so jobs can be added here without touching
+# branch protection.
+#
+# Every action is pinned to a full commit SHA (comment: the release it came from). Renovate
+# (.github/renovate.json) updates the actions, the actionlint image, the pinned tools (cargo-deny,
+# uv, zizmor, check-jsonschema here and in scripts/contract.sh, skills-ref) and the crates, and
+# merges each update once this workflow is green.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly: new RustSec advisories (supply-chain) and ADF schema drift (schema-drift).
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: |
+            . -> target
+            fuzz -> target
+      - name: cargo fmt
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: cargo doc
+        run: cargo doc --locked --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+      # fuzz/ is its own cargo workspace, so the steps above never compile it. Type-check it here
+      # (stable is enough), so a library change that breaks the fuzz targets fails the PR rather
+      # than the weekly Fuzz run. Not --locked: a requirement change in the root Cargo.toml (for
+      # example from a Renovate PR) does not update fuzz/Cargo.lock, so that lock may lag
+      # behind and is re-resolved here. release-please keeps its adf-converter version in step.
+      - name: cargo check (fuzz workspace)
+        run: cargo check --manifest-path fuzz/Cargo.toml --bins --lib
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    env:
+      PROPTEST_CASES: "1000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # Goldens are byte-compared on every OS; .gitattributes keeps them LF on Windows too.
+      - name: cargo test
+        run: cargo test --locked --all-features
+
+  msrv:
+    name: msrv
+    # Every other job uses rust-toolchain.toml, which Renovate moves forward. This one keeps
+    # checking the oldest Rust that `rust-version` in Cargo.toml (and the README's
+    # `cargo install --locked` instructions) promise, including the MSRV of locked dependencies.
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the rust-version toolchain from Cargo.toml
+        id: msrv
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\([0-9.]*\)"$/\1/p' Cargo.toml)
+          if [[ ! $msrv =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::cannot read rust-version from Cargo.toml (got '$msrv')"
+            exit 1
+          fi
+          rustup toolchain install "$msrv" --profile minimal
+          echo "msrv=$msrv" >>"$GITHUB_OUTPUT"
+      # `+toolchain` overrides rust-toolchain.toml.
+      - name: cargo check with rust-version
+        env:
+          MSRV: ${{ steps.msrv.outputs.msrv }}
+        run: cargo "+$MSRV" check --locked --all-features
+
+  supply-chain:
+    name: supply-chain
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-deny@0.20.2
+          fallback: none
+      - name: cargo deny (advisories, bans, licenses, sources)
+        run: cargo deny --locked check
+
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+
+  contract:
+    name: contract
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          enable-cache: false
+      - name: Build the release binary
+        run: cargo build --locked --release
+      # Converts every fixture with the real binary and validates goldens + fresh output with
+      # check-jsonschema (independent of the Rust validator), plus adf's own JSON outputs.
+      - name: Contract checks
+        run: scripts/contract.sh target/release/adf
+      # skills-ref ships its CLI as `agentskills`.
+      - name: Validate the agent skill
+        run: uvx --from 'skills-ref==0.1.1' agentskills validate skills/markdown-to-adf
+
+  workflows:
+    name: workflows
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The image bundles shellcheck, so `run:` scripts are checked too. Renovate updates the tag
+      # and the digest together.
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        with:
+          args: -color
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
+        with:
+          version: 1.31.1
+          advanced-security: false
+          annotations: true
+      - name: shellcheck scripts/
+        run: shellcheck --external-sources scripts/*.sh
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          enable-cache: false
+      - name: Validate renovate.json and release-please-config.json against their schemas
+        run: |
+          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+            --builtin-schema vendor.renovate .github/renovate.json
+          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+            --schemafile https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json \
+            release-please-config.json
+
+  schema-drift:
+    name: schema-drift
+    # A new @atlaskit/adf-schema release is reported as a warning; the job fails only when a
+    # golden is no longer valid under it. Re-vendor with the steps in schemas/adf/PROVENANCE.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          enable-cache: false
+      - name: Download @atlaskit/adf-schema@latest
+        id: latest
+        run: |
+          latest=$(curl -fsSL --retry 3 https://registry.npmjs.org/@atlaskit/adf-schema/latest | jq -r .version)
+          [[ $latest =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected npm version '$latest'"; exit 1; }
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/latest-full.json" \
+            "https://cdn.jsdelivr.net/npm/@atlaskit/adf-schema@$latest/dist/json-schema/v1/full.json"
+          vendored=$(tr -d '[:space:]' < schemas/adf/VERSION)
+          echo "vendored: $vendored, latest: $latest"
+          if cmp -s "$RUNNER_TEMP/latest-full.json" schemas/adf/full.json; then
+            echo "full.json is unchanged."
+          else
+            echo "::warning title=ADF schema drift::@atlaskit/adf-schema $latest differs from the vendored $vendored"
+          fi
+      - name: Validate the goldens against the latest schema
+        run: |
+          files=()
+          while IFS= read -r -d '' f; do files+=("$f"); done \
+            < <(find tests/fixtures -type f -name '*.adf.json' -print0 | LC_ALL=C sort -z)
+          [[ ${#files[@]} -gt 0 ]] || { echo "::error::no goldens under tests/fixtures"; exit 1; }
+          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+            --schemafile "$RUNNER_TEMP/latest-full.json" "${files[@]}"
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [lint, test, msrv, supply-chain, dependency-review, contract, workflows, schema-drift]
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Every job succeeded or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" >/dev/null

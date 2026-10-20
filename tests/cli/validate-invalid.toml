@@ -1,0 +1,5 @@
+# code+strong, an empty text node and a heading in a quote: E_SCHEMA with JSON Pointers, exit 4.
+bin.name = "adf"
+args = ["validate"]
+status.code = 4
+binary = true

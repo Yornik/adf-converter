@@ -1,0 +1,1 @@
+error[E_USAGE]: unexpected argument '--bogus' found (hint: To pass '--bogus' as a value, use '-- --bogus'. Usage: adf convert [OPTIONS] [INPUT]. For more information, try '--help'.)

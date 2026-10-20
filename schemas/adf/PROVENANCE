@@ -1,0 +1,13 @@
+Vendored, unmodified copy of the Atlassian Document Format (ADF) JSON Schema.
+
+package:   @atlaskit/adf-schema
+version:   57.7.18
+file:      dist/json-schema/v1/full.json
+source:    https://cdn.jsdelivr.net/npm/@atlaskit/adf-schema@57.7.18/dist/json-schema/v1/full.json
+canonical: http://go.atlassian.com/adf-json-schema
+sha256:    5128562b75278c8a83e7e3619a570205bc80d59696985ec31a7a7883cff66fbe
+license:   Apache-2.0 (see LICENSE in this directory), Copyright 2019 Atlassian Pty Ltd
+retrieved: 2026-10-19
+
+Do not edit full.json. To update, replace it with a newer published version, update this
+file (version, source, sha256, retrieved) and re-run the full test suite.

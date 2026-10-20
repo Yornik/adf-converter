@@ -1,0 +1,42 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "c++"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "int x;"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "objective-c"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "@end"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "adf-not-raw"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "plain code"
+        }
+      ]
+    }
+  ]
+}

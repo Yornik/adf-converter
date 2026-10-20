@@ -1,0 +1,1 @@
+error[E_USAGE]: missing required argument <SHELL> (hint: Possible values: bash, elvish, fish, powershell, zsh. Usage: adf completions --error-format <FORMAT> <SHELL>. For more information, try '--help'.)

@@ -1,0 +1,38 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An abbr tag is dropped."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "block html"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Recognised tags stay.",
+          "marks": [
+            {
+              "type": "underline"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

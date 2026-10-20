@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_TARGET","message":"the `fontSize` mark is not accepted by Jira: it was added to the ADF schema in 52.9.0 (May 2026) and Jira may not accept it yet","location":{"file":"-","pointer":"/content/0/marks/0"},"hint":"Remove the mark","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_target","exit_code":4}

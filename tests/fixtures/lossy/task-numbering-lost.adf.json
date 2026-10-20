@@ -1,0 +1,40 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "b2352251-c68f-80eb-8dae-b967d276a91d"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "ba2b04d5-7b23-85da-bef0-0ca2e960f5b0",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "first ordered task"
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "38413d88-1a9c-85d5-8374-9d5357136d51",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "second ordered task"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

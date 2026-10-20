@@ -1,0 +1,5 @@
+# --field selects an entry of a `fields` object; with any other ADF input it would be ignored.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--field", "customfield_1"]
+status.code = 2
+binary = true

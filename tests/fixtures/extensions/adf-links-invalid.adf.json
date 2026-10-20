@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Bad colour X, empty status , bad date 19-10-2026, impossible date 2026-02-30, unsafe card javascript:alert(1), mention without id @Nobody."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A "
+        },
+        {
+          "type": "text",
+          "text": "full reference",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/docs",
+                "title": "Documentation"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", a "
+        },
+        {
+          "type": "text",
+          "text": "collapsed",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/collapsed"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", and a "
+        },
+        {
+          "type": "text",
+          "text": "shortcut",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/shortcut"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An [undefined reference] stays text."
+        }
+      ]
+    }
+  ]
+}

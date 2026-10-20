@@ -1,0 +1,5 @@
+# There is no default subcommand: E_USAGE, exit 2, as a JSON line (stderr is not a terminal).
+bin.name = "adf"
+args = []
+status.code = 2
+binary = true

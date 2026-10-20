@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["schema", "nope"]
+status.code = 2
+binary = true

@@ -1,0 +1,5 @@
+# -e is not allowed with --from adf: the envelope is detected.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "-e", "jira-comment"]
+status.code = 2
+binary = true

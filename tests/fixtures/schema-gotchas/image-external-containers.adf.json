@@ -1,0 +1,307 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/linked.png",
+            "alt": "linked"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/titled.png",
+            "alt": "titled"
+          }
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "212cf0e1-6523-83fb-983a-fc01206f92d3"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "71af5601-0a95-8e11-ba26-dc8dd62cbef6",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "task after"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/task.png",
+            "alt": "in a task"
+          }
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "5508c8d0-0e4d-89db-83bc-44c8bfa057a7"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "1292aaa7-10f8-88c5-b12c-62c5387f187d",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "at the start and at the end"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/first.png",
+            "alt": "first"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/last.png",
+            "alt": "last"
+          }
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "info"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Panel with"
+            }
+          ]
+        },
+        {
+          "type": "mediaSingle",
+          "attrs": {
+            "layout": "center"
+          },
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "external",
+                "url": "https://example.com/panel.png",
+                "alt": "in a panel"
+              }
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "inside."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Expand"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Expand with"
+            }
+          ]
+        },
+        {
+          "type": "mediaSingle",
+          "attrs": {
+            "layout": "center"
+          },
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "external",
+                "url": "https://example.com/expand.png",
+                "alt": "in an expand"
+              }
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "inside."
+            }
+          ]
+        },
+        {
+          "type": "nestedExpand",
+          "attrs": {
+            "title": "Nested"
+          },
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Nested expand with"
+                }
+              ]
+            },
+            {
+              "type": "mediaSingle",
+              "attrs": {
+                "layout": "center"
+              },
+              "content": [
+                {
+                  "type": "media",
+                  "attrs": {
+                    "type": "external",
+                    "url": "https://example.com/nested.png",
+                    "alt": "in a nested expand"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "inside."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Box with"
+                    }
+                  ]
+                },
+                {
+                  "type": "mediaSingle",
+                  "attrs": {
+                    "layout": "center"
+                  },
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "external",
+                        "url": "https://example.com/box.png",
+                        "alt": "in a box"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "inside."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

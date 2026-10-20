@@ -1,0 +1,49 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Acceptance criteria:"
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "e3c84d0b-eefd-8626-91a3-5c2d5adf327a"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "1d58e97b-a695-83a4-b3ab-4d0b71dcb231",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "the importer handles empty files"
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "90b2d4f8-397f-8cb2-a8d0-90ef9dfdf241",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "errors name the line"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

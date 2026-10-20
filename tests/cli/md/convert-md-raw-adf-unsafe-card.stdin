@@ -1,0 +1,3 @@
+```adf
+{"type":"paragraph","content":[{"type":"inlineCard","attrs":{"data":{"@type":"Document","url":"javascript:alert(document.domain)","name":"Click me"}}}]}
+```

@@ -1,0 +1,24 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An <abbr>unknown</abbr> tag stays as text."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "<section> block html </section>"
+        }
+      ]
+    }
+  ]
+}

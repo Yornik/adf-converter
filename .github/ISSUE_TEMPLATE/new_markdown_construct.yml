@@ -1,0 +1,63 @@
+name: New Markdown construct
+description: Ask for support for a Markdown construct or an ADF node that adf does not handle yet.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [docs/syntax.md](https://github.com/Yornik/adf-converter/blob/main/docs/syntax.md)
+        and `adf capabilities --json` first: the construct may already be supported, possibly as
+        an extension or through a ```` ```adf ```` block.
+
+        Use invented content only in examples, never real Jira or Confluence data from your
+        employer or customers.
+  - type: textarea
+    id: construct
+    attributes:
+      label: Construct
+      description: |
+        The Markdown syntax or ADF node you want supported, and where it comes from (CommonMark,
+        GitHub, another tool, a Jira or Confluence feature). Links to a spec help.
+    validations:
+      required: true
+  - type: textarea
+    id: markdown
+    attributes:
+      label: Example Markdown
+      description: A small example input. Put it in a code fence.
+    validations:
+      required: true
+  - type: textarea
+    id: adf
+    attributes:
+      label: Expected ADF
+      description: |
+        The ADF you expect, if you know it. For example, create the content in Jira's editor on a
+        test issue, fetch it with `GET /rest/api/3/issue/{key}`, and paste the relevant node.
+      render: json
+  - type: dropdown
+    id: products
+    attributes:
+      label: Products
+      description: Where the construct must work.
+      multiple: true
+      options:
+        - Jira Cloud
+        - Confluence Cloud
+    validations:
+      required: true
+  - type: textarea
+    id: reverse
+    attributes:
+      label: ADF → Markdown
+      description: |
+        Optional: how the node should be written when converting ADF back to Markdown, so that
+        converting it again gives the same document.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to open a pull request for this (see CONTRIBUTING.md).
+          required: false

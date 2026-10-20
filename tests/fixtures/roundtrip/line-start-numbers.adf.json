@@ -1,0 +1,24 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "2026. A year at the start of a line."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "The value is 1. still text after a soft break."
+        }
+      ]
+    }
+  ]
+}

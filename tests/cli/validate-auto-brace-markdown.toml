@@ -1,0 +1,8 @@
+# `--from auto` (the default) reads input whose first non-whitespace character is `{` as JSON,
+# so Markdown that starts with Jira wiki markup fails with E_INPUT_JSON
+# (docs/cli-contract.md#validate). tests/cli/md/validate-md-brace.toml validates the same input
+# with `--from md`.
+bin.name = "adf"
+args = ["validate", "--error-format", "text"]
+status.code = 3
+binary = true

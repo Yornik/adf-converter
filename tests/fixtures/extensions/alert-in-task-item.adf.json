@@ -1,0 +1,65 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "4a30c13e-c250-8fc2-87ad-f63600af0e53"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "a8f65db2-d17f-80fc-9ef0-082fe7527f0a",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Stop the service."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "warning"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "This drops live connections."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "17a5e6b9-6bac-888d-bc63-b751f2a90032"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "44b76155-e768-8862-8e99-fb6b0ede7974",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Restart it."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

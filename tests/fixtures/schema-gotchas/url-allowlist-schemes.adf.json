@@ -1,0 +1,128 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "ftp",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "ftp://example.com/file.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", "
+        },
+        {
+          "type": "text",
+          "text": "ftps",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "ftps://example.com/file.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", "
+        },
+        {
+          "type": "text",
+          "text": "upper case",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "HTTPS://EXAMPLE.COM/PATH"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", "
+        },
+        {
+          "type": "text",
+          "text": "mixed case",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "Http://example.com/"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", "
+        },
+        {
+          "type": "text",
+          "text": "mail",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "Mailto:someone@example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "phone",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "TEL:+15550100"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " stay links."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "ftp://example.com/autolinked.txt",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "ftp://example.com/autolinked.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " is linked too."
+        }
+      ]
+    }
+  ]
+}

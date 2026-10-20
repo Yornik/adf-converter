@@ -1,0 +1,252 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Renovate keeps every dependency current and merges updates itself once all CI checks pass.",
+    "PR titles are Conventional Commits; the type decides what release-please does with them:",
+    "deps: crates in the shipped binary (patch release, listed under Dependencies);",
+    "test(deps) / chore(deps) / ci(deps) / build(deps): dev-dependencies, the fuzz workspace, CI tools and actions, the Rust toolchain (no release).",
+    "A 7-day minimum release age lets the ecosystem catch broken or malicious releases first; security fixes skip it."
+  ],
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigestsToSemver",
+    "docker:pinDigests",
+    ":semanticCommits"
+  ],
+  "timezone": "Europe/Amsterdam",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "automerge": true,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false,
+  "ignoreTests": false,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 6am on monday"
+    ],
+    "automerge": true
+  },
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": null,
+    "automerge": true,
+    "labels": [
+      "security"
+    ]
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Crates in the shipped binary: deps: (patch release).",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchFileNames": [
+        "Cargo.toml",
+        "Cargo.lock"
+      ],
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": null
+    },
+    {
+      "description": "Dev-dependencies (proptest, trycmd) do not change the binary: test(deps), no release.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchFileNames": [
+        "Cargo.toml"
+      ],
+      "matchDepTypes": [
+        "dev-dependencies"
+      ],
+      "semanticCommitType": "test",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "Refreshing Cargo.lock changes transitive crates of the binary: deps: (patch release).",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "matchFileNames": [
+        "Cargo.toml",
+        "Cargo.lock"
+      ],
+      "semanticCommitType": "deps",
+      "semanticCommitScope": null
+    },
+    {
+      "description": "The fuzz workspace (fuzz/) is never shipped: chore(deps), no release.",
+      "matchFileNames": [
+        "fuzz/**"
+      ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "GitHub Actions and docker:// actions: ci(deps), no release; non-major updates grouped.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pinDigest"
+      ],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Non-breaking updates of 1.x+ crates in one PR. For 0.x crates (jsonschema, pulldown-cmark, linkify) a minor bump is breaking, so they stay in their own PRs.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchFileNames": [
+        "Cargo.toml",
+        "Cargo.lock"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "matchCurrentVersion": ">=1.0.0",
+      "groupName": "Rust crates (non-breaking)"
+    },
+    {
+      "description": "The pinned toolchain (rust-toolchain.toml) and the declared minimum (Cargo.toml rust-version) move together: this project targets the latest stable Rust.",
+      "matchDepNames": [
+        "rust"
+      ],
+      "groupName": "Rust toolchain",
+      "semanticCommitType": "build",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "Tools pinned in workflows, scripts and docs (including the setup-uv and zizmor-action version inputs Renovate updates natively): ci(deps), no release; grouped.",
+      "matchDepNames": [
+        "cargo-deny",
+        "cargo-fuzz",
+        "zizmor",
+        "check-jsonschema",
+        "skills-ref",
+        "googleapis/release-please",
+        "astral-sh/uv",
+        "ghcr.io/zizmorcore/zizmor"
+      ],
+      "groupName": "CI tools",
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Cargo.toml rust-version and the README install line, kept equal to the pinned toolchain's minor version.",
+      "managerFilePatterns": [
+        "/^Cargo\\.toml$/",
+        "/^README\\.md$/"
+      ],
+      "matchStrings": [
+        "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+)\"",
+        "With Rust (?<currentValue>\\d+\\.\\d+) or later"
+      ],
+      "depNameTemplate": "rust",
+      "datasourceTemplate": "rust-version",
+      "depTypeTemplate": "rust-version"
+    },
+    {
+      "customType": "regex",
+      "description": "cargo-deny (taiki-e/install-action `tool:` and docs).",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^[A-Z]+\\.md$/",
+        "/^docs/.+\\.md$/"
+      ],
+      "matchStrings": [
+        "cargo-deny@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "cargo-deny",
+      "datasourceTemplate": "crate"
+    },
+    {
+      "customType": "regex",
+      "description": "cargo-fuzz (fuzz.yml and fuzz/README.md).",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^fuzz/README\\.md$/"
+      ],
+      "matchStrings": [
+        "cargo-fuzz@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "cargo-fuzz",
+      "datasourceTemplate": "crate"
+    },
+    {
+      "customType": "regex",
+      "description": "zizmor in docs (`uvx zizmor@X`); the zizmor-action `version:` input is updated by Renovate itself (ghcr.io/zizmorcore/zizmor).",
+      "managerFilePatterns": [
+        "/^[A-Z]+\\.md$/",
+        "/^docs/.+\\.md$/"
+      ],
+      "matchStrings": [
+        "zizmor@(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "zizmor",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "check-jsonschema (CI, scripts/contract.sh).",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^scripts/.+\\.sh$/"
+      ],
+      "matchStrings": [
+        "check-jsonschema==(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "CHECK_JSONSCHEMA_VERSION=(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "check-jsonschema",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "skills-ref, the Agent Skill validator (CI and docs).",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/",
+        "/^[A-Z]+\\.md$/",
+        "/^docs/.+\\.md$/"
+      ],
+      "matchStrings": [
+        "skills-ref==(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "skills-ref",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "The release-please config schema that CI validates release-please-config.json against.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "googleapis/release-please/(?<currentValue>v\\d+\\.\\d+\\.\\d+)/schemas/config\\.json"
+      ],
+      "depNameTemplate": "googleapis/release-please",
+      "datasourceTemplate": "github-tags"
+    }
+  ]
+}

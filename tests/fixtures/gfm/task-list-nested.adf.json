@@ -1,0 +1,95 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "755d03c4-0b4b-8946-b2ce-a50362c0b840"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "843d8907-d686-8f65-b153-67bb9c602e65",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "parent task"
+            }
+          ]
+        },
+        {
+          "type": "taskList",
+          "attrs": {
+            "localId": "1e86c38e-61e1-8722-854b-b722f0cdcef7"
+          },
+          "content": [
+            {
+              "type": "taskItem",
+              "attrs": {
+                "localId": "101cd051-fd87-83bf-b3ec-2d290f376fcd",
+                "state": "DONE"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "child done"
+                }
+              ]
+            },
+            {
+              "type": "taskItem",
+              "attrs": {
+                "localId": "3b9547d8-8013-8657-92b4-16bf5b736199",
+                "state": "TODO"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "child open"
+                }
+              ]
+            },
+            {
+              "type": "taskList",
+              "attrs": {
+                "localId": "aec20f52-52bd-8140-8b9d-7b77cc7d3a3e"
+              },
+              "content": [
+                {
+                  "type": "taskItem",
+                  "attrs": {
+                    "localId": "1deb7f67-154c-8f24-8726-8813b802db22",
+                    "state": "TODO"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "grandchild"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "c2d99ce9-c896-8ba7-8993-480f29d89a2a",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "second parent"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

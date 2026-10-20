@@ -1,0 +1,4 @@
+-#/content/0/content/0/attrs/data/url: error[E_INVARIANT]: `inlineCard` data URL "javascript:alert(document.domain)" is not an allowed URL (hint: Use an http(s), ftp(s), mailto: or tel: URL, a /root-relative path or a #anchor)
+-#/content/1/attrs/data/url: error[E_INVARIANT]: `blockCard` data URL "javascript:alert(2)" is not an allowed URL (hint: Use an http(s), ftp(s), mailto: or tel: URL, a /root-relative path or a #anchor)
+-#/content/2/content/0/attrs/url: error[E_INVARIANT]: external `media` URL "javascript:alert(1)" is not an allowed URL (hint: Use an http(s), ftp(s), mailto: or tel: URL, a /root-relative path or a #anchor)
+-: invalid ADF for confluence, envelope doc: 3 errors, 0 warnings

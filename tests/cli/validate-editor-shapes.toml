@@ -1,0 +1,5 @@
+# Shapes the Atlassian editors produce are valid: list items that start with a code block or an
+# image, and overlapping inline comments (several annotation marks with different ids).
+bin.name = "adf"
+args = ["validate", "-t", "confluence", "--error-format", "text"]
+binary = true

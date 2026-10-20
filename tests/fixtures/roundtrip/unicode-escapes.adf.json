@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Zero-width joiner 👩‍💻, non-breaking space, soft­hyphen, en–dash, “quotes”."
+        }
+      ]
+    }
+  ]
+}

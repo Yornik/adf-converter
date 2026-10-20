@@ -1,0 +1,9 @@
+/target
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/coverage
+CLAUDE.local.md
+*.profraw
+.DS_Store
+/.claude/worktrees/

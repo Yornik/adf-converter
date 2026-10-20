@@ -1,0 +1,30 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "rule"
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Some text"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Body. The first block is a rule and a setext heading, not YAML front matter."
+        }
+      ]
+    }
+  ]
+}

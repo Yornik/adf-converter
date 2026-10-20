@@ -1,0 +1,5 @@
+# Markdown input with --field but no -e: the message must not name an -e the user never passed.
+bin.name = "adf"
+args = ["validate", "--field", "customfield_1"]
+status.code = 2
+binary = true

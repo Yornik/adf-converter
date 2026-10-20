@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Yornik/adf-converter/main/schemas/validate-report.v1.json",
+  "title": "adf validate --json report, version 1",
+  "description": "Written to stdout by `adf validate --json`. See docs/cli-contract.md#validate.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "valid",
+    "from",
+    "target",
+    "envelope",
+    "adf_schema",
+    "errors",
+    "warnings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "valid": {
+      "description": "true when there are no errors.",
+      "type": "boolean"
+    },
+    "from": {
+      "description": "What was checked: an ADF document, or a Markdown conversion (dry run).",
+      "enum": ["adf", "md"]
+    },
+    "target": {
+      "description": "The product whose rules were applied.",
+      "enum": ["jira", "confluence"]
+    },
+    "envelope": {
+      "description": "The detected (adf) or requested (md) envelope; null when the input holds no ADF document.",
+      "enum": ["doc", "jira-comment", "jira-description", "jira-field", "confluence", null]
+    },
+    "adf_schema": {
+      "description": "The vendored ADF schema, e.g. @atlaskit/adf-schema@57.7.18.",
+      "type": "string",
+      "pattern": "^@atlaskit/adf-schema@[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/diagnostic"
+          },
+          {
+            "properties": {
+              "severity": {
+                "const": "error"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/diagnostic"
+          },
+          {
+            "properties": {
+              "severity": {
+                "const": "warning"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "valid": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "errors": {
+        "maxItems": 0
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "errors": {
+        "minItems": 1
+      }
+    }
+  },
+  "$defs": {
+    "diagnostic": {
+      "description": "The same object as one stderr line (schemas/diagnostic.v1.json).",
+      "type": "object",
+      "required": ["schema_version", "severity", "code", "message", "docs"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "severity": {
+          "enum": ["error", "warning"]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[EW]_[A-Z0-9_]+$"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "docs": {
+          "type": "string",
+          "pattern": "^https://github\\.com/Yornik/adf-converter/blob/main/docs/cli-contract\\.md#[ew]_[a-z0-9_]+$"
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "if": {
+        "properties": {
+          "severity": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": ["exit_code"],
+        "properties": {
+          "code": {
+            "pattern": "^E_"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": ["exit_code"]
+        },
+        "properties": {
+          "code": {
+            "pattern": "^W_"
+          }
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "byte_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pointer": {
+          "type": "string",
+          "pattern": "^(/([^~/]|~[01])*)*$"
+        }
+      }
+    }
+  }
+}

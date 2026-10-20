@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_NOT_ADF","message":"expected an ADF document or an envelope object, found an array","location":{"file":"-"},"hint":"Pass a document ({\"type\":\"doc\",…}) or an envelope listed by `adf explain envelopes`","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_not_adf","exit_code":3}

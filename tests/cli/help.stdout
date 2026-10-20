@@ -1,0 +1,50 @@
+Convert Markdown to Atlassian Document Format (ADF) JSON for Jira and Confluence, and back
+
+Usage: adf [OPTIONS] <COMMAND>
+
+Commands:
+  convert       Convert Markdown to ADF JSON, or ADF JSON to Markdown
+  validate      Check ADF (or a Markdown conversion) without writing output
+  capabilities  Describe what this build supports
+  examples      Show Markdown → ADF examples, one per feature
+  schema        Print a JSON Schema
+  explain       Explain a topic or a diagnostic code
+  completions   Print a shell completion script
+  version       Print version information
+  help          Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Global options:
+      --error-format <FORMAT>
+          How diagnostics are printed on stderr [default: auto] [env: ADF_ERROR_FORMAT]
+
+          Possible values:
+          - auto: Text on a terminal, JSON lines otherwise
+          - text: `file:line:col: severity[CODE]: message`
+          - json: One JSON object per line (schemas/diagnostic.v1.json)
+
+  -q, --quiet
+          Do not print warnings (errors are always printed; exit codes are unchanged)
+
+      --no-color
+          Never use colour (also: the NO_COLOR environment variable)
+
+Examples:
+  adf convert notes.md -e jira-comment -o comment.json   Markdown to a Jira comment body
+  adf convert - < notes.md                               read Markdown from stdin
+  adf convert --from adf issue.json --md-flavor plain    a Jira issue (GET response) as Markdown
+  adf validate comment.json                              check ADF before posting it
+  adf validate --from md notes.md --strict               would the conversion lose anything?
+  adf capabilities --json                                what this build supports
+
+Exit codes: 0 ok, 1 internal error, 2 usage, 3 input/IO, 4 validation failed, 5 lossy (--strict).
+Diagnostics go to stderr: text on a terminal, JSON lines otherwise (--error-format).
+
+Unofficial community tool; not affiliated with or endorsed by Atlassian. Jira and Confluence are
+trademarks of Atlassian.

@@ -1,0 +1,131 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "See "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "(see "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/paren",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/paren"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ")"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Is it "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/question",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/question"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "?"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Quote \""
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/quoted",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/quoted"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": "\"."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Trailing comma "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/a",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/a"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": ", then text."
+        }
+      ]
+    }
+  ]
+}

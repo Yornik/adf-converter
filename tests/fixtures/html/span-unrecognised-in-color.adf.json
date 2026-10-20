@@ -1,0 +1,48 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "red <span class=\"x\">still red</span> red again",
+          "marks": [
+            {
+              "type": "textColor",
+              "attrs": {
+                "color": "#ff0000"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " plain"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "blue <span style=\"font-weight: bold\">bold?</span> blue",
+          "marks": [
+            {
+              "type": "textColor",
+              "attrs": {
+                "color": "#0000ff"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " plain"
+        }
+      ]
+    }
+  ]
+}

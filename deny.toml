@@ -1,0 +1,69 @@
+# cargo-deny configuration (https://embarkstudios.github.io/cargo-deny/).
+# Run locally with `cargo deny --locked check` (scripts/check.sh does this when cargo-deny is
+# installed); CI runs it in the `supply-chain` job of .github/workflows/ci.yml.
+
+[graph]
+# Only the platforms we test and ship. This keeps platform-only crates (wasm, UEFI, …) that can
+# never end up in a release binary out of the checks.
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl",
+  "aarch64-unknown-linux-musl",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+# RustSec advisories. Vulnerabilities always fail the check; the weekly scheduled CI run catches
+# advisories published after a dependency was added.
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+# Every entry needs an `id` and a `reason`, and should link to a tracking issue.
+ignore = []
+
+[licenses]
+# Licences of crates that end up in the binary (cargo-deny skips dev-dependencies here by
+# default). Add a licence only after checking that it is compatible with shipping an MIT binary.
+allow = [
+  "MIT",
+  "MIT-0",                          # borrow-or-share (via jsonschema → fluent-uri)
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",                    # unicode-ident
+  "Zlib",                           # foldhash
+]
+confidence-threshold = 0.93
+# Keep the permissive allowlist stable even when no current crate needs an entry.
+unused-allowed-license = "allow"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+# adf is a pure, offline converter: no network stack, no TLS, no async runtime, no C crypto or
+# regex libraries. jsonschema is used with `default-features = false` for exactly this reason.
+deny = [
+  { crate = "reqwest", reason = "no network access: adf never makes HTTP requests" },
+  { crate = "hyper", reason = "no network access: adf never makes HTTP requests" },
+  { crate = "rustls", reason = "no TLS: adf never makes network requests" },
+  { crate = "tokio", reason = "no async runtime: adf is a synchronous converter" },
+  { crate = "ring", reason = "no crypto/C code: keeps release builds pure Rust" },
+  { crate = "aws-lc-sys", reason = "no C toolchain dependency (pulled in by TLS stacks)" },
+  { crate = "aws-lc-rs", reason = "no C toolchain dependency (pulled in by TLS stacks)" },
+  { crate = "openssl-sys", reason = "no OpenSSL: no network access and no C dependency" },
+  { crate = "onig_sys", reason = "no C oniguruma: Markdown parsing must stay pure Rust" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

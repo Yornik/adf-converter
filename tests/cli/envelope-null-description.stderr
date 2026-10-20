@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_NOT_ADF","message":"fields.description is null (the issue has no description)","location":{"file":"-","pointer":"/fields/description"},"hint":"None of the fields holds an ADF document","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_not_adf","exit_code":3}

@@ -1,0 +1,39 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "diagram",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/diagram.png"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "text",
+          "text": "https://example.com/no-alt.png",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/no-alt.png"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

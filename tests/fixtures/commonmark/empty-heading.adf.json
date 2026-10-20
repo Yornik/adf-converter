@@ -1,0 +1,33 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      }
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      }
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 3
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Text after empty headings."
+        }
+      ]
+    }
+  ]
+}

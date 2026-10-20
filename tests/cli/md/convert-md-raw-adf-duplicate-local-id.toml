@@ -1,0 +1,4 @@
+# Two ```adf blocks that reuse one localId: E_RAW_ADF at the second fence, not a pointer-only error.
+bin.name = "adf"
+args = ["convert"]
+status.code = 3

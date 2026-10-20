@@ -1,0 +1,103 @@
+Check ADF (or a Markdown conversion) without writing output
+
+Usage: adf validate [OPTIONS] [INPUT]
+
+Arguments:
+  [INPUT]
+          Input file, or `-` for stdin (the default)
+
+Options:
+      --from <FROM>
+          Input format; auto: ADF when the input starts with `{`, else Markdown
+
+          Possible values:
+          - auto: ADF when the input starts with `{`, Markdown otherwise
+          - md:   A dry run of `adf convert`
+          - adf:  Check an ADF document or envelope
+          
+          [default: auto]
+
+  -e, --envelope <ENVELOPE>
+          Wrap the document for an API (Markdown input only; ADF input is detected)
+
+          Possible values:
+          - doc:              The bare document
+          - jira-comment:     {"body": DOC}
+          - jira-description: {"fields": {"description": DOC}}
+          - jira-field:       {"fields": {"<NAME>": DOC}} (needs --field NAME)
+          - confluence:       {"representation": "atlas_doc_format", "value": "<DOC as a JSON
+            string>"}
+
+      --field <NAME>
+          Field name: for -e jira-field, or which `fields` entry to read from ADF input (default
+          description)
+
+  -t, --target <TARGET>
+          Product whose rules to check; auto: confluence for Confluence envelopes, else jira
+
+          Possible values:
+          - auto:       Follow the envelope
+          - jira:       Jira Cloud
+          - confluence: Confluence Cloud
+          
+          [default: auto]
+
+      --strict
+          Treat warnings as failures (E_LOSSY, exit 5)
+
+      --json
+          Write a JSON report to stdout (schemas/validate-report.v1.json)
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Markdown options:
+      --softbreak <MODE>
+          What a newline inside a paragraph becomes
+
+          Possible values:
+          - space:     A space (CommonMark)
+          - hardbreak: A hardBreak node (as GitHub comments render it)
+          
+          [default: space]
+
+      --html <POLICY>
+          What happens to HTML without an ADF equivalent
+
+          Possible values:
+          - text:  Keep it as literal text (W_HTML_AS_TEXT)
+          - drop:  Remove it (W_HTML_DROPPED)
+          - error: Fail with E_LOSSY
+          
+          [default: text]
+
+      --images <POLICY>
+          What happens to images
+
+          Possible values:
+          - link:     A link to the image (W_IMAGE_AS_LINK)
+          - external: An external mediaSingle (Jira rendering unverified)
+          - drop:     Remove it (W_IMAGE_DROPPED)
+          
+          [default: link]
+
+      --extensions <LIST>
+          ADF extensions to recognise: all, none, or a comma-separated list
+          (alerts,details,cells,raw-adf,mention,status,date,emoji,card)
+          
+          [default: all]
+
+Global options:
+      --error-format <FORMAT>
+          How diagnostics are printed on stderr [default: auto] [env: ADF_ERROR_FORMAT]
+
+          Possible values:
+          - auto: Text on a terminal, JSON lines otherwise
+          - text: `file:line:col: severity[CODE]: message`
+          - json: One JSON object per line (schemas/diagnostic.v1.json)
+
+  -q, --quiet
+          Do not print warnings (errors are always printed; exit codes are unchanged)
+
+      --no-color
+          Never use colour (also: the NO_COLOR environment variable)

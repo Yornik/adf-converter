@@ -1,0 +1,194 @@
+//! Options for conversions. These mirror the CLI flags in `docs/cli-contract.md`.
+
+use crate::limits::Limits;
+
+/// The product the ADF is meant for. Selects the node/mark allowlist used by validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Target {
+    #[default]
+    Jira,
+    Confluence,
+}
+
+impl Target {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Jira => "jira",
+            Self::Confluence => "confluence",
+        }
+    }
+}
+
+/// How a soft line break (a newline inside a paragraph) is converted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SoftBreak {
+    /// A space, as CommonMark renders it (default).
+    #[default]
+    Space,
+    /// A `hardBreak` node, as GitHub comments render it.
+    HardBreak,
+}
+
+/// What happens to raw HTML that has no ADF equivalent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HtmlPolicy {
+    /// Keep it as literal text, with `W_HTML_AS_TEXT` (default).
+    #[default]
+    Text,
+    /// Drop it, with `W_HTML_DROPPED`.
+    Drop,
+    /// Fail with `E_LOSSY`.
+    Error,
+}
+
+/// What happens to Markdown images.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ImagePolicy {
+    /// A text link to the image URL, with `W_IMAGE_AS_LINK` (default; always valid).
+    #[default]
+    Link,
+    /// An external `mediaSingle` (Jira rendering unverified).
+    External,
+    /// Drop it, with `W_IMAGE_DROPPED`.
+    Drop,
+}
+
+/// Which ADF extensions to Markdown are recognised. Standard CommonMark/GFM syntax (including
+/// task lists, tables and footnotes) is always on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct Extensions {
+    /// `> [!NOTE]` … → `panel`.
+    pub alerts: bool,
+    /// `<details><summary>` → `expand` / `nestedExpand`.
+    pub details: bool,
+    /// `::: cell` → a 1×1 table used as a box.
+    pub cells: bool,
+    /// ```` ```adf ```` → raw ADF spliced in.
+    pub raw_adf: bool,
+    /// `[@Name](adf:mention/ID)` → `mention`.
+    pub mention: bool,
+    /// `[TEXT](adf:status/COLOR)` → `status`.
+    pub status: bool,
+    /// `[YYYY-MM-DD](adf:date)` → `date`.
+    pub date: bool,
+    /// `[😄](adf:emoji/:smile:)` → `emoji`.
+    pub emoji: bool,
+    /// `[https://…](adf:card)` → `inlineCard` (smart link).
+    pub card: bool,
+}
+
+impl Extensions {
+    /// The names accepted by `--extensions`, in documentation order.
+    pub const NAMES: &'static [&'static str] = &[
+        "alerts", "details", "cells", "raw-adf", "mention", "status", "date", "emoji", "card",
+    ];
+
+    pub fn all() -> Self {
+        Self {
+            alerts: true,
+            details: true,
+            cells: true,
+            raw_adf: true,
+            mention: true,
+            status: true,
+            date: true,
+            emoji: true,
+            card: true,
+        }
+    }
+
+    pub fn none() -> Self {
+        Self {
+            alerts: false,
+            details: false,
+            cells: false,
+            raw_adf: false,
+            mention: false,
+            status: false,
+            date: false,
+            emoji: false,
+            card: false,
+        }
+    }
+
+    /// Parses `all`, `none`, or a comma-separated list of [`Self::NAMES`].
+    pub fn parse(spec: &str) -> Result<Self, String> {
+        match spec.trim() {
+            "all" => return Ok(Self::all()),
+            "none" | "" => return Ok(Self::none()),
+            _ => {}
+        }
+        let mut ext = Self::none();
+        for name in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            match name {
+                "alerts" => ext.alerts = true,
+                "details" => ext.details = true,
+                "cells" => ext.cells = true,
+                "raw-adf" => ext.raw_adf = true,
+                "mention" => ext.mention = true,
+                "status" => ext.status = true,
+                "date" => ext.date = true,
+                "emoji" => ext.emoji = true,
+                "card" => ext.card = true,
+                other => {
+                    return Err(format!(
+                        "unknown extension '{other}'; expected all, none, or a list of: {}",
+                        Self::NAMES.join(", ")
+                    ));
+                }
+            }
+        }
+        Ok(ext)
+    }
+}
+
+impl Default for Extensions {
+    fn default() -> Self {
+        Self::all()
+    }
+}
+
+/// Options for Markdown → ADF.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MdToAdfOptions {
+    pub target: Target,
+    pub softbreak: SoftBreak,
+    pub html: HtmlPolicy,
+    pub images: ImagePolicy,
+    pub extensions: Extensions,
+    pub limits: Limits,
+}
+
+/// Markdown flavour produced by ADF → Markdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MdFlavor {
+    /// Lossless where possible: uses this tool's extension syntax so that converting back gives
+    /// the same ADF; unsupported nodes become ```` ```adf ```` blocks (default).
+    #[default]
+    Roundtrip,
+    /// Compact, readable Markdown for people and LLMs; drops what Markdown cannot express
+    /// (no ```` ```adf ```` blocks, mentions as `@Name`, statuses as `[TEXT]`).
+    Plain,
+}
+
+/// Options for ADF → Markdown.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AdfToMdOptions {
+    pub flavor: MdFlavor,
+    pub limits: Limits,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_extensions() {
+        assert_eq!(Extensions::parse("all").unwrap(), Extensions::all());
+        assert_eq!(Extensions::parse("none").unwrap(), Extensions::none());
+        let e = Extensions::parse("alerts, raw-adf").unwrap();
+        assert!(e.alerts && e.raw_adf && !e.details);
+        assert!(Extensions::parse("alerts,bogus").is_err());
+    }
+}

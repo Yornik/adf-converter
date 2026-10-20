@@ -1,0 +1,12 @@
+## Exit codes
+
+| Code | Meaning | Retry? |
+|---|---|---|
+| 0 | Success. Warnings may have been printed. | |
+| 1 | Internal error (`E_INTERNAL`): a bug in `adf`. Please report it. | no |
+| 2 | Usage error (`E_USAGE`). | fix the command |
+| 3 | Input or I/O problem (`E_INPUT_*`, `E_RAW_ADF`, `E_OUTPUT_WRITE`). | fix the input |
+| 4 | Validation failed (`E_SCHEMA`, `E_TARGET`, `E_INVARIANT`); `validate` only. | fix the document |
+| 5 | Lossy conversion refused (`E_LOSSY`): `--strict`, or `--html error`. | fix the input or drop `--strict` |
+
+If several errors occur, the exit code is that of the first error.

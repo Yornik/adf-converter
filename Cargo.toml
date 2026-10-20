@@ -1,0 +1,70 @@
+[package]
+name = "adf-converter"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT"
+description = "Convert Markdown to Atlassian Document Format (ADF) JSON and back. Independent project, not affiliated with Atlassian."
+repository = "https://github.com/Yornik/adf-converter"
+readme = "README.md"
+keywords = ["adf", "markdown", "jira", "confluence", "cli"]
+categories = ["command-line-utilities", "text-processing"]
+include = [
+  "src/**",
+  "schemas/**",
+  "docs/**",
+  "README.md",
+  "LICENSE",
+  "THIRD_PARTY_NOTICES.md",
+  "CHANGELOG.md",
+]
+
+[[bin]]
+name = "adf"
+path = "src/main.rs"
+
+[lib]
+name = "adf_converter"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { version = "4.6", features = ["derive", "env", "wrap_help"] }
+clap_complete = "4.6"
+# Default features pull in reqwest/rustls/aws-lc (network + C toolchain); we only validate local JSON.
+jsonschema = { version = "=0.59.0", default-features = false }
+linkify = "0.11"
+pulldown-cmark = { version = "0.13", default-features = false }
+serde = { version = "1", features = ["derive"] }
+# preserve_order keeps "type" first and makes output follow construction order, not key order.
+serde_json = { version = "1", features = ["preserve_order", "unbounded_depth"] }
+
+[dev-dependencies]
+proptest = "1.12"
+trycmd = "1.2"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+result_large_err = "allow"
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+wildcard_enum_match_arm = "warn"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"

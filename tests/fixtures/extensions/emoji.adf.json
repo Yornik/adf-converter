@@ -1,0 +1,47 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Smile "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":smile:",
+            "text": "😄"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", no colons "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":thumbsup:",
+            "text": "👍"
+          }
+        },
+        {
+          "type": "text",
+          "text": ", no label "
+        },
+        {
+          "type": "emoji",
+          "attrs": {
+            "shortName": ":tada:"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

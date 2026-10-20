@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "x = 2**3 ** 4"
+        }
+      ]
+    }
+  ]
+}

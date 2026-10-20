@@ -1,0 +1,59 @@
+adf [VERSION] (@atlaskit/adf-schema@57.7.18)
+Directions: md->adf, adf->md
+Targets: jira, confluence (-t)
+
+Envelopes (-e):
+  doc               DOC
+                    acli --body-adf / --description-file, or embedding in your own JSON
+  jira-comment      {"body":DOC}
+                    POST /rest/api/3/issue/{key}/comment, PUT /rest/api/3/issue/{key}/comment/{id}
+  jira-description  {"fields":{"description":DOC}}
+                    PUT /rest/api/3/issue/{key}
+  jira-field        {"fields":{"<NAME>":DOC}}
+                    PUT /rest/api/3/issue/{key} (rich-text custom fields; needs --field NAME)
+  confluence        {"representation":"atlas_doc_format","value":"<DOC as a JSON string>"}
+                    body of POST /wiki/api/v2/pages and POST /wiki/api/v2/footer-comments
+
+Markdown features:
+  headings        commonmark  # H1 … ###### H6, setext === / ---
+  paragraphs      commonmark  text separated by blank lines; a single newline is a space
+  hard-breaks     commonmark  two trailing spaces, \ at line end, or <br>
+  emphasis        commonmark  *em* _em_ **strong** __strong__ ***both***
+  inline-code     commonmark  `code` (any number of backticks)
+  links           commonmark  [text](https://example.com "title"), reference links, <https://…>
+  images          commonmark  ![alt](https://example.com/a.png)
+  bullet-lists    commonmark  - item, * item, + item; nest by indenting
+  ordered-lists   commonmark  1. item, 1) item; the first number is kept
+  code-blocks     commonmark  ```lang fenced, or indented by four spaces
+  blockquotes     commonmark  > quote
+  rules           commonmark  --- *** ___
+  inline-html     commonmark  <u> <sub> <sup> <s> <kbd> <br> <span style="color: #RRGGBB">
+  escapes         commonmark  \* and entities like &amp; &copy;
+  tables          gfm         | a | b |
+  task-lists      gfm         - [ ] task, - [x] done
+  strikethrough   gfm         ~~strike~~ ~strike~
+  autolinks       gfm         bare https://example.com and www.example.com
+  footnotes       gfm         text[^1] … [^1]: note
+
+ADF extensions (--extensions; all on by default):
+  alerts          > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]
+  details         <details><summary>Title</summary> … </details>
+  cells           ::: cell … :::
+  raw-adf         ```adf with a block node or an array of block nodes
+  mention         [@Display Name](adf:mention/ACCOUNT_ID)
+  status          [TEXT](adf:status/neutral|purple|blue|red|yellow|green)
+  date            [YYYY-MM-DD](adf:date)
+  emoji           [😄](adf:emoji/:smile:)
+  card            [https://…](adf:card)
+
+Exit codes:
+  0  ok (warnings may have been printed)
+  1  internal error (a bug in adf)
+  2  usage error
+  3  input or I/O error
+  4  validation failed
+  5  lossy conversion refused (--strict or --html error)
+
+Limits: Markdown input 1 MiB, ADF input 4 MiB, nesting depth 64, Jira field 32767 characters
+
+`adf capabilities --json` prints this as JSON; `adf explain codes` lists the diagnostic codes; `adf examples NAME` shows a feature.

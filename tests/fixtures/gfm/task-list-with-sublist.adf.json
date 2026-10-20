@@ -1,0 +1,81 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "3071fbf6-0ebe-8bcb-89db-d410fe0578c7"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "989d3d37-3a41-8b71-b240-ea7a2b342bf2",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "task with a plain sublist"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "plain one"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "plain two"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "6dc0ffda-637b-825e-a080-b64fa6451578"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "df56c0e5-8113-8135-8a2a-34d4c6550354",
+            "state": "DONE"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "next task"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

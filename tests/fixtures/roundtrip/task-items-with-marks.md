@@ -1,0 +1,2 @@
+- [ ] **bold** `code` [link](https://example.com) ~~strike~~
+- [x] <u>underlined</u> <sup>1</sup>

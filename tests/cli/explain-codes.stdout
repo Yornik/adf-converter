@@ -1,0 +1,41 @@
+Diagnostic codes (errors exit with the code shown; warnings exit 0):
+
+E_INTERNAL                error 1   Internal error (a bug in adf); please report it with the input that caused it.
+E_USAGE                   error 2   Invalid command-line usage.
+E_INPUT_READ              error 3   The input file or stdin could not be read.
+E_INPUT_ENCODING          error 3   The input is not valid UTF-8.
+E_INPUT_TOO_LARGE         error 3   The input is larger than the size limit.
+E_INPUT_TOO_DEEP          error 3   The input nests deeper than the nesting limit.
+E_INPUT_JSON              error 3   The input is not valid JSON.
+E_INPUT_NOT_ADF           error 3   The JSON input is not an ADF document or a known envelope around one.
+E_RAW_ADF                 error 3   An ```adf block is not valid JSON, or not valid ADF where it is placed.
+E_OUTPUT_WRITE            error 3   The output could not be written.
+E_SCHEMA                  error 4   The ADF document does not match the ADF JSON schema.
+E_TARGET                  error 4   The ADF document uses a node, mark or attribute the target product does not accept.
+E_INVARIANT               error 4   The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema.
+E_LOSSY                   error 5   The conversion would lose information and --strict (or --html error) is set.
+W_MARK_DROPPED            warning   A text mark was dropped because ADF does not allow it there (for example bold on inline code), or an image title was dropped (--images external).
+W_HEADING_DEMOTED         warning   A heading inside a list item or quote became a bold paragraph.
+W_BLOCK_HOISTED           warning   A block was moved out of a container that cannot hold it (for example a table inside a list).
+W_BLOCK_FLATTENED         warning   A nested container was merged into its parent (for example a quote inside a quote).
+W_HTML_AS_TEXT            warning   Raw HTML without an ADF equivalent was kept as literal text.
+W_HTML_DROPPED            warning   Raw HTML was dropped (--html drop), or an unrecognised tag was removed from an expand title.
+W_IMAGE_AS_LINK           warning   An image became a link; ADF images need media uploaded to Jira/Confluence.
+W_IMAGE_DROPPED           warning   An image was dropped (--images drop).
+W_UNSAFE_URL              warning   A link target is not an allowed URL (http, https, ftp, ftps, mailto, tel, /path, #anchor) and became plain text.
+W_CONTROL_CHAR            warning   Control characters were removed from text.
+W_TABLE_CELL_DROPPED      warning   Table cells beyond the header row's width were dropped.
+W_FOOTNOTE_FLATTENED      warning   Footnotes became superscript numbers plus a numbered list at the end; ADF has no footnotes.
+W_TASK_NUMBERING_LOST     warning   An ordered task list lost its numbering; ADF task lists are unordered.
+W_FRONT_MATTER_DROPPED    warning   Leading YAML front matter was removed.
+W_UNKNOWN_EXTENSION       warning   An adf: link names an unknown extension and was kept as plain text.
+W_INVALID_EXTENSION_ARG   warning   An adf: extension has an invalid argument and was kept as plain text.
+W_EXTENSION_DISABLED      warning   Extension syntax was found but the extension is disabled (--extensions), so it was converted as plain Markdown.
+W_NODE_NOT_IN_TARGET      warning   A construct is not supported by the target product and was replaced by a fallback.
+W_SIZE_LIMIT              warning   The output is larger than Jira's 32,767-character field limit and may be rejected.
+W_EMPTY_DOCUMENT          warning   The document is empty; Jira rejects empty comment bodies.
+W_ADF_PASSTHROUGH         warning   An ADF node without a Markdown equivalent was written as a raw ```adf block.
+W_ATTR_DROPPED            warning   ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours).
+W_INPUT_SCHEMA            warning   The input ADF does not match the schema; it was converted anyway.
+
+Details: adf explain CODE, or https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md

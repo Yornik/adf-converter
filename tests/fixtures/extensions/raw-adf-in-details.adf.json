@@ -1,0 +1,25 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Raw inside"
+      },
+      "content": [
+        {
+          "type": "panel",
+          "attrs": {
+            "panelType": "success"
+          },
+          "content": [
+            {
+              "type": "paragraph"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

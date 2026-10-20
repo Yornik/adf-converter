@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Yornik/adf-converter/main/schemas/diagnostic.v1.json",
+  "title": "adf diagnostic, version 1",
+  "description": "One line of stderr with --error-format json (the default when stderr is not a terminal), and one entry of errors/warnings in `adf validate --json`. See docs/cli-contract.md#diagnostics.",
+  "$ref": "#/$defs/diagnostic",
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "required": ["schema_version", "severity", "code", "message", "docs"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "severity": {
+          "enum": ["error", "warning"]
+        },
+        "code": {
+          "description": "A stable code from `adf explain codes`: E_* for errors, W_* for warnings.",
+          "type": "string",
+          "pattern": "^[EW]_[A-Z0-9_]+$"
+        },
+        "message": {
+          "description": "One human-readable sentence.",
+          "type": "string",
+          "minLength": 1
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "hint": {
+          "description": "What to do about it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "docs": {
+          "description": "Documentation of the code.",
+          "type": "string",
+          "pattern": "^https://github\\.com/Yornik/adf-converter/blob/main/docs/cli-contract\\.md#[ew]_[a-z0-9_]+$"
+        },
+        "exit_code": {
+          "description": "The process exit code of an error (errors only).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "if": {
+        "properties": {
+          "severity": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": ["exit_code"],
+        "properties": {
+          "code": {
+            "pattern": "^E_"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": ["exit_code"]
+        },
+        "properties": {
+          "code": {
+            "pattern": "^W_"
+          }
+        }
+      }
+    },
+    "location": {
+      "description": "Where the problem is. Every field is optional.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "description": "The input (or output) file as given on the command line; \"-\" for stdin.",
+          "type": "string"
+        },
+        "line": {
+          "description": "1-based line in the input.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "description": "1-based column, counted in characters.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "byte_offset": {
+          "description": "0-based byte offset (invalid UTF-8).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "pointer": {
+          "description": "RFC 6901 JSON Pointer into the input: the document's position in its envelope, then the path inside the document. A Confluence body holds the document as a JSON string (/value, /body/atlas_doc_format/value); the segments after it address the JSON parsed from that string.",
+          "type": "string",
+          "pattern": "^(/([^~/]|~[01])*)*$"
+        }
+      }
+    }
+  }
+}

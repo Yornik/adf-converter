@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["convert", "--extensions", "alerts,bogus"]
+status.code = 2
+binary = true

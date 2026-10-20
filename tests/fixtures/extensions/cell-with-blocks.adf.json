@@ -1,0 +1,104 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "heading",
+                  "attrs": {
+                    "level": 2
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Heading in a box"
+                    }
+                  ]
+                },
+                {
+                  "type": "blockquote",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "A quote in a box."
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "panel",
+                  "attrs": {
+                    "panelType": "warning"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "A panel in a box."
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "codeBlock",
+                  "attrs": {
+                    "language": "text"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "code in a box"
+                    }
+                  ]
+                },
+                {
+                  "type": "rule"
+                },
+                {
+                  "type": "taskList",
+                  "attrs": {
+                    "localId": "aac534fc-4135-8d7e-b234-52360eafb621"
+                  },
+                  "content": [
+                    {
+                      "type": "taskItem",
+                      "attrs": {
+                        "localId": "b6a75158-681e-8696-b5b7-9f74c6b6e20b",
+                        "state": "TODO"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "task in a box"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

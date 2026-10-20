@@ -1,0 +1,46 @@
+Convert Markdown to ADF JSON, or ADF JSON to Markdown
+
+Usage: adf convert [OPTIONS] [INPUT]
+
+Arguments:
+  [INPUT]  Input file, or `-` for stdin (the default)
+
+Options:
+  -o, --output <PATH>        Write the result to PATH (atomically; nothing is written on failure)
+      --from <FROM>          Input format: Markdown, or ADF JSON (a document or any envelope)
+                             [default: md] [possible values: md, adf]
+  -e, --envelope <ENVELOPE>  Wrap the document for an API (Markdown input only; ADF input is
+                             detected) [possible values: doc, jira-comment, jira-description,
+                             jira-field, confluence]
+      --field <NAME>         Field name: for -e jira-field, or which `fields` entry to read from ADF
+                             input (default description)
+  -t, --target <TARGET>      Product whose rules the ADF must follow; auto: confluence for -e
+                             confluence, else jira [default: auto] [possible values: auto, jira,
+                             confluence]
+      --pretty               Pretty-print JSON (the default on a terminal)
+      --compact              Print compact JSON (the default in pipes and files)
+      --strict               Fail with E_LOSSY (exit 5) instead of writing a result that has
+                             warnings
+  -h, --help                 Print help (see more with '--help')
+
+Markdown options:
+      --softbreak <MODE>   What a newline inside a paragraph becomes [default: space] [possible
+                           values: space, hardbreak]
+      --html <POLICY>      What happens to HTML without an ADF equivalent [default: text] [possible
+                           values: text, drop, error]
+      --images <POLICY>    What happens to images [default: link] [possible values: link, external,
+                           drop]
+      --extensions <LIST>  ADF extensions to recognise: all, none, or a comma-separated list
+                           (alerts,details,cells,raw-adf,mention,status,date,emoji,card) [default:
+                           all]
+
+ADF → Markdown options:
+      --md-flavor <FLAVOR>  Markdown flavour of ADF → Markdown output [default: roundtrip] [possible
+                            values: roundtrip, plain]
+
+Global options:
+      --error-format <FORMAT>  How diagnostics are printed on stderr [default: auto] [env:
+                               ADF_ERROR_FORMAT] [possible values: auto, text, json]
+  -q, --quiet                  Do not print warnings (errors are always printed; exit codes are
+                               unchanged)
+      --no-color               Never use colour (also: the NO_COLOR environment variable)

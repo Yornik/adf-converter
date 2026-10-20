@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"invalid value 'tcsh' for '<SHELL>'","hint":"Possible values: bash, elvish, fish, powershell, zsh. A similar value exists: 'zsh'. For more information, try '--help'.","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

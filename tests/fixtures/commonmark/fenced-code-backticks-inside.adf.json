@@ -1,0 +1,27 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "markdown"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "```rust\nnested fence\n```"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "content": [
+        {
+          "type": "text",
+          "text": "``` inside tildes"
+        }
+      ]
+    }
+  ]
+}
