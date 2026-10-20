@@ -110,7 +110,7 @@ adf convert --from adf issue.json
 adf convert --from adf issue.json --md-flavor plain    # compact, for reading and LLMs
 
 # Check before posting.
-adf validate --from md notes.md     # lists every lossy step as a warning
+adf validate --from md notes.md     # lists the lossy steps as warnings (up to 100 per code)
 adf validate comment.json           # ADF: schema + Jira rules, exit 4 if invalid
 adf explain W_IMAGE_AS_LINK         # what a diagnostic code means
 ```
