@@ -1,0 +1,5 @@
+# Runner labels that are newer than the actionlint release used in CI (1.7.12).
+# Remove an entry once actionlint knows the label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
