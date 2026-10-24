@@ -61,7 +61,7 @@ jobs:
   release-please:
     name: release-please
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Labels and comments on the release PR are covered by pull-requests: write; issues: write
     # is not needed.
     permissions:
@@ -194,7 +194,7 @@ jobs:
     needs: [release-please, build]
     # Implicit success(): every build must have passed.
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Owner-side: protect this environment (for example, allow only the main branch).
     environment: release
     permissions:
