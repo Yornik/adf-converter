@@ -199,7 +199,7 @@ jobs:
           uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
             --builtin-schema vendor.renovate .github/renovate.json
           uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
-            --schemafile https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json \
+            --schemafile https://raw.githubusercontent.com/googleapis/release-please/v17.11.2/schemas/config.json \
             release-please-config.json
 
   schema-drift:
