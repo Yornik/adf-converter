@@ -359,33 +359,33 @@ mod unix {
             sandbox.root.join("leak.csv"),
         )
         .unwrap();
-        assert_refused(&sandbox, "leak.csv", "outside the include root");
+        assert_refused(&sandbox, "leak.csv", "not inside the include root");
     }
 
     #[test]
     fn a_symlink_to_a_relative_path_outside_is_refused() {
         let sandbox = Sandbox::new("link-out-relative");
         symlink("../outside/canary.csv", sandbox.root.join("leak.csv")).unwrap();
-        assert_refused(&sandbox, "leak.csv", "outside the include root");
+        assert_refused(&sandbox, "leak.csv", "not inside the include root");
         symlink("../canary.csv", sandbox.root.join("leak2.csv")).unwrap();
-        assert_refused(&sandbox, "leak2.csv", "outside the include root");
+        assert_refused(&sandbox, "leak2.csv", "not inside the include root");
     }
 
     #[test]
     fn a_symlinked_directory_to_outside_is_refused() {
         let sandbox = Sandbox::new("link-out-dir");
         symlink(&sandbox.outside, sandbox.root.join("dir")).unwrap();
-        assert_refused(&sandbox, "dir/canary.csv", "outside the include root");
+        assert_refused(&sandbox, "dir/canary.csv", "not inside the include root");
         // Through a chain: inside link -> inside link -> outside.
         symlink(sandbox.root.join("dir"), sandbox.root.join("hop")).unwrap();
-        assert_refused(&sandbox, "hop/canary.csv", "outside the include root");
+        assert_refused(&sandbox, "hop/canary.csv", "not inside the include root");
     }
 
     #[test]
     fn a_symlink_to_the_parent_of_the_root_is_refused() {
         let sandbox = Sandbox::new("link-parent");
         symlink(&sandbox.base, sandbox.root.join("up")).unwrap();
-        assert_refused(&sandbox, "up/canary.csv", "outside the include root");
+        assert_refused(&sandbox, "up/canary.csv", "not inside the include root");
         // The canary is also reachable as `up/root/ok.csv` (inside the root again): allowed,
         // because the file really is inside the root.
         let outcome = sandbox.convert(&image("up/root/ok.csv"));
@@ -755,7 +755,7 @@ fn csv_problems_are_located_at_the_image() {
         "{}",
         error.message
     );
-    assert!(error.message.contains("of the file"), "{}", error.message);
+    assert!(error.message.contains("line "), "{}", error.message);
     let location = error.location.as_ref().unwrap();
     assert_eq!((location.line, location.column), (Some(3), Some(6)));
     sandbox.assert_no_leak(&outcome);

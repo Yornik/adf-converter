@@ -662,7 +662,9 @@ Then `adf` resolves `ROOT/PATH` (following symbolic links) and refuses it when:
 - the resolved location is not inside the resolved root (a symbolic link leads out of it);
 - it is not a regular file (a directory, a device, a FIFO or a socket; this is decided from the
   file's metadata before it is opened, because opening a FIFO blocks);
-- it does not exist or cannot be read (a symbolic link loop is "cannot be read").
+- it does not exist or cannot be read (a symbolic link loop is "cannot be read"). A missing file and
+  a file outside the root give the same message, so the Markdown cannot probe which names exist
+  outside the root.
 
 Symbolic links that stay inside the root are fine. After opening, `adf` checks again that the
 handle is a regular file and still the file the path leads to; a link swapped in at that moment

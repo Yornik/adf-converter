@@ -27,12 +27,10 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::adf::model::Table;
-use crate::csv::params::{CsvParams, embedded_table};
+use crate::csv::params::{CsvParams, embedded_hint, embedded_table};
 use crate::diagnostics::{Code, Diagnostic, Location};
-use crate::limits::MAX_TABLE_CELLS;
 use crate::options::IncludeOptions;
 
-use super::budget;
 use super::cx::Cx;
 use super::extensions::truncate;
 use super::ir::Span;
@@ -158,7 +156,7 @@ fn rule(message: &str) -> ReadError {
 fn io_rule(error: &std::io::Error) -> ReadError {
     let kind = error.kind();
     if kind == std::io::ErrorKind::NotFound {
-        rule("the file does not exist")
+        rule("the file does not exist or is not inside the include root")
     } else if kind == std::io::ErrorKind::PermissionDenied {
         rule("the file cannot be read (permission denied)")
     } else {
@@ -181,8 +179,10 @@ fn read_file(root: &Path, parts: &[&str], budget: &Budget) -> Result<String, Rea
     joined.extend(parts);
     let canonical = fs::canonicalize(&joined).map_err(|e| io_rule(&e))?;
     if !canonical.starts_with(root) {
+        // The same words as for a missing file: the message must not tell which names exist
+        // outside the root.
         return Err(rule(
-            "the file is outside the include root (a symbolic link leads out of it)",
+            "the file does not exist or is not inside the include root",
         ));
     }
     // From the metadata, before `open`: opening a FIFO would block.
@@ -331,13 +331,14 @@ pub(crate) fn load(arg: Option<&str>, span: &Span, cx: &mut Cx<'_>) -> Result<Ta
     });
 
     let opts = params.options(cx.opts.target, &cx.opts.limits, None);
-    match embedded_table(&text, &opts) {
+    match embedded_table(&text, &opts, cx.output_remaining()) {
         Ok(converted) => {
             for warning in converted.warnings {
                 let relocated = relocate(warning, &label, cx, span);
                 cx.warnings.push(relocated);
             }
-            count_table(converted.output, text.len(), cx, span)
+            cx.charge_table(&converted.output, span)?;
+            Ok(converted.output)
         }
         Err(diagnostics) => {
             let mut error = None;
@@ -363,13 +364,21 @@ pub(crate) fn load(arg: Option<&str>, span: &Span, cx: &mut Cx<'_>) -> Result<Ta
 /// The diagnostic for a failed read.
 fn read_failure(error: ReadError, label: &str, cx: &Cx<'_>, span: &Span) -> Diagnostic {
     match error {
-        ReadError::Rule(message) => cx
-            .diag(
+        ReadError::Rule(message) => {
+            let hint = if message.contains("budget") || message.contains("at most") {
+                "Split the document, or merge the data files"
+            } else if message.contains("does not exist") || message.contains("cannot be read") {
+                "Check the file name, relative to the --include-root directory"
+            } else {
+                SYNTAX_HINT
+            };
+            cx.diag(
                 Code::Include,
                 plain(&format!("adf:csv/{label}: {message}")),
                 span,
             )
-            .with_hint(SYNTAX_HINT),
+            .with_hint(hint)
+        }
         ReadError::TooLarge(limit) => cx
             .diag(
                 Code::InputTooLarge,
@@ -397,6 +406,7 @@ fn relocate(diagnostic: Diagnostic, label: &str, cx: &Cx<'_>, span: &Span) -> Di
     let at = diagnostic
         .location
         .as_ref()
+        .filter(|_| !diagnostic.message.contains("line "))
         .and_then(|l: &Location| l.line.map(|line| (line, l.column)))
         .map(|(line, column)| match column {
             Some(column) => format!(" (line {line}, column {column} of the file)"),
@@ -405,33 +415,8 @@ fn relocate(diagnostic: Diagnostic, label: &str, cx: &Cx<'_>, span: &Span) -> Di
         .unwrap_or_default();
     let message = plain(&format!("In {label}: {}{at}", diagnostic.message));
     let mut moved = cx.diag(diagnostic.code, message, span);
-    moved.hint = diagnostic.hint;
+    moved.hint = diagnostic.hint.map(|hint| embedded_hint(&hint));
     moved
-}
-
-/// Counts the cells and the estimated output of an included table against the document-wide
-/// budgets that GFM tables use.
-fn count_table(
-    table: Table,
-    file_bytes: usize,
-    cx: &mut Cx<'_>,
-    span: &Span,
-) -> Result<Table, Diagnostic> {
-    let cells: usize = table.rows.iter().map(|row| row.cells.len()).sum();
-    cx.table_cells = cx.table_cells.saturating_add(cells);
-    if cx.table_cells > MAX_TABLE_CELLS {
-        return Err(cx
-            .diag(Code::InputTooLarge, budget::message(MAX_TABLE_CELLS), span)
-            .with_hint(budget::HINT));
-    }
-    // About what the CSV engine itself assumes per cell, plus the text.
-    cx.charge(
-        cells
-            .saturating_mul(120)
-            .saturating_add(file_bytes.saturating_mul(2)),
-        span,
-    );
-    Ok(table)
 }
 
 #[cfg(test)]

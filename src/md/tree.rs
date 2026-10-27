@@ -816,8 +816,8 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// A ```` ```csv ```` / ```` ```tsv ```` fence as a table block. Its cells count toward the
-    /// document-wide table cell limit, like those of GFM tables.
+    /// A ```` ```csv ```` / ```` ```tsv ```` fence as a table block, counted against the
+    /// document-wide limits like a GFM table.
     fn csv_block(
         &mut self,
         kind: Kind,
@@ -826,18 +826,6 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Block, Diagnostic> {
         let table = csv_fence::convert(self.cx, kind, info, body, &span)?;
-        let width = table.rows.iter().next().map_or(1, |row| row.cells.len());
-        self.cx.table_cells = self
-            .cx
-            .table_cells
-            .saturating_add(table.rows.len().saturating_mul(width));
-        if self.cx.table_cells > MAX_TABLE_CELLS {
-            let at = span.start..span.start;
-            return Err(self
-                .cx
-                .diag(Code::InputTooLarge, budget::message(MAX_TABLE_CELLS), &at)
-                .with_hint(budget::HINT));
-        }
         Ok(Block::Csv {
             table: Box::new(table),
             span,

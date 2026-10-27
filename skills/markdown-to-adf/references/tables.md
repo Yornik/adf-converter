@@ -229,8 +229,8 @@ escaping so that nothing in a cell is read as Markdown, line breaks as `<br>`, b
 URLs stay links, short rows padded, blank lines skipped, `--max-rows N` (prints `kept N of M data
 rows` on stderr instead of a warning) and `--align-numbers`. Exit 3 means the file is not UTF-8,
 has no rows, or is above the 100,000-cell limit. Because the table goes through Markdown, it can
-sit between other Markdown in the same comment, which the native command cannot do yet. Two
-differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
+sit between other Markdown in the same comment; from adf 0.3.0 a `csv` fence or an `adf:csv` include
+does that natively, so this route is only for older versions. Two differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
 check the row count), and `--max-rows 0` means "all rows".
 
 **Table → CSV** with `jq`. Fetch the content as ADF, then print the first table of a document (also

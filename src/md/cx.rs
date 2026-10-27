@@ -1,10 +1,14 @@
 //! State shared by every stage of one Markdown → ADF conversion.
 
+use std::io::{self, Write};
+
 use crate::adf::ids::LocalIdGen;
+use crate::adf::model::Table;
 use crate::diagnostics::{Code, Diagnostic, Location};
-use crate::limits::MAX_OUTPUT_BYTES;
+use crate::limits::{MAX_OUTPUT_BYTES, MAX_TABLE_CELLS};
 use crate::options::MdToAdfOptions;
 
+use super::budget;
 use super::include::Includes;
 use super::ir::Span;
 
@@ -147,6 +151,40 @@ impl<'a> Cx<'a> {
         true
     }
 
+    /// What is left of the output budget, for a table that is about to be built.
+    pub(crate) fn output_remaining(&self) -> usize {
+        MAX_OUTPUT_BYTES.saturating_sub(self.output_estimate)
+    }
+
+    /// Counts a table that came from CSV (a fence or an included file) against the document-wide
+    /// limits that GFM tables share: its cells, and its exact serialised size.
+    pub(crate) fn charge_table(&mut self, table: &Table, span: &Span) -> Result<(), Diagnostic> {
+        let cells: usize = table.rows.iter().map(|row| row.cells.len()).sum();
+        self.table_cells = self.table_cells.saturating_add(cells);
+        if self.table_cells > MAX_TABLE_CELLS {
+            return Err(self
+                .diag(Code::InputTooLarge, budget::message(MAX_TABLE_CELLS), span)
+                .with_hint(
+                    "Keep fewer rows (max-rows=N) or columns, or split the data into several tables",
+                ));
+        }
+        // A table always serialises; the writer only counts.
+        let mut counter = Counter(0);
+        let _ = serde_json::to_writer(&mut counter, table);
+        if self.charge(counter.0, span) {
+            Ok(())
+        } else {
+            Err(self.diag(
+                Code::InputTooLarge,
+                format!(
+                    "The ADF output would be larger than the {} MiB limit",
+                    MAX_OUTPUT_BYTES / (1024 * 1024)
+                ),
+                span,
+            ))
+        }
+    }
+
     /// The effective maximum container depth.
     pub(crate) fn max_depth(&self) -> usize {
         self.opts.limits.max_depth.min(HARD_MAX_DEPTH)
@@ -183,6 +221,20 @@ impl<'a> Cx<'a> {
     ) {
         let diagnostic = self.diag(code, message, span).with_hint(hint);
         self.warnings.push(diagnostic);
+    }
+}
+
+/// Counts the bytes written to it and keeps none of them.
+struct Counter(usize);
+
+impl Write for Counter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0 = self.0.saturating_add(buf.len());
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 

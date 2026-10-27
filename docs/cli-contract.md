@@ -385,7 +385,7 @@ from Markdown or ADF input alike:
 
 | Code | Meaning |
 |---|---|
-| <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead. |
+| <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead. A `codeBlock` whose language is `csv` or `tsv` is also written this way (in the `roundtrip` flavour), because a ```` ```csv ```` fence would be read back as a table. |
 | <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
 

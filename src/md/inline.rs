@@ -402,7 +402,9 @@ fn image_mode(dest: &str, cx: &Cx<'_>) -> ImageMode {
                 ImageMode::FileDisabled
             }
         }
-        Some((kind, _)) if kind == "csv" => {
+        Some((kind, _))
+            if kind == "csv" || kind.starts_with("csv?") || kind.starts_with("csv#") =>
+        {
             if !cx.opts.extensions.csv {
                 ImageMode::CsvDisabled
             } else if cx.opts.include.is_none() {
@@ -1037,7 +1039,7 @@ impl InlineBuilder {
         cx.warn_hint(
             Code::IncludeDisabled,
             "adf:csv include found, but no include root is set; nothing was read and the alt text was kept",
-            "Pass --include-root DIR to read files under DIR, or convert the CSV with --from csv",
+            "Includes are off by default. Only if you chose this include yourself, pass --include-root DIR for a directory that holds nothing but data you are willing to publish; otherwise convert the CSV with --from csv and paste the table",
             &frame.span,
         );
         let mut text = clean_alt(frame, cx);

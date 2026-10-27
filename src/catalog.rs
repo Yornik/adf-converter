@@ -562,7 +562,7 @@ pub fn advice(code: Code) -> &'static str {
         Code::SizeLimit => "Split the content into several comments, or shorten it.",
         Code::EmptyDocument => "Add content; Jira rejects empty comment bodies.",
         Code::AdfPassthrough => {
-            "Nothing to do for round trips; converting the Markdown back restores the node. Use --md-flavor plain for readable text instead."
+            "Nothing to do for round trips; converting the Markdown back restores the node (this includes code blocks whose language is csv or tsv, which a csv fence would turn into a table). Use --md-flavor plain for readable text instead."
         }
         Code::AttrDropped => {
             "Nothing to do unless the attribute matters; Markdown cannot express it."
@@ -583,7 +583,7 @@ pub fn advice(code: Code) -> &'static str {
             "Use a relative path to a regular file inside the directory given with --include-root (no .., no absolute path, no symlink out of it), and keep within the file size, cell and per-document include budgets; the message says which rule failed."
         }
         Code::IncludeDisabled => {
-            "Pass --include-root DIR to allow ![alt](adf:csv/PATH) to read files under DIR, or convert the CSV with --from csv and paste the table."
+            "Includes are off by default, because the Markdown decides which files are read. Only if you chose the include yourself, pass --include-root DIR for a directory that holds nothing but data you are willing to publish; otherwise convert the CSV with --from csv and paste the table."
         }
         Code::CsvTruncated => {
             "Raise or drop --max-rows, or attach the full file and say the table is a preview."

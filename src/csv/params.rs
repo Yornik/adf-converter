@@ -97,11 +97,13 @@ fn parse_bool(key: &str, value: &str) -> Result<bool, String> {
 
 /// Converts CSV text to the one table it makes, for embedding in a larger document. Same rules,
 /// limits and diagnostics as [`crate::csv::to_adf`]; the locations are relative to `csv`.
+/// `max_output` is what is left of the document's output budget: the table is not built beyond it.
 pub(crate) fn embedded_table(
     csv: &str,
     opts: &CsvToAdfOptions,
+    max_output: usize,
 ) -> Result<Conversion<Table>, Diagnostics> {
-    let Conversion { output, warnings } = super::to_adf(csv, opts)?;
+    let Conversion { output, warnings } = super::to_adf::convert_within(csv, opts, max_output)?;
     let mut tables = output.content.into_iter().filter_map(|block| match block {
         DocBlock::Table(table) => Some(table),
         DocBlock::Paragraph(_)
@@ -127,6 +129,13 @@ pub(crate) fn embedded_table(
             "CSV conversion did not produce exactly one table",
         ))),
     }
+}
+
+/// A hint of the CSV engine, reworded for a table inside Markdown: the option is `max-rows=N`, not
+/// the flag.
+pub(crate) fn embedded_hint(hint: &str) -> String {
+    hint.replace("Remove --max-rows", "Remove max-rows")
+        .replace("--max-rows", "max-rows=N")
 }
 
 /// Moves a diagnostic from CSV-relative lines to the lines of the Markdown that holds the CSV:
@@ -201,9 +210,9 @@ mod tests {
 
     #[test]
     fn an_embedded_table_is_one_table() {
-        let table = embedded_table("a,b\n1,2\n", &CsvToAdfOptions::default()).unwrap();
+        let table = embedded_table("a,b\n1,2\n", &CsvToAdfOptions::default(), usize::MAX).unwrap();
         assert_eq!(table.output.rows.len(), 2);
-        assert!(embedded_table("", &CsvToAdfOptions::default()).is_err());
+        assert!(embedded_table("", &CsvToAdfOptions::default(), usize::MAX).is_err());
     }
 
     #[test]
