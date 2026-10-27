@@ -7,13 +7,17 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-use crate::options::{Extensions, HtmlPolicy, ImagePolicy, MdFlavor, SoftBreak, Target};
+use crate::options::{
+    CsvDelimiter, Extensions, HtmlPolicy, ImagePolicy, MdFlavor, SoftBreak, Target,
+};
 
 const AFTER_HELP: &str = "\
 Examples:
   adf convert notes.md -e jira-comment -o comment.json   Markdown to a Jira comment body
   adf convert - < notes.md                               read Markdown from stdin
   adf convert --from adf issue.json --md-flavor plain    a Jira issue (GET response) as Markdown
+  adf convert --from csv people.csv -e jira-comment      a CSV file as a Jira table
+  adf convert --from adf page.json --to csv -o t.csv     the first table of a page as CSV
   adf validate comment.json                              check ADF before posting it
   adf validate --from md notes.md --strict               would the conversion lose anything?
   adf capabilities --json                                what this build supports
@@ -65,9 +69,9 @@ pub(crate) struct GlobalArgs {
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
-    /// Convert Markdown to ADF JSON, or ADF JSON to Markdown
+    /// Convert Markdown or CSV to ADF JSON, or ADF JSON to Markdown or CSV
     Convert(ConvertArgs),
-    /// Check ADF (or a Markdown conversion) without writing output
+    /// Check ADF (or a Markdown or CSV conversion) without writing output
     Validate(ValidateArgs),
     /// Describe what this build supports
     Capabilities {
@@ -75,7 +79,7 @@ pub(crate) enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Show Markdown → ADF examples, one per feature
+    /// Show Markdown and CSV → ADF examples, one per feature
     Examples {
         /// Only this feature (see `adf capabilities`)
         feature: Option<String>,
@@ -119,9 +123,13 @@ pub(crate) struct ConvertArgs {
     #[arg(short, long, value_name = "PATH")]
     pub output: Option<PathBuf>,
 
-    /// Input format: Markdown, or ADF JSON (a document or any envelope)
+    /// Input format: Markdown, ADF JSON (a document or any envelope), or CSV/TSV (becomes a table)
     #[arg(long, value_enum, default_value_t = ConvertFrom::Md)]
     pub from: ConvertFrom,
+
+    /// Output format when the input is ADF; md is the default (only with --from adf)
+    #[arg(long, value_enum, value_name = "FORMAT")]
+    pub to: Option<ConvertTo>,
 
     #[command(flatten)]
     pub envelope: EnvelopeArgs,
@@ -145,6 +153,12 @@ pub(crate) struct ConvertArgs {
     #[command(flatten)]
     pub markdown: MarkdownArgs,
 
+    #[command(flatten)]
+    pub csv: CsvArgs,
+
+    #[command(flatten)]
+    pub csv_out: CsvOutArgs,
+
     /// Markdown flavour of ADF → Markdown output
     #[arg(
         long,
@@ -163,7 +177,7 @@ pub(crate) struct ValidateArgs {
     #[arg(value_name = "INPUT")]
     pub input: Option<PathBuf>,
 
-    /// Input format; auto: ADF when the input starts with `{`, else Markdown
+    /// Input format; auto: ADF when the input starts with `{`, else Markdown (never CSV)
     #[arg(long, value_enum, default_value_t = ValidateFrom::Auto)]
     pub from: ValidateFrom,
 
@@ -184,12 +198,15 @@ pub(crate) struct ValidateArgs {
 
     #[command(flatten)]
     pub markdown: MarkdownArgs,
+
+    #[command(flatten)]
+    pub csv: CsvArgs,
 }
 
 /// `-e` and `--field`.
 #[derive(Debug, Args)]
 pub(crate) struct EnvelopeArgs {
-    /// Wrap the document for an API (Markdown input only; ADF input is detected)
+    /// Wrap the document for an API (Markdown and CSV input only; ADF input is detected)
     #[arg(short, long, value_enum, value_name = "ENVELOPE")]
     pub envelope: Option<EnvelopeArg>,
 
@@ -225,6 +242,83 @@ fn parse_extensions(spec: &str) -> Result<Extensions, String> {
     Extensions::parse(spec)
 }
 
+/// CSV options that apply to CSV input (`--from csv`), and `--delimiter`, which also applies to
+/// CSV output (`--to csv`). Flags are `Option`/`bool` so that a flag that was given where it has
+/// no meaning can be refused ([`CsvArgs::given_for_input`] and friends).
+#[derive(Debug, Args)]
+#[command(next_help_heading = "CSV options")]
+pub(crate) struct CsvArgs {
+    /// Field separator: comma (default), tab, semicolon, pipe, or one character such as '|'
+    #[arg(long, value_name = "DELIM", value_parser = parse_delimiter)]
+    pub delimiter: Option<CsvDelimiter>,
+
+    /// The first CSV row is data: the header becomes "Column 1", "Column 2", … (--from csv)
+    #[arg(long)]
+    pub no_header: bool,
+
+    /// Keep only the first N data rows, with W_CSV_TRUNCATED when more existed (--from csv)
+    #[arg(long, value_name = "N", value_parser = parse_positive)]
+    pub max_rows: Option<usize>,
+
+    /// Right-align columns whose cells are all numbers (--from csv)
+    #[arg(long)]
+    pub align_numbers: bool,
+}
+
+/// CSV options that apply to CSV output (`--to csv`).
+#[derive(Debug, Args)]
+#[command(next_help_heading = "CSV options")]
+pub(crate) struct CsvOutArgs {
+    /// Which table of the document to write, counting from 1 in document order (--to csv)
+    #[arg(long, value_name = "N", value_parser = parse_positive)]
+    pub table: Option<usize>,
+
+    /// Prefix cells that start with = + - @ (a spreadsheet formula) with ' (--to csv)
+    #[arg(long)]
+    pub csv_safe: bool,
+}
+
+impl CsvArgs {
+    /// The first flag that only applies to CSV input, if one was given.
+    pub fn first_input_only(&self) -> Option<&'static str> {
+        if self.no_header {
+            Some("--no-header")
+        } else if self.max_rows.is_some() {
+            Some("--max-rows")
+        } else if self.align_numbers {
+            Some("--align-numbers")
+        } else {
+            None
+        }
+    }
+}
+
+impl CsvOutArgs {
+    /// The first flag that only applies to CSV output, if one was given.
+    pub fn first_output_only(&self) -> Option<&'static str> {
+        if self.table.is_some() {
+            Some("--table")
+        } else if self.csv_safe {
+            Some("--csv-safe")
+        } else {
+            None
+        }
+    }
+}
+
+fn parse_delimiter(value: &str) -> Result<CsvDelimiter, String> {
+    CsvDelimiter::parse(value)
+}
+
+/// A whole number of at least 1.
+fn parse_positive(value: &str) -> Result<usize, String> {
+    match value.parse::<usize>() {
+        Ok(0) => Err("the number must be at least 1".to_owned()),
+        Ok(n) => Ok(n),
+        Err(_) => Err("not a whole number of at least 1".to_owned()),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub(crate) enum ErrorFormat {
     /// Text on a terminal, JSON lines otherwise
@@ -239,8 +333,18 @@ pub(crate) enum ErrorFormat {
 pub(crate) enum ConvertFrom {
     /// Markdown → ADF
     Md,
-    /// ADF → Markdown
+    /// ADF → Markdown, or one table as CSV with --to csv
     Adf,
+    /// CSV or TSV → an ADF table
+    Csv,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub(crate) enum ConvertTo {
+    /// Markdown (the default)
+    Md,
+    /// The text of one table (--table N) as CSV; --delimiter tab gives TSV
+    Csv,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -251,6 +355,8 @@ pub(crate) enum ValidateFrom {
     Md,
     /// Check an ADF document or envelope
     Adf,
+    /// A dry run of `adf convert --from csv`
+    Csv,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -444,6 +550,85 @@ mod tests {
         assert_eq!(args.target, TargetArg::Confluence);
         assert_eq!(args.markdown.softbreak, SoftBreakArg::HardBreak);
         assert!(args.markdown.extensions.alerts && !args.markdown.extensions.details);
+    }
+
+    #[test]
+    fn parses_csv_options() {
+        let cli = Cli::try_parse_from([
+            "adf",
+            "convert",
+            "--from",
+            "adf",
+            "--to",
+            "csv",
+            "--delimiter",
+            "tab",
+            "--table",
+            "2",
+            "--csv-safe",
+        ])
+        .unwrap();
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert");
+        };
+        assert_eq!(args.from, ConvertFrom::Adf);
+        assert_eq!(args.to, Some(ConvertTo::Csv));
+        assert_eq!(args.csv.delimiter, Some(CsvDelimiter::TAB));
+        assert_eq!(args.csv_out.table, Some(2));
+        assert!(args.csv_out.csv_safe);
+        assert_eq!(args.csv.first_input_only(), None);
+        let cli = Cli::try_parse_from([
+            "adf",
+            "convert",
+            "--from",
+            "csv",
+            "--no-header",
+            "--max-rows",
+            "10",
+            "--align-numbers",
+            "--delimiter",
+            "|",
+        ])
+        .unwrap();
+        let Command::Convert(args) = cli.command else {
+            panic!("expected convert");
+        };
+        assert_eq!(args.from, ConvertFrom::Csv);
+        assert_eq!(args.to, None);
+        assert_eq!(args.csv.max_rows, Some(10));
+        assert_eq!(args.csv.first_input_only(), Some("--no-header"));
+        assert_eq!(args.csv_out.first_output_only(), None);
+        let cli = Cli::try_parse_from(["adf", "validate", "--from", "csv"]).unwrap();
+        let Command::Validate(args) = cli.command else {
+            panic!("expected validate");
+        };
+        assert_eq!(args.from, ValidateFrom::Csv);
+    }
+
+    #[test]
+    fn rejects_bad_csv_values() {
+        for argv in [
+            vec!["adf", "convert", "--from", "csv", "--max-rows", "0"],
+            vec!["adf", "convert", "--from", "csv", "--max-rows", "-1"],
+            vec!["adf", "convert", "--from", "csv", "--max-rows", "many"],
+            vec![
+                "adf", "convert", "--from", "adf", "--to", "csv", "--table", "0",
+            ],
+            vec!["adf", "convert", "--from", "csv", "--delimiter", ""],
+            vec!["adf", "convert", "--from", "csv", "--delimiter", "ab"],
+            vec!["adf", "convert", "--from", "csv", "--delimiter", "\""],
+            vec!["adf", "convert", "--from", "csv", "--delimiter", "é"],
+            vec!["adf", "convert", "--from", "adf", "--to", "xml"],
+            vec!["adf", "convert", "--from", "tsv"],
+            vec!["adf", "validate", "--from", "tsv"],
+        ] {
+            assert!(Cli::try_parse_from(&argv).is_err(), "{argv:?}");
+        }
+        for word in ["comma", "tab", "semicolon", "pipe", ";", "\t", "\\t"] {
+            assert!(parse_delimiter(word).is_ok(), "{word:?}");
+        }
+        assert_eq!(parse_positive("1"), Ok(1));
+        assert!(parse_positive("0").unwrap_err().contains("at least 1"));
     }
 
     /// Windows starts the binary as `…\adf.exe`; usage lines must still say `adf`.
