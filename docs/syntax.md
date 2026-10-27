@@ -261,6 +261,9 @@ and `height` when present.
   with `E_INPUT_TOO_LARGE` (see the [limits](cli-contract.md#limits)).
 - Tables are only valid in the document and in an expand. Elsewhere they are
   [hoisted](#container-rules).
+- `adf` has no CSV input or output. The Agent Skill ships `scripts/csv2md.py` (CSV or TSV → Markdown
+  table) and a `jq` recipe (table → CSV); see
+  [`skills/markdown-to-adf/references/tables.md`](../skills/markdown-to-adf/references/tables.md).
 - `\|` is a literal pipe, including inside code spans.
 
 ### Task lists
