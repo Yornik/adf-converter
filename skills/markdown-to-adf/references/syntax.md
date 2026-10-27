@@ -147,8 +147,10 @@ not the numeric attachment id). `adf` never uploads and never looks ids up; see
 | `layout` | `wide`, `full-width`, `center`, `wrap-right`, `wrap-left`, `align-end`, `align-start` | `center` |
 | `size` | displayed width: `N%` (1 to 100) or `Npx` (1 to 100000) | none |
 
-- Put it on its own line, outside lists, tables and quotes; media is a block and is moved out of
-  paragraphs, headings and cells (`W_BLOCK_HOISTED`).
+- Put it on its own line. Media is a block: in the middle of a paragraph it splits the paragraph,
+  and after text in a heading or GFM table cell it follows that text, without a warning. It stays
+  inside list items, quotes, panels, expands and cells. Only in a task item (the task list is
+  split around it) or an `adf:` label is it moved out, with `W_BLOCK_HOISTED`.
 - An unknown or repeated key, an empty or invalid value, or a bad id or collection keeps the alt
   text as plain text (`W_INVALID_EXTENSION_ARG`). With `--extensions` lacking `media`, the alt text
   stays too (`W_EXTENSION_DISABLED`). `--images drop` removes the image (`W_IMAGE_DROPPED`);
@@ -201,12 +203,14 @@ warning, so `adf validate --from md` shows what to restructure.
   Confluence inline-comment anchors) are dropped with `W_ATTR_DROPPED`.
 - A file image that `adf` can express is written as an `![alt](adf:media/<id>?…)` line (leave it
   unchanged when you edit); captions, marks, `mediaGroup` and `mediaInline` stay ```` ```adf ````
-  blocks.
+  blocks. A table cell or list item holding only an image (no text before it) turns the whole
+  table or list into one ```` ```adf ```` block.
 - `--md-flavor plain`: compact Markdown for reading. Mentions become `@Name`, statuses `[TEXT]`,
   dates `YYYY-MM-DD`, emoji their character, cards bare URLs, external images `![alt](url)`
-  with their caption, uploaded files `[image: alt]` or `[attachment]`, and nodes without a
-  Markdown form are dropped (media is never dropped silently: it leaves a marker, also in table
-  cells and inline). Merged table cells leave the columns they span empty, so every
+  with their caption, uploaded images `[image: alt]`, attachments `[attachment: name]` (or
+  `[attachment]` without a name), and nodes without a Markdown form are dropped (media is never
+  dropped silently: it leaves a marker, also in table cells and inline). An inline marker is
+  inserted as is, with no spaces added around it. Merged table cells leave the columns they span empty, so every
   value stays under its header.
 
 Text, code or titles that Markdown cannot carry unchanged (control characters such as terminal
