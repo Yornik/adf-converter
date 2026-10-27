@@ -42,7 +42,7 @@ adf --version
 `adf` must be 0.1.0 or later (0.3.0 or later for native CSV, see
 [references/tables.md](references/tables.md)). If it is missing, tell the user and offer to install it from the
 latest release (see [references/posting.md](references/posting.md#install-adf)), or with
-`cargo install --git https://github.com/Yornik/adf-converter --locked`. Don't install software
+`cargo install --git https://github.com/Yornik/adf-converter --locked adf-converter`. Don't install software
 without the user's agreement.
 
 Use `adf capabilities --json` to see what this version supports, `adf examples <feature>` for a
