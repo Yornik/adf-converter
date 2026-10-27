@@ -10,6 +10,7 @@ document disagree, that's a bug.
 - ADF output always validates against the vendored ADF JSON schema
   (`schemas/adf/full.json`, `@atlaskit/adf-schema` 57.7.18) **and** against the extra rules Jira
   enforces (see [Rules](#rules-the-converter-always-enforces)).
+- CSV and TSV tables are described in [CSV and TSV tables](#csv-and-tsv-tables).
 - Every lossy step is reported with a `W_…` warning code (see [cli-contract.md](cli-contract.md)).
   Under `--strict`, any warning makes the conversion fail with `E_LOSSY` (exit 5).
 
@@ -261,9 +262,9 @@ and `height` when present.
   with `E_INPUT_TOO_LARGE` (see the [limits](cli-contract.md#limits)).
 - Tables are only valid in the document and in an expand. Elsewhere they are
   [hoisted](#container-rules).
-- `adf` has no CSV input or output. The Agent Skill ships `scripts/csv2md.py` (CSV or TSV → Markdown
-  table) and a `jq` recipe (table → CSV); see
-  [`skills/markdown-to-adf/references/tables.md`](../skills/markdown-to-adf/references/tables.md).
+- CSV and TSV files become tables with `adf convert --from csv`, and a table becomes CSV with
+  `--from adf --to csv`; see [CSV and TSV tables](#csv-and-tsv-tables). Markdown has no CSV
+  syntax of its own.
 - `\|` is a literal pipe, including inside code spans.
 
 ### Task lists
@@ -364,6 +365,188 @@ start with a `codeBlock` or a `mediaSingle` (only a nested list first is rejecte
 `annotation` marks with different `id`s may share a text node (overlapping inline comments). In
 that input the URL allowlist also applies to the `data.url` of smart links in the JSON-LD form and
 to the `url` of external `media`.
+
+## CSV and TSV tables
+
+`adf convert --from csv` reads a CSV or TSV file and writes an ADF document that holds one table.
+`adf convert --from adf --to csv` writes one table of an ADF document as CSV. The flags are in
+[cli-contract.md](cli-contract.md#csv-input---from-csv); this section defines the mapping.
+
+Not available yet (planned, see [issue #13](https://github.com/Yornik/adf-converter/issues/13)):
+a `csv` code block inside Markdown that becomes a table (phase 2), and including a CSV file in
+the middle of a Markdown document (phase 3). Today the CSV is the whole input.
+
+### CSV to a table (reading rules)
+
+**Text and records**
+- The input is UTF-8 text. A leading byte order mark is ignored. More than 1 MiB of text fails
+  with `E_INPUT_TOO_LARGE`.
+- CRLF, LF and a lone CR each end a record, except inside quotes. A line break inside quotes is
+  kept in the cell and written as LF.
+- The delimiter is the one character of `--delimiter` (comma by default; `tab`, `semicolon`,
+  `pipe` or one ASCII character). It is never detected: a semicolon file read with the default
+  delimiter is one column wide.
+- A field that **starts** with a double quote is quoted. It runs to the next quote that is not
+  doubled (`""` is one literal quote). Text after the closing quote, up to the next delimiter or
+  line break, is appended to the field as it is, so `"a"b` is `ab`. A double quote in the middle
+  of an unquoted field is an ordinary character.
+- A quoted field that is still open at the end of the input fails with `E_INPUT_CSV`, located at
+  its opening quote (`line` and `column`, both 1-based, the column counts characters).
+- A record whose fields are all empty or only whitespace, including a blank line, is skipped. If
+  nothing is left, the conversion fails with `E_INPUT_CSV` ("the CSV has no rows").
+
+**The table**
+- The width is the largest number of fields in any record. Shorter records get empty cells at the
+  end; no cell is ever dropped, so there is no `W_TABLE_CELL_DROPPED` for CSV.
+- By default the first record is the header row. With `--no-header` the header is generated
+  (`Column 1`, `Column 2`, …) and every record is a data row. Header cells are `tableHeader`, the
+  others `tableCell`.
+- Every cell holds exactly one paragraph. The cell text is trimmed of spaces, tabs and line
+  breaks at both ends. An empty cell holds a paragraph without content.
+- `--max-rows N` keeps the first N data rows. If there were more, `W_CSV_TRUNCATED` is reported,
+  located at the first record that was left out: `kept N of M data rows`. The header row is never
+  counted. Tell the reader that the table is a preview, and attach the full file.
+- A table may have at most 100,000 cells (`width × (data rows + 1)`). `adf` checks while it
+  reads, so memory is never spent beyond the limit; `E_INPUT_TOO_LARGE` is located at the record
+  that crosses it.
+
+**Cell text**
+- Cell text is **never read as Markdown**: `*stars*`, `<b>`, `[x](y)`, `|`, `\` and `&amp;` all
+  stay literal. (This is the difference with typing a table in Markdown.)
+- Control characters other than tab and line feed are removed, with `W_CONTROL_CHAR` once per
+  affected cell, located at the cell's line.
+- A line break inside a cell becomes a `hardBreak` node between the lines.
+- Bare `http://` and `https://` URLs get a `link` mark, found like GFM autolinks: trailing
+  punctuation such as `.`, `,` or `)` is not part of the URL. There are no other autolinks: not
+  `www.`, not email addresses. The URL must also pass the [URL allowlist](#url-allowlist).
+
+**Numbers**
+- With `--align-numbers`, a column is numeric when it has at least one non-empty data cell (the
+  header does not count) and every non-empty data cell, trimmed, is a number: an optional `+` or
+  `-`, digits that may be separated by `,`, `.`, spaces or `_`, and an optional `%`
+  (`^[+-]?(\d[\d,. _]*)?\d%?$`). `1,250.50`, `-3`, `12%` and `1 000` match; `1e5`, `$5` and `n/a`
+  do not. Every paragraph of a numeric column, the header too, gets an `alignment` mark `end`.
+  The text is not changed, and without the flag no column is aligned.
+
+**Result.** The document holds exactly one `table` with the default attributes
+(`isNumberColumnEnabled: false`, `layout: default`). It is valid for the chosen target (`-t`), and
+identical for identical input: CRLF and LF files, with or without a BOM, give the same bytes.
+
+#### Example
+
+```csv
+Name,Qty,Note
+Widget,"1,250","two words, a ""quote"""
+Gadget,10,see https://example.com/a.
+```
+
+`adf convert parts.csv --from csv --align-numbers` produces this document (shown compact; the
+line breaks are only for reading):
+
+```json
+{"type":"doc","version":1,"content":[{"type":"table","attrs":{"isNumberColumnEnabled":false,"layout":"default"},"content":[
+ {"type":"tableRow","content":[
+  {"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Name"}]}]},
+  {"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Qty"}],"marks":[{"type":"alignment","attrs":{"align":"end"}}]}]},
+  {"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Note"}]}]}]},
+ {"type":"tableRow","content":[
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Widget"}]}]},
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"1,250"}],"marks":[{"type":"alignment","attrs":{"align":"end"}}]}]},
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"two words, a \"quote\""}]}]}]},
+ {"type":"tableRow","content":[
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Gadget"}]}]},
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"10"}],"marks":[{"type":"alignment","attrs":{"align":"end"}}]}]},
+  {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"see "},{"type":"text","text":"https://example.com/a","marks":[{"type":"link","attrs":{"href":"https://example.com/a"}}]},{"type":"text","text":"."}]}]}]}]}]}
+```
+
+The `Qty` column is numeric (`1,250` and `10`), so all three of its paragraphs are right-aligned.
+Without `--align-numbers` the `alignment` marks are absent.
+
+### A table to CSV (writing rules)
+
+**Which table**
+- The input is a bare document or any [envelope](cli-contract.md#envelopes), as for `--from adf`.
+  A CSV file has room for one table, so `adf` takes the Nth `table` node in document order,
+  depth-first (tables inside an expand count too): `--table N`, 1-based, default 1.
+- A document without tables, or `--table` larger than their number, fails with
+  `E_INPUT_NO_TABLE`; the message says how many tables the document has.
+- Box cells (`::: cell`) are tables too, and are counted.
+
+**The grid**
+- Rows are written in order. `tableHeader` and `tableCell` are written alike: CSV has no header
+  notion.
+- **Merged cells.** A cell with `colspan` or `rowspan` is expanded into a grid, and *every* position
+  it covers repeats its text. This keeps each column filterable and sortable in a spreadsheet. It
+  reports `W_CSV_MERGED_CELLS` once per table (located at the table). Positions that no cell
+  covers (a short row) are empty. The width is the widest row. A grid of more than 100,000 cells
+  fails with `E_INPUT_TOO_LARGE`.
+
+**Cell text**
+- Each block in the cell (paragraph, heading, list item, code block, quote, panel, nested expand,
+  …) contributes its text; the blocks are joined with **one space**. A `hardBreak` inside a block
+  becomes a line feed.
+- Inline content as text: text as is; a mention is its `text` attribute, or `@` plus its id; a
+  status its text; a date `YYYY-MM-DD`; an emoji its text, or its `shortName`; a smart link
+  (`inlineCard`, `blockCard`) its URL; images and files the plain-flavour marker (`[image: alt]`,
+  `[attachment: name]`, `[attachment]`; see [Plain flavour: media](#plain-flavour-media)). Unknown
+  nodes contribute their text content. Marks (bold, links, colours) are ignored.
+- Control characters other than tab and line feed are removed, with `W_CONTROL_CHAR`.
+
+**CSV text**
+- A field is quoted if it contains the delimiter, a double quote, a line feed or a carriage
+  return, or if it starts or ends with a space or a tab. Quotes inside are doubled. Other fields
+  are written bare.
+- Records end with LF, and the output always ends with LF. There is no BOM. The same delimiter is
+  used everywhere (`--delimiter`, comma by default).
+- The output is deterministic and limited to 64 MiB.
+
+**Spreadsheets and formula injection**
+- Excel, LibreOffice and Google Sheets treat a cell that starts with `=`, `+`, `-` or `@` (or a
+  tab or carriage return) as a formula when they open a CSV. Text from Jira is untrusted, so a
+  cell such as `=HYPERLINK(…)` can leak data or run a command when someone opens the file.
+- This protection is **off by default**, because the CSV is then exactly the table's text and
+  round-trips. With `--csv-safe`, a cell whose first character is one of those characters gets a
+  single quote (`'`) in front, before the cell is quoted: `=1+1` becomes `'=1+1`, and the
+  negative number `-5` becomes `'-5` (spreadsheets show it as text). Use `--csv-safe` whenever the
+  CSV goes to a spreadsheet; leave it off when a program reads the file.
+
+#### Example
+
+The table of the document above, `adf convert body.json --from adf --to csv`, gives the CSV it
+came from:
+
+```csv
+Name,Qty,Note
+Widget,"1,250","two words, a ""quote"""
+Gadget,10,see https://example.com/a.
+```
+
+(`Qty`'s alignment and the link mark are not part of CSV and are ignored.) A table with a merged
+cell:
+
+| Group | Item |
+|---|---|
+| Fruit (`rowspan` 2) | Apple |
+| | Pear |
+
+is written as the following, with `W_CSV_MERGED_CELLS`:
+
+```csv
+Group,Item
+Fruit,Apple
+Fruit,Pear
+```
+
+### What CSV keeps and what it does not
+
+- CSV → table → CSV gives the same data, normalised: blank lines are gone, short records are
+  padded, fields are trimmed, quoting is minimal, and line breaks are LF.
+- Table → CSV → table loses what CSV cannot hold: formatting and marks, links that are not bare
+  URLs, non-text nodes, column widths, and merged cells (they become repeated text).
+- Not supported: encodings other than UTF-8 (convert with `iconv`), delimiter detection, several
+  tables in one file, formulas, number or date parsing (every cell is text), and merged cells or
+  header columns from CSV. A `csv` block inside Markdown and a CSV include are not yet available
+  (see above).
 
 ## ADF → Markdown
 
