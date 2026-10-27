@@ -433,6 +433,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
         "emoji" => extensions.emoji,
         "card" => extensions.card,
         "media" => extensions.media,
+        "csv" => extensions.csv,
         _ => false,
     }
 }
@@ -533,6 +534,9 @@ pub fn advice(code: Code) -> &'static str {
         }
         Code::InputNoTable => {
             "The message says how many tables the document has; pass --table N with N in that range, or convert a document that holds a table."
+        }
+        Code::CsvOption => {
+            "Fix the option named in the message. Allowed: delimiter (comma, tab, semicolon, pipe or one character), header (true or false), max-rows (a whole number of at least 1) and align (numbers or none), each at most once."
         }
         Code::CsvTruncated => {
             "Raise or drop --max-rows, or attach the full file and say the table is a preview."

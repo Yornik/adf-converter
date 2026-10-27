@@ -2,6 +2,8 @@
 //! (issue #13).
 //!
 //! - `parse`: the RFC 4180 reader (one linear pass) and line/column lookup;
+//! - `params`: the options of an embedded table (a ```csv fence or an `adf:csv` include) and the
+//!   bridge from CSV text to one table node;
 //! - `text`, `numbers`: one field as cell content (hard breaks, links); numeric columns;
 //! - `to_adf`: the records become the rows of one table, within the limits;
 //! - `grid`, `cell_text`, `write`, `from_adf`: a table's `colspan`/`rowspan` expanded to a grid,
@@ -15,6 +17,7 @@ mod from_adf;
 mod grid;
 mod numbers;
 mod parse;
+pub(crate) mod params;
 mod text;
 mod to_adf;
 mod write;

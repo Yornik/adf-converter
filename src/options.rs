@@ -78,13 +78,16 @@ pub struct Extensions {
     pub card: bool,
     /// `![alt](adf:media/UUID?…)` → a `mediaSingle` holding an existing Media Services file.
     pub media: bool,
+    /// ```` ```csv ```` / ```` ```tsv ```` fences → a table, and `![alt](adf:csv/PATH?…)` → a
+    /// table read from a file under `MdToAdfOptions::include` (issue #13, phases 2 and 3).
+    pub csv: bool,
 }
 
 impl Extensions {
     /// The names accepted by `--extensions`, in documentation order.
     pub const NAMES: &'static [&'static str] = &[
         "alerts", "details", "cells", "raw-adf", "mention", "status", "date", "emoji", "card",
-        "media",
+        "media", "csv",
     ];
 
     pub fn all() -> Self {
@@ -99,6 +102,7 @@ impl Extensions {
             emoji: true,
             card: true,
             media: true,
+            csv: true,
         }
     }
 
@@ -114,6 +118,7 @@ impl Extensions {
             emoji: false,
             card: false,
             media: false,
+            csv: false,
         }
     }
 
@@ -137,6 +142,7 @@ impl Extensions {
                 "emoji" => ext.emoji = true,
                 "card" => ext.card = true,
                 "media" => ext.media = true,
+                "csv" => ext.csv = true,
                 other => {
                     return Err(format!(
                         "unknown extension '{other}'; expected all, none, or a list of: {}",

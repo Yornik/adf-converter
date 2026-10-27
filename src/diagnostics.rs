@@ -74,6 +74,7 @@ codes! {
     Lossy             = "E_LOSSY",             Error, 5, "The conversion would lose information and --strict (or --html error) is set.";
     InputCsv          = "E_INPUT_CSV",         Error, 3, "The CSV input is malformed (for example an unterminated quote) or has no rows.";
     InputNoTable      = "E_INPUT_NO_TABLE",    Error, 3, "The ADF document has no table with the requested number.";
+    CsvOption         = "E_CSV_OPTION",        Error, 3, "A ```csv fence or an adf:csv include has an unknown, repeated or invalid option.";
     // --- warnings: Markdown -> ADF ------------------------------------------------------------
     MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).";
     HeadingDemoted    = "W_HEADING_DEMOTED",    Warning, 0, "A heading inside a list item or quote became a bold paragraph.";
