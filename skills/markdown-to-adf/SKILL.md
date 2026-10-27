@@ -1,8 +1,8 @@
 ---
 name: markdown-to-adf
-description: Converts Markdown to Atlassian Document Format (ADF) JSON, and ADF back to Markdown, with the offline `adf` CLI, so Jira comments, Jira issue descriptions, rich-text custom fields and Confluence pages render with real headings, lists, tables, code blocks, panels, mentions and status lozenges. Use when posting, editing or updating Jira or Confluence comments, descriptions or pages from Markdown through the REST API, curl or acli; when embedding screenshots, images or uploaded attachments in a Jira comment, description or Confluence page; when reading a Jira issue, comment or Confluence page as Markdown; or when the user mentions ADF, Atlassian Document Format, or formatted Jira comments.
+description: Converts Markdown to Atlassian Document Format (ADF) JSON, and ADF back to Markdown, with the offline `adf` CLI, so Jira comments, Jira issue descriptions, rich-text custom fields and Confluence pages render with real headings, lists, tables, code blocks, panels, mentions and status lozenges, including tables built from CSV data. Use when posting, editing or updating Jira or Confluence comments, descriptions or pages from Markdown through the REST API, curl or acli; when embedding screenshots, images or uploaded attachments, or tables from CSV/spreadsheet data, in a Jira comment, description or Confluence page; when reading a Jira issue, comment or Confluence page as Markdown; or when the user mentions ADF, Atlassian Document Format, or formatted Jira comments.
 license: MIT
-compatibility: Requires the adf CLI (adf-converter 0.1.0 or later, https://github.com/Yornik/adf-converter) on PATH. adf works offline; posting needs curl (or acli), jq for some recipes, network access and Atlassian credentials in environment variables.
+compatibility: Requires the adf CLI (adf-converter 0.1.0 or later, https://github.com/Yornik/adf-converter) on PATH. adf works offline; posting needs curl (or acli), jq for some recipes, python3 for scripts/csv2md.py (optional), network access and Atlassian credentials in environment variables.
 metadata:
   repository: https://github.com/Yornik/adf-converter
   min-cli-version: "0.1.0"
@@ -173,6 +173,10 @@ get the media id, then write the `adf:media` line. Attach the file to the same i
 the comment or description. Read the image's pixel size for `width` and `height` with
 `file shot.png`, `sips -g pixelWidth -g pixelHeight shot.png` (macOS) or
 `identify -format '%w %h' shot.png`. `adf` never uploads or downloads.
+
+To turn a CSV or TSV file into a table, run `python3 scripts/csv2md.py data.csv > table.md` (next to
+this `SKILL.md`; `adf` has no CSV input of its own). To get a table out as CSV, use the `jq` recipe.
+Both, and the limits for big tables, are in [references/tables.md](references/tables.md).
 
 Keep tables, headings, rules, panels and `<details>` out of lists and quotes; otherwise `adf`
 moves or converts them (`W_BLOCK_HOISTED`, `W_HEADING_DEMOTED`, `W_BLOCK_FLATTENED`). The full

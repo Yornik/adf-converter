@@ -122,4 +122,18 @@ jq -e -s 'any(.[]; .code == "W_IMAGE_AS_LINK")' "$work/self/diagnostics.jsonl" >
   die "converting an image did not report W_IMAGE_AS_LINK"
 check_jsonschema --schemafile "$work/self/diagnostic.schema.json" "$work"/self/diagnostic-*.json
 
+# The Agent Skill's CSV helper (skills/markdown-to-adf/scripts/csv2md.py) produces the stored table,
+# and adf accepts that table without a single warning.
+step "Checking the skill's csv2md.py helper"
+if command -v python3 >/dev/null 2>&1; then
+  python3 skills/markdown-to-adf/scripts/csv2md.py --align-numbers tests/skill/csv2md-sample.csv \
+    >"$work/self/csv2md.md" || die "csv2md.py failed on tests/skill/csv2md-sample.csv"
+  diff -u tests/skill/csv2md-sample.md "$work/self/csv2md.md" ||
+    die "csv2md.py output differs from tests/skill/csv2md-sample.md"
+  "$adf" validate --from md --strict "$work/self/csv2md.md" >/dev/null ||
+    die "adf reports warnings for the table csv2md.py wrote"
+else
+  printf 'contract.sh: warning: python3 not found; skipped the csv2md.py check\n' >&2
+fi
+
 printf '\nContract checks passed (%d fixtures, %d ADF documents).\n' "$count" "${#docs[@]}" >&2

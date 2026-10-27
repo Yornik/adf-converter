@@ -195,7 +195,7 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `- [ ]` / `- [x]` | `taskList`, `taskItem` with deterministic `localId`s |
 | Fenced and indented code | `codeBlock` with `language` |
 | `>` quotes, `---` rules | `blockquote`, `rule` |
-| GFM tables, with column alignment | `table` with `tableHeader` cells and `alignment` marks |
+| GFM tables, with column alignment (CSV: see [tables.md](skills/markdown-to-adf/references/tables.md)) | `table` with `tableHeader` cells and `alignment` marks |
 | `<u>`, `<sub>`, `<sup>`, `<br>` | `underline`, `subsup`, `hardBreak` |
 | `<span style="color: #rrggbb">`, `<span style="background-color: #rrggbb">` | `textColor`, `backgroundColor` |
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | `panel` (info, success, note, warning, error) |
