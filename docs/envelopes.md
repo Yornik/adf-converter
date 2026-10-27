@@ -27,6 +27,10 @@ Examples are shown compact. On a terminal, `adf` prints pretty JSON instead; `--
 | set a rich-text (multi-line) Jira custom field | `jira-field --field customfield_NNNNN` | `PUT /rest/api/3/issue/{key}` |
 | create or update a Confluence page or comment | `confluence` | the `body` of `POST /wiki/api/v2/pages`, `PUT /wiki/api/v2/pages/{id}`, `POST /wiki/api/v2/footer-comments` |
 
+`--from csv` (a CSV or TSV file converted to a table) takes `-e` like Markdown input.
+`--from adf --to csv` reads any of these envelopes, detected exactly as for `--from adf`, and
+writes plain CSV text, so `-e` is not allowed with it.
+
 `-t/--target auto` (the default) validates against Confluence's rules for `-e confluence` and
 against Jira's rules for everything else. Use `-t confluence` to produce a bare `doc` for
 Confluence.
@@ -143,4 +147,6 @@ document is a JSON string, and the segments after `/value` point into the parsed
 detected envelope in its `envelope` field.
 
 `adf convert --from adf` does not accept `-e` (exit 2): the input is unwrapped automatically,
-and the output is Markdown.
+and the output is Markdown. With `--to csv` the input is unwrapped the same way and the output is
+plain CSV text of one table (`--table N`); `-e` is not accepted there either. Warning pointers for
+`--to csv` start at the document's position, as above.

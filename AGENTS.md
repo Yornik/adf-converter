@@ -40,6 +40,11 @@ Markdown → ADF:
 ADF → Markdown: `src/adf/envelope.rs` (unwrap) → `src/adf/reader.rs` (lenient) →
 `src/adf/to_md.rs`.
 
+CSV: `src/csv/` holds the hand-written RFC 4180 reader (CSV → typed table model) and writer (one
+ADF table → CSV); both are reached through `csv_to_adf` / `adf_to_csv` in `src/lib.rs` and the
+`--from csv` / `--to csv` paths in `src/cli.rs`. Rules: the "CSV and TSV tables" section of
+`docs/syntax.md`.
+
 - `src/diagnostics.rs`: the `Code` enum, the single source of every `E_`/`W_` code.
 - `src/options.rs`, `src/limits.rs`: options mirroring the CLI flags; size and depth limits.
 - `src/catalog.rs`: features and examples behind `adf capabilities` and `adf examples`.

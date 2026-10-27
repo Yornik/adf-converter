@@ -45,6 +45,11 @@ body. `set -o pipefail` only changes the exit status afterwards. With `-o FILE &
 the conversion succeeded, and `-o` writes the file atomically, so it never contains a partial
 document.
 
+The content may also be a CSV or TSV file. `adf convert data.csv --from csv -e jira-comment -o
+comment.json` gives a comment with a table, and the same `curl` command posts it (see
+[CSV and TSV tables](syntax.md#csv-and-tsv-tables)). `--to csv` goes the other way: a table of a
+fetched issue, comment or page as a CSV file.
+
 Every recipe uses `curl --fail-with-body` (curl 7.76 or later): an HTTP error gives a non-zero
 exit status and still prints Jira's error message. Add `adf validate --from md FILE` before
 converting if you want to see warnings first; with `--strict`, any warning stops the conversion

@@ -1,0 +1,6 @@
+Name,Qty,Price,Note
+Widget | big,3,"1,250.50","line one
+line two"
+Gadget,10,9.99,"uses *stars*, _under_, `code`, <b>html</b> & C:\temp\x"
+Short row,5,,
+Link,1,2,https://example.com/a?b=1&c=2 [x](y)
