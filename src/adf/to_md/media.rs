@@ -41,26 +41,47 @@ const MAX_PIXELS: u64 = 100_000;
 /// Longest `collection`.
 const MAX_COLLECTION_LEN: usize = 64;
 
-/// The destination `adf:media/<id>?…` of a single file image, or `None` when the `mediaSingle`
-/// `single` and its only child `media` hold anything the syntax cannot say: another media type,
-/// marks, other attributes, a malformed id or collection, a size out of range, or alt text that
-/// Markdown → ADF would change (control characters, line breaks, surrounding whitespace).
-pub(super) fn file_media_dest(single: &Node<'_>, media: &Node<'_>) -> Option<String> {
-    if media.attr_str("type") != Some("file")
-        || !media.marks.is_empty()
-        || !single.marks.is_empty()
-        || !media.content.is_empty()
-        || !media.attr_names().all(|n| MEDIA_ATTRS.contains(&n))
-        || !single.attr_names().all(|n| SINGLE_ATTRS.contains(&n))
-    {
-        return None;
+/// The destination `adf:media/<id>?…` of a single file image, or the first reason why the
+/// `mediaSingle` `single` and its only child `media` hold something the syntax cannot say: marks,
+/// children, other attributes, a malformed id or collection, a size out of range, or alt text that
+/// Markdown → ADF would change (control characters, line breaks, surrounding whitespace). The
+/// reason names what to change, so it can be shown to the user.
+pub(super) fn file_media_dest(single: &Node<'_>, media: &Node<'_>) -> Result<String, String> {
+    if media.attr_str("type") != Some("file") {
+        return Err("the media is not a file".to_owned());
     }
-    let id = media.attr_str("id").filter(|id| is_uuid(id))?;
-    let collection = media.attr_str("collection").filter(|c| is_collection(c))?;
+    if !media.marks.is_empty() || !single.marks.is_empty() {
+        return Err("a mark (border, link, …) on the media has no adf:media form".to_owned());
+    }
+    if !media.content.is_empty() {
+        return Err("the media has children".to_owned());
+    }
+    if let Some(name) = media.attr_names().find(|n| !MEDIA_ATTRS.contains(n)) {
+        return Err(format!(
+            "the media attribute '{}' has no adf:media form",
+            clip(name)
+        ));
+    }
+    if let Some(name) = single.attr_names().find(|n| !SINGLE_ATTRS.contains(n)) {
+        return Err(format!(
+            "the mediaSingle attribute '{}' has no adf:media form",
+            clip(name)
+        ));
+    }
+    let id = media
+        .attr_str("id")
+        .filter(|id| is_uuid(id))
+        .ok_or("the media id is not a UUID (an attachment id is not a media id)")?;
+    let collection = media
+        .attr_str("collection")
+        .filter(|c| is_collection(c))
+        .ok_or("the media collection is missing or has characters outside A-Z a-z 0-9 - _ (at most 64)")?;
     if let Some(alt) = media.attr("alt") {
-        let alt = alt.as_str()?;
+        let alt = alt.as_str().ok_or("the alt text is not a string")?;
         if has_unsafe_control(alt) || alt.contains(['\n', '\r']) || alt.trim() != alt {
-            return None;
+            return Err(
+                "the alt text has control characters, line breaks or surrounding spaces".to_owned(),
+            );
         }
     }
     // In the order of the syntax: collection, width, height, layout, size.
@@ -70,13 +91,13 @@ pub(super) fn file_media_dest(single: &Node<'_>, media: &Node<'_>) -> Option<Str
     }
     push_pixels(media, "width", &mut query)?;
     push_pixels(media, "height", &mut query)?;
-    match single.attr("layout") {
-        None => {}
-        Some(layout) => {
-            let layout = layout.as_str().filter(|l| LAYOUTS.contains(l))?;
-            if layout != "center" {
-                query.push(format!("layout={layout}"));
-            }
+    if let Some(layout) = single.attr("layout") {
+        let layout = layout
+            .as_str()
+            .filter(|l| LAYOUTS.contains(l))
+            .ok_or("the layout is not one of the mediaSingle layouts")?;
+        if layout != "center" {
+            query.push(format!("layout={layout}"));
         }
     }
     push_size(single, &mut query)?;
@@ -85,33 +106,46 @@ pub(super) fn file_media_dest(single: &Node<'_>, media: &Node<'_>) -> Option<Str
         dest.push('?');
         dest.push_str(&query.join("&"));
     }
-    Some(dest)
+    Ok(dest)
 }
 
-/// Adds `name=<n>` for the `width` or `height` of `media` when it is present. `None` when it is
+/// An attribute name for a message: control characters escaped, at most 40 characters.
+fn clip(name: &str) -> String {
+    name.escape_debug().take(40).collect()
+}
+
+/// Adds `name=<n>` for the `width` or `height` of `media` when it is present; an error when it is
 /// not an integer in `1..=MAX_PIXELS`.
-fn push_pixels(media: &Node<'_>, name: &str, query: &mut Vec<String>) -> Option<()> {
+fn push_pixels(media: &Node<'_>, name: &str, query: &mut Vec<String>) -> Result<(), String> {
     if let Some(value) = media.attr(name) {
-        let n = value.as_u64().filter(|n| (1..=MAX_PIXELS).contains(n))?;
+        let n = value
+            .as_u64()
+            .filter(|n| (1..=MAX_PIXELS).contains(n))
+            .ok_or_else(|| format!("the media {name} is not an integer from 1 to {MAX_PIXELS}"))?;
         query.push(format!("{name}={n}"));
     }
-    Some(())
+    Ok(())
 }
 
-/// Adds `size=<n>%` or `size=<n>px` for the `width` and `widthType` of a `mediaSingle`. `None`
+/// Adds `size=<n>%` or `size=<n>px` for the `width` and `widthType` of a `mediaSingle`; an error
 /// when the pair has no such form (a `widthType` alone, a percentage above 100, …).
-fn push_size(single: &Node<'_>, query: &mut Vec<String>) -> Option<()> {
+fn push_size(single: &Node<'_>, query: &mut Vec<String>) -> Result<(), String> {
+    const NO_FORM: &str = "the mediaSingle width and widthType have no size= form";
     let Some(width) = single.attr("width") else {
-        return single.attr("widthType").is_none().then_some(());
+        return if single.attr("widthType").is_none() {
+            Ok(())
+        } else {
+            Err(NO_FORM.to_owned())
+        };
     };
-    let n = width.as_u64()?;
+    let n = width.as_u64().ok_or(NO_FORM)?;
     let size = match single.attr("widthType").map(Value::as_str) {
         None | Some(Some("percentage")) if (1..=100).contains(&n) => format!("{n}%"),
         Some(Some("pixel")) if (1..=MAX_PIXELS).contains(&n) => format!("{n}px"),
-        _ => return None,
+        _ => return Err(NO_FORM.to_owned()),
     };
     query.push(format!("size={size}"));
-    Some(())
+    Ok(())
 }
 
 /// A UUID: 8-4-4-4-12 hex digits, either case.

@@ -84,7 +84,8 @@ impl Params {
                 shown(pair)
             )
         })?;
-        if value.is_empty() {
+        // An empty collection is the value Jira itself writes, so `collection=` is allowed.
+        if value.is_empty() && key != "collection" {
             return Err(format!(
                 "adf:media parameter '{}' has an empty value",
                 shown(key)
@@ -384,13 +385,16 @@ mod tests {
         assert!(err(&format!("{ID}?&width=1")).contains("empty parameter"));
         assert!(err(&format!("{ID}?width")).contains("has no value"));
         assert!(err(&format!("{ID}?=1")).contains("unknown parameter ''"));
-        for key in ["collection", "width", "height", "layout", "size"] {
+        for key in ["width", "height", "layout", "size"] {
             let message = err(&format!("{ID}?{key}="));
             assert!(
                 message.contains(&format!("'{key}' has an empty value")),
                 "{message}"
             );
         }
+        // An empty collection is the value Jira writes: allowed, the same as no collection.
+        assert_eq!(ok(&format!("{ID}?collection=")), ok(ID));
+        assert!(err(&format!("{ID}?collection=&collection=a")).contains("repeats the parameter"));
         // A second `?` ends up inside a value, which then fails its own check.
         assert!(parse(Some(&format!("{ID}?width=1?height=2"))).is_err());
     }

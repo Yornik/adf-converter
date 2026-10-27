@@ -772,3 +772,44 @@ fn plain_output_is_deterministic_and_has_no_double_spaces() {
     assert_eq!(first, plain(content));
     assert!(!first.contains("  "), "{first}");
 }
+
+/// The `W_ADF_PASSTHROUGH` message names the condition that keeps a file image raw, instead of
+/// one generic sentence.
+#[test]
+fn passthrough_message_names_the_failing_condition() {
+    let reason = |content: Value| -> String {
+        convert(json!([content]), MdFlavor::Roundtrip)
+            .warnings
+            .into_iter()
+            .find(|w| w.code == Code::AdfPassthrough)
+            .map(|w| w.message)
+            .unwrap_or_default()
+    };
+    let cases: Vec<(Value, &str)> = vec![
+        (image(json!({"id": "10001"})), "not a UUID"),
+        (image(json!({"collection": "a.b"})), "collection"),
+        (image(json!({"occurrenceKey": "k"})), "occurrenceKey"),
+        (image(json!({"width": 0})), "media width"),
+        (image(json!({"alt": " padded "})), "alt text"),
+        (
+            single(file(json!({})), json!({"layout": "diagonal"})),
+            "layout",
+        ),
+        (
+            single(file(json!({})), json!({"layout": "center", "width": 150})),
+            "width and widthType",
+        ),
+        (
+            single(
+                json!({"type": "media", "attrs": {"type": "file", "id": ID, "collection": ""},
+                       "marks": [{"type": "border", "attrs": {"color": "#000000", "size": 2}}]}),
+                json!({"layout": "center"}),
+            ),
+            "mark",
+        ),
+    ];
+    for (content, needle) in cases {
+        let message = reason(content.clone());
+        assert!(message.contains(needle), "{needle}: {message}");
+    }
+}

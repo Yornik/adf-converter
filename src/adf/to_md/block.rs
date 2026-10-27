@@ -584,19 +584,27 @@ pub(super) fn media_single(node: &Node<'_>, in_table: bool, cx: &mut Ctx) -> Res
         [media] if media.ty == "media" => Some(media),
         _ => None,
     };
-    if let Some((media, dest)) = media.and_then(|m| Some((m, file_media_dest(node, m)?))) {
-        return Ok(image_line(
-            media.attr_str("alt").unwrap_or(""),
-            &dest,
-            in_table,
-            true,
-        ));
+    let mut file_reason = None;
+    if let Some(file) = media.filter(|m| m.attr_str("type") == Some("file")) {
+        match file_media_dest(node, file) {
+            Ok(dest) => {
+                return Ok(image_line(
+                    file.attr_str("alt").unwrap_or(""),
+                    &dest,
+                    in_table,
+                    true,
+                ));
+            }
+            Err(reason) => file_reason = Some(reason),
+        }
     }
     let external = media.filter(|m| is_external_image(m) && m.marks.is_empty());
     let Some(media) = external.filter(|_| node.marks.is_empty()) else {
         return Err(Fail::unrepresentable(
             &node.pointer(),
-            "only a single external image or a plain file image maps to ![alt](url)",
+            &file_reason.unwrap_or_else(|| {
+                "only a single external image or a plain file image maps to ![alt](url)".to_owned()
+            }),
         ));
     };
     if media.attr_str("alt").is_some_and(has_unsafe_control) {

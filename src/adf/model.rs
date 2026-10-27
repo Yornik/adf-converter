@@ -925,7 +925,11 @@ impl MediaLayout {
 /// The width of a `mediaSingle`: a percentage of the container (1 to 100, no `widthType`) or a
 /// pixel width (`widthType: "pixel"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MediaSize {
+pub struct MediaSize(SizeRepr);
+
+/// The two forms of [`MediaSize`]; private so that only the validating constructors can build one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SizeRepr {
     Percent(u8),
     Pixels(u32),
 }
@@ -936,12 +940,12 @@ impl MediaSize {
         u8::try_from(value)
             .ok()
             .filter(|v| (1..=100).contains(v))
-            .map(Self::Percent)
+            .map(|v| Self(SizeRepr::Percent(v)))
     }
 
     /// Returns `None` outside `1..=100000`.
     pub fn pixels(value: u32) -> Option<Self> {
-        MediaDimension::new(value).map(|d| Self::Pixels(d.get()))
+        MediaDimension::new(value).map(|d| Self(SizeRepr::Pixels(d.get())))
     }
 }
 
@@ -994,8 +998,10 @@ impl Node for MediaSingle {
         let mut entries = vec![("layout", AttrValue::Str(self.layout.as_str()))];
         match self.size {
             None => {}
-            Some(MediaSize::Percent(n)) => entries.push(("width", AttrValue::U32(n.into()))),
-            Some(MediaSize::Pixels(n)) => {
+            Some(MediaSize(SizeRepr::Percent(n))) => {
+                entries.push(("width", AttrValue::U32(n.into())));
+            }
+            Some(MediaSize(SizeRepr::Pixels(n))) => {
                 entries.push(("width", AttrValue::U32(n)));
                 entries.push(("widthType", AttrValue::Str("pixel")));
             }
@@ -1582,12 +1588,18 @@ mod tests {
         assert_eq!(MediaDimension::new(100_000).unwrap().get(), 100_000);
         assert!(MediaDimension::new(100_001).is_none());
         assert!(MediaSize::percent(0).is_none());
-        assert_eq!(MediaSize::percent(1), Some(MediaSize::Percent(1)));
-        assert_eq!(MediaSize::percent(100), Some(MediaSize::Percent(100)));
+        assert_eq!(MediaSize::percent(1), Some(MediaSize(SizeRepr::Percent(1))));
+        assert_eq!(
+            MediaSize::percent(100),
+            Some(MediaSize(SizeRepr::Percent(100)))
+        );
         assert!(MediaSize::percent(101).is_none());
         assert!(MediaSize::percent(256 + 50).is_none());
         assert!(MediaSize::pixels(0).is_none());
-        assert_eq!(MediaSize::pixels(100_000), Some(MediaSize::Pixels(100_000)));
+        assert_eq!(
+            MediaSize::pixels(100_000),
+            Some(MediaSize(SizeRepr::Pixels(100_000)))
+        );
         assert!(MediaSize::pixels(100_001).is_none());
         for layout in MediaLayout::ALL {
             assert_eq!(MediaLayout::parse(layout.as_str()), Some(layout));

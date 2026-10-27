@@ -1,0 +1,120 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A line, then a screenshot on its own line, then more text:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555555",
+            "collection": "",
+            "alt": "dashboard.png"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "text after the screenshot"
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "in a list item"
+                }
+              ]
+            },
+            {
+              "type": "mediaSingle",
+              "attrs": {
+                "layout": "center"
+              },
+              "content": [
+                {
+                  "type": "media",
+                  "attrs": {
+                    "type": "file",
+                    "id": "11111111-2222-3333-4444-555555555556",
+                    "collection": "",
+                    "alt": "list.png"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "text after the image"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An external image behaves the same:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/chart.png",
+            "alt": "chart"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "text after the chart"
+        }
+      ]
+    }
+  ]
+}
