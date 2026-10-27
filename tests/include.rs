@@ -103,7 +103,10 @@ impl Sandbox {
     fn assert_no_leak(&self, outcome: &Outcome) {
         let text = outcome.everything();
         for secret in self.secrets() {
-            assert!(!text.contains(&secret), "{secret:?} leaked into:\n{text}");
+            assert!(
+                !text.contains(&secret),
+                "a canary outside the root leaked into:\n{text}"
+            );
         }
     }
 }
@@ -1005,7 +1008,10 @@ fn the_cli_refuses_a_hostile_path_with_exit_3_and_no_output() {
         let stderr = text(&output.stderr);
         assert!(stderr.contains("E_INCLUDE"), "{path}: {stderr}");
         for secret in sandbox.secrets() {
-            assert!(!stderr.contains(&secret), "{path}: leaked {secret}");
+            assert!(
+                !stderr.contains(&secret),
+                "{path}: a canary outside the root leaked"
+            );
         }
     }
 }
