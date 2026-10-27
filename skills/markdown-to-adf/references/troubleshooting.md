@@ -77,6 +77,13 @@ listed problems and run again.
 | `W_ATTR_DROPPED` | Attributes or marks without a Markdown form were dropped, such as column widths, cell colours, table layout, panel icons, text alignment and indentation, or Confluence `annotation` marks (the anchors of inline comments). | Fine for reading. If you post the Markdown back, those details are lost (for inline comments, their anchors): tell the user first. |
 | `W_INPUT_SCHEMA` | The input ADF doesn't match the vendored schema (often newer Jira features); it was converted anyway. | Check the output for missing content. If it keeps happening with ordinary Jira content, the `adf` version may be outdated. |
 
+## Warnings: CSV
+
+| Code | Meaning | Fix |
+|---|---|---|
+| `W_CSV_TRUNCATED` | Data rows beyond `--max-rows` were left out of the table. | Raise `--max-rows`, or attach the full file and say the table is a preview. |
+| `W_CSV_MERGED_CELLS` | A table with merged cells was written as CSV by repeating the merged cell's text in every cell it covers. | Expected for such tables. |
+
 ## HTTP errors after posting
 
 | Response | Likely cause | Fix |

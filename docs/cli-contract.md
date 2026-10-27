@@ -239,6 +239,8 @@ included in `adf capabilities --json`.
 | <a id="e_target"></a>`E_TARGET` | 4 | The ADF document uses a node, mark or attribute the target product does not accept. |
 | <a id="e_invariant"></a>`E_INVARIANT` | 4 | The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema. |
 | <a id="e_lossy"></a>`E_LOSSY` | 5 | The conversion would lose information and `--strict` (or `--html error`) is set. |
+| <a id="e_input_csv"></a>`E_INPUT_CSV` | 3 | The CSV input is malformed (for example an unterminated quote) or has no rows. |
+| <a id="e_input_no_table"></a>`E_INPUT_NO_TABLE` | 3 | The ADF document has no table with the requested number. |
 
 ### Warnings: Markdown → ADF
 
@@ -280,6 +282,13 @@ from Markdown or ADF input alike:
 | <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead. |
 | <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
+
+### Warnings: CSV
+
+| Code | Meaning |
+|---|---|
+| <a id="w_csv_truncated"></a>`W_CSV_TRUNCATED` | Data rows beyond `--max-rows` were left out of the table. |
+| <a id="w_csv_merged_cells"></a>`W_CSV_MERGED_CELLS` | A table with merged cells was written as CSV by repeating the text of a merged cell in every cell it covers. |
 
 ADF → Markdown lists at most 20 `W_INPUT_SCHEMA` warnings and at most 100 of each other code. One
 more warning of the same code, without a location, counts the rest.

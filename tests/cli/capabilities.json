@@ -494,6 +494,18 @@
       "summary": "The conversion would lose information and --strict (or --html error) is set."
     },
     {
+      "code": "E_INPUT_CSV",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The CSV input is malformed (for example an unterminated quote) or has no rows."
+    },
+    {
+      "code": "E_INPUT_NO_TABLE",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "The ADF document has no table with the requested number."
+    },
+    {
       "code": "W_MARK_DROPPED",
       "severity": "warning",
       "exit_code": 0,
@@ -630,6 +642,18 @@
       "severity": "warning",
       "exit_code": 0,
       "summary": "The input ADF does not match the schema; it was converted anyway."
+    },
+    {
+      "code": "W_CSV_TRUNCATED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "Data rows beyond --max-rows were left out of the table."
+    },
+    {
+      "code": "W_CSV_MERGED_CELLS",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "A table with merged cells was written as CSV by repeating the text of a merged cell in every cell it covers."
     }
   ],
   "limits": {

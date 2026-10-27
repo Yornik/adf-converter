@@ -416,6 +416,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
 }
 
 /// What to do about a diagnostic, for `adf explain CODE`.
+#[allow(clippy::too_many_lines)] // one flat arm per diagnostic code
 pub fn advice(code: Code) -> &'static str {
     match code {
         Code::Internal => {
@@ -504,6 +505,18 @@ pub fn advice(code: Code) -> &'static str {
         }
         Code::InputSchema => {
             "The input ADF is not schema-valid; `adf validate` on the input shows the details."
+        }
+        Code::InputCsv => {
+            "Fix the CSV at the reported line: close the quote that was opened there, and check --delimiter."
+        }
+        Code::InputNoTable => {
+            "Check which tables the document has (`adf convert --from adf` shows them) and pass --table N."
+        }
+        Code::CsvTruncated => {
+            "Raise --max-rows, or attach the full file and say the table is a preview."
+        }
+        Code::CsvMergedCells => {
+            "Expected for tables with merged cells; each covered cell repeats the merged cell's text."
         }
     }
 }

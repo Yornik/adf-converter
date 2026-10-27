@@ -19,6 +19,7 @@
 pub mod adf;
 pub mod catalog;
 pub mod cli;
+pub mod csv;
 pub mod diagnostics;
 pub mod json;
 pub mod limits;
@@ -28,8 +29,8 @@ pub mod options;
 pub use diagnostics::{Code, Diagnostic, Diagnostics, LineIndex, Location, Severity};
 pub use limits::Limits;
 pub use options::{
-    AdfToMdOptions, Extensions, HtmlPolicy, ImagePolicy, MdFlavor, MdToAdfOptions, SoftBreak,
-    Target,
+    AdfToCsvOptions, AdfToMdOptions, CsvDelimiter, CsvToAdfOptions, Extensions, HtmlPolicy,
+    ImagePolicy, MdFlavor, MdToAdfOptions, SoftBreak, Target,
 };
 
 const ADF_SCHEMA_VERSION_RAW: &str = concat!(
@@ -60,6 +61,22 @@ pub fn md_to_adf(
     opts: &MdToAdfOptions,
 ) -> Result<Conversion<adf::model::Doc>, Diagnostics> {
     md::to_adf(markdown, opts)
+}
+
+/// Converts CSV (or TSV) text to an ADF document holding one table.
+pub fn csv_to_adf(
+    csv: &str,
+    opts: &CsvToAdfOptions,
+) -> Result<Conversion<adf::model::Doc>, Diagnostics> {
+    csv::to_adf(csv, opts)
+}
+
+/// Converts one table of an ADF document (a bare `doc` JSON value) to CSV text.
+pub fn adf_to_csv(
+    doc: &serde_json::Value,
+    opts: &AdfToCsvOptions,
+) -> Result<Conversion<String>, Diagnostics> {
+    csv::from_adf(doc, opts)
 }
 
 /// Converts an ADF document (a bare `doc` JSON value) to Markdown.

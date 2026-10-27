@@ -72,6 +72,8 @@ codes! {
     Target            = "E_TARGET",            Error, 4, "The ADF document uses a node, mark or attribute the target product does not accept.";
     Invariant         = "E_INVARIANT",         Error, 4, "The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema.";
     Lossy             = "E_LOSSY",             Error, 5, "The conversion would lose information and --strict (or --html error) is set.";
+    InputCsv          = "E_INPUT_CSV",         Error, 3, "The CSV input is malformed (for example an unterminated quote) or has no rows.";
+    InputNoTable      = "E_INPUT_NO_TABLE",    Error, 3, "The ADF document has no table with the requested number.";
     // --- warnings: Markdown -> ADF ------------------------------------------------------------
     MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).";
     HeadingDemoted    = "W_HEADING_DEMOTED",    Warning, 0, "A heading inside a list item or quote became a bold paragraph.";
@@ -97,6 +99,9 @@ codes! {
     AdfPassthrough    = "W_ADF_PASSTHROUGH",    Warning, 0, "An ADF node without a Markdown equivalent was written as a raw ```adf block.";
     AttrDropped       = "W_ATTR_DROPPED",       Warning, 0, "ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours).";
     InputSchema       = "W_INPUT_SCHEMA",       Warning, 0, "The input ADF does not match the schema; it was converted anyway.";
+    // --- warnings: CSV ------------------------------------------------------------------------
+    CsvTruncated      = "W_CSV_TRUNCATED",      Warning, 0, "Data rows beyond --max-rows were left out of the table.";
+    CsvMergedCells    = "W_CSV_MERGED_CELLS",   Warning, 0, "A table with merged cells was written as CSV by repeating the text of a merged cell in every cell it covers.";
 }
 
 impl fmt::Display for Code {

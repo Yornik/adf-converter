@@ -166,6 +166,105 @@ pub struct MdToAdfOptions {
     pub limits: Limits,
 }
 
+/// The field delimiter of a CSV file: one ASCII character that is not a quote or a line break.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CsvDelimiter(char);
+
+impl CsvDelimiter {
+    pub const COMMA: Self = Self(',');
+    pub const TAB: Self = Self('\t');
+
+    /// Parses `comma`, `tab`, `semicolon`, `pipe` or a single ASCII character other than `"`,
+    /// a line break and control characters (a literal tab is accepted).
+    pub fn parse(value: &str) -> Result<Self, String> {
+        let c = match value {
+            "comma" => ',',
+            "tab" | "\\t" => '\t',
+            "semicolon" => ';',
+            "pipe" => '|',
+            other => {
+                let mut chars = other.chars();
+                match (chars.next(), chars.next()) {
+                    (Some(c), None) => c,
+                    _ => {
+                        return Err(format!(
+                            "'{}' is not a delimiter; use comma, tab, semicolon, pipe or one character",
+                            other.escape_debug().take(20).collect::<String>()
+                        ));
+                    }
+                }
+            }
+        };
+        if !c.is_ascii() || c == '"' || (c.is_ascii_control() && c != '\t') {
+            return Err(
+                "the delimiter must be one ASCII character other than a quote or a line break"
+                    .to_owned(),
+            );
+        }
+        Ok(Self(c))
+    }
+
+    pub fn as_char(self) -> char {
+        self.0
+    }
+}
+
+impl Default for CsvDelimiter {
+    fn default() -> Self {
+        Self::COMMA
+    }
+}
+
+/// Options for CSV → ADF (a table).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsvToAdfOptions {
+    pub target: Target,
+    pub delimiter: CsvDelimiter,
+    /// The first row is the header. `false` writes `Column 1`, `Column 2`, … as the header.
+    pub header: bool,
+    /// Keep only this many data rows (`W_CSV_TRUNCATED` when rows are left out).
+    pub max_rows: Option<usize>,
+    /// Right-align columns whose cells are all numbers.
+    pub align_numbers: bool,
+    pub limits: Limits,
+}
+
+impl Default for CsvToAdfOptions {
+    fn default() -> Self {
+        Self {
+            target: Target::default(),
+            delimiter: CsvDelimiter::default(),
+            header: true,
+            max_rows: None,
+            align_numbers: false,
+            limits: Limits::default(),
+        }
+    }
+}
+
+/// Options for ADF → CSV (one table).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdfToCsvOptions {
+    pub delimiter: CsvDelimiter,
+    /// Which table of the document, 1-based.
+    pub table: usize,
+    /// Prefix cells that a spreadsheet would run as a formula (starting with `=`, `+`, `-`, `@`,
+    /// tab or carriage return) with a single quote.
+    pub csv_safe: bool,
+    pub limits: Limits,
+}
+
+impl Default for AdfToCsvOptions {
+    fn default() -> Self {
+        Self {
+            delimiter: CsvDelimiter::default(),
+            table: 1,
+            csv_safe: false,
+            limits: Limits::default(),
+        }
+    }
+}
+
 /// Markdown flavour produced by ADF → Markdown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum MdFlavor {

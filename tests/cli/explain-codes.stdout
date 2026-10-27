@@ -14,6 +14,8 @@ E_SCHEMA                  error 4   The ADF document does not match the ADF JSON
 E_TARGET                  error 4   The ADF document uses a node, mark or attribute the target product does not accept.
 E_INVARIANT               error 4   The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema.
 E_LOSSY                   error 5   The conversion would lose information and --strict (or --html error) is set.
+E_INPUT_CSV               error 3   The CSV input is malformed (for example an unterminated quote) or has no rows.
+E_INPUT_NO_TABLE          error 3   The ADF document has no table with the requested number.
 W_MARK_DROPPED            warning   A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).
 W_HEADING_DEMOTED         warning   A heading inside a list item or quote became a bold paragraph.
 W_BLOCK_HOISTED           warning   A block was moved out of a container that cannot hold it (for example a table inside a list).
@@ -37,5 +39,7 @@ W_EMPTY_DOCUMENT          warning   The document is empty; Jira rejects empty co
 W_ADF_PASSTHROUGH         warning   An ADF node without a Markdown equivalent was written as a raw ```adf block.
 W_ATTR_DROPPED            warning   ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours).
 W_INPUT_SCHEMA            warning   The input ADF does not match the schema; it was converted anyway.
+W_CSV_TRUNCATED           warning   Data rows beyond --max-rows were left out of the table.
+W_CSV_MERGED_CELLS        warning   A table with merged cells was written as CSV by repeating the text of a merged cell in every cell it covers.
 
 Details: adf explain CODE, or https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md
