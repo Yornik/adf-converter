@@ -5,7 +5,7 @@ warnings (`W_…`) describe something that was repaired or lost, and the command
 (exit 0), unless `--strict` is set (exit 5). `adf explain <CODE>` prints the same information for
 the installed version, and `adf explain codes` lists all codes.
 
-Locations: Markdown input has `line` and `column` (1-based); ADF input has a JSON `pointer` such
+Locations: Markdown and CSV input have `line` and `column` (1-based); ADF input has a JSON `pointer` such
 as `/body/content/2`; invalid UTF-8 has a `byte_offset`. In a Confluence body the document is a
 JSON string, so in `/value/content/0` the part after `/value` points into the parsed string
 (`jq '.value | fromjson | .content[0]'`).
@@ -30,15 +30,17 @@ listed problems and run again.
 | Code | Exit | Meaning | Fix |
 |---|---|---|---|
 | `E_INTERNAL` | 1 | A bug in `adf`. Its own output failed its self-check, or it crashed. | Don't retry. Simplify the construct near the reported location, and tell the user; a minimal invented input reproducing it belongs in a bug report. |
-| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, `--field` where it selects nothing (Markdown without `-e jira-field`, or ADF input without a `fields` object), an unknown `--extensions` name. |
+| `E_USAGE` | 2 | Invalid command line. | Common causes: no subcommand (`adf file.md` instead of `adf convert file.md`), `-e` together with `--from adf`, `-e jira-field` without `--field`, `--field` where it selects nothing (Markdown without `-e jira-field`, or ADF input without a `fields` object), an unknown `--extensions` name, a CSV flag where it means nothing (`--delimiter` needs `--from csv` or `--to csv`; `--no-header`, `--max-rows` and `--align-numbers` need `--from csv`; `--table` and `--csv-safe` need `--to csv`), `--to csv` without `--from adf`, or `-e` with `--to csv`. |
 | `E_INPUT_READ` | 3 | The input file or stdin could not be read. | Check the path and permissions. Pass `-` to read stdin. |
 | `E_INPUT_ENCODING` | 3 | The input is not valid UTF-8; `byte_offset` points at the first bad byte. | Save the file as UTF-8 (for example `iconv -f WINDOWS-1252 -t UTF-8 in.md > out.md`). |
-| `E_INPUT_TOO_LARGE` | 3 | The input is larger than 1 MiB of Markdown or 4 MiB of ADF, a paragraph holds more than 20,000 `*` and `_` characters, the output would pass 64 MiB, or its tables would have more than 100,000 cells in total (short rows are padded to the header width, so a wide header with many short rows counts fully). With `--from adf`: the Markdown would be larger than 64 MiB (deeply nested lists or quotes indent every line), or `--md-flavor plain` would need more than 100,000 empty cells to keep merged table cells aligned. | Split the content; Jira would reject a body that large anyway. Attach big logs and data tables as files. For merged cells, use `--md-flavor roundtrip`. |
+| `E_INPUT_TOO_LARGE` | 3 | The input is larger than 1 MiB of Markdown or 4 MiB of ADF, a paragraph holds more than 20,000 `*` and `_` characters, the output would pass 64 MiB, or a CSV file would make a table of more than 100,000 cells, or its tables would have more than 100,000 cells in total (short rows are padded to the header width, so a wide header with many short rows counts fully). With `--from adf`: the Markdown would be larger than 64 MiB (deeply nested lists or quotes indent every line), or `--md-flavor plain` would need more than 100,000 empty cells to keep merged table cells aligned. With `--to csv`: the table would have more than 100,000 cells. | Split the content; Jira would reject a body that large anyway. Attach big logs and data tables as files, and post a preview (`--from csv --max-rows 25`). For merged cells, use `--md-flavor roundtrip`. |
 | `E_INPUT_TOO_DEEP` | 3 | Lists, quotes, boxes or expands nest deeper than 64 levels (for ADF input: the JSON nests deeper than 512 levels). | Flatten the structure. |
 | `E_INPUT_JSON` | 3 | `--from adf` input is not valid JSON. `adf validate` reads input that starts with `{` as JSON unless you pass `--from md`. | Make sure the file is the API's response body, not an empty file or an HTML error page; fetch with `curl --fail-with-body -o FILE`. For Markdown that starts with `{` (such as `{code}`), use `adf validate --from md`. |
 | `E_INPUT_NOT_ADF` | 3 | The JSON is not an ADF document or a known envelope around one. | Fetch the field (`?fields=description`), pass `--field NAME` for custom fields, pick one item from list responses (`jq '.comments[0]'`), and request Confluence pages with `?body-format=atlas_doc_format`. A `null` field is empty: there is nothing to convert. |
 | `E_RAW_ADF` | 3 | An ```` ```adf ```` block is not valid JSON, or not valid ADF where it is placed. | Fix the JSON, use a block node (not an inline node) that is allowed in that container, or replace the block with Markdown. Give every task and decision node a `localId` that no other ```` ```adf ```` block uses. The location points at the fence. |
 | `E_OUTPUT_WRITE` | 3 | The `-o` file could not be written. | Check that the directory exists and is writable, and that there is disk space. Nothing was written. |
+| `E_INPUT_CSV` | 3 | `--from csv`: a quoted field is never closed (the location is its opening quote), or the file has no rows. | Close the quote or remove the stray `"` that starts a field (a quote in the middle of a field is fine). If every row is one wide column or the quote is not where you expect, the delimiter is wrong: pass `--delimiter semicolon` or `tab` (it is never detected). |
+| `E_INPUT_NO_TABLE` | 3 | `--to csv`: the document has no table, or fewer than `--table N`. The message says how many tables there are. | Pick a number in range, or check that you fetched the right content (`adf convert --from adf FILE` shows it as Markdown). |
 | `E_SCHEMA` | 4 | The ADF document does not match the ADF JSON schema, for example an empty text node, or bold on inline code; `pointer` shows where. | Don't patch the JSON. Regenerate it from Markdown with `adf convert`, or convert it to Markdown (`--from adf`) and back. |
 | `E_TARGET` | 4 | The document uses a node, mark or attribute the target product does not accept (for example `fontSize`, layouts or extensions in Jira). | Remove the construct, or check that `-t`/`-e` match where you post. Regenerate from Markdown. |
 | `E_INVARIANT` | 4 | The document breaks a rule Jira or Confluence enforce beyond the schema: a list item that starts with something other than a paragraph, code block or image (for example a nested list), duplicate task `localId`s, a ragged table, an empty `marks` array, or a link, smart link or external image URL that is not allowed. | Regenerate from Markdown; `adf convert` always produces documents that satisfy these rules. |
@@ -81,8 +83,8 @@ listed problems and run again.
 
 | Code | Meaning | Fix |
 |---|---|---|
-| `W_CSV_TRUNCATED` | Data rows beyond `--max-rows` were left out of the table. | Raise `--max-rows`, or attach the full file and say the table is a preview. |
-| `W_CSV_MERGED_CELLS` | A table with merged cells was written as CSV by repeating the merged cell's text in every cell it covers. | Expected for such tables. |
+| `W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table ("kept N of M data rows"; located at the first row left out). | Expected for a preview: attach the full file and say the table is a preview. Raise `--max-rows` otherwise. With `--strict` it fails (exit 5), so leave `--strict` off. |
+| `W_CSV_MERGED_CELLS` | `--to csv`: a table with merged cells was written by repeating the merged cell's text in every cell it covers (one warning per table). | Expected for such tables. Tell the user that those columns hold repeated values. |
 
 ## HTTP errors after posting
 
