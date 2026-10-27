@@ -178,8 +178,8 @@ label.
 - These nodes cannot carry marks. Formatting around them (for example `**[@A](adf:mention/x)**`)
   is dropped, with `W_MARK_DROPPED`.
 - The label is plain text: a line break in it (a hard break, `<br>`, or a soft break with
-  `--softbreak hardbreak`) is a space. An external image in it (`--images external`) is moved
-  after the node, with `W_BLOCK_HOISTED`.
+  `--softbreak hardbreak`) is a space. An image in it (an `adf:media` image, or an external one
+  with `--images external`) is moved after the node, with `W_BLOCK_HOISTED`.
 
 #### File media (`adf:media` images)
 
@@ -234,9 +234,14 @@ and `height` when present.
   become links.
 - **Title and link.** Media nodes have neither a title nor a link. An image title, or a link
   around the image, is dropped with `W_MARK_DROPPED`, as for external images.
-- **Placement.** `mediaSingle` is a block. It is placed and [hoisted](#container-rules) exactly
-  like an external image: after the paragraph, heading or table-cell text it was written in
-  (`W_BLOCK_HOISTED` where a container is split), after a task list, and out of an `adf:` label.
+- **Placement.** `mediaSingle` is a block, placed like an external image. In the middle of a
+  paragraph (also in a list item, quote, panel, expand or `::: cell` box) it splits the paragraph:
+  the text before it, the image, the text after it, without a warning. After text in a heading or
+  a GFM table cell it follows the heading or the cell's text. It stays inside list items, quotes,
+  panels, expands and table cells, because they all allow media. Only two places cannot hold it,
+  and there it is moved out with `W_BLOCK_HOISTED`: a task item (the task list is closed after
+  that item, the image follows, and the remaining items start a new task list) and an `adf:`
+  link label (the image follows the node).
 - **Not checked.** `adf` cannot know whether the id exists, belongs to this site or issue, or
   which collection the product expects. A made-up id converts without a warning; the product
   rejects or fails to render it when you post.
@@ -264,7 +269,9 @@ and `height` when present.
 - A task item holds inline content only. Several paragraphs are joined with `hardBreak`.
 - A nested task list stays nested (`taskList` inside `taskList`, after its item).
 - Other blocks under a task item (a plain sublist, code, a table) are hoisted after the task list,
-  with `W_BLOCK_HOISTED`. So are external images (`--images external`); the spaces around a moved
+  with `W_BLOCK_HOISTED`. So are images: `adf:media` images, and external ones
+  (`--images external`). The task list is closed after the item that held the image, the image
+  follows it, and the items after that item start a new `taskList`. The spaces around a moved
   image collapse to one.
 - A list mixing checkbox and plain items is split into consecutive `taskList` and
   `bulletList`/`orderedList` runs.
@@ -386,7 +393,7 @@ to the `url` of external `media`.
 | `panel` info / success / note / warning / error | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` |
 | `expand`, `nestedExpand` | `<details><summary>title</summary>` … `</details>`. A title that Markdown → ADF would change (whitespace at the ends, tabs, line breaks, repeated spaces, control characters) → ```` ```adf ```` block. |
 | `table` 1×1 with a single `tableCell` and default attrs | `::: cell` … `:::` |
-| `table` with a header row, one paragraph per cell (optionally followed by external images, written after the cell's text), no spans, consistent column alignment | GFM table |
+| `table` with a header row, one paragraph per cell (optionally followed by images: external, or file images that fit the [read-back rule](#reading-file-media-back), written after the cell's text), no spans, consistent column alignment | GFM table (a cell or list item that holds only an image is the exception, see [below](#reading-file-media-back)) |
 | `mention`, `status`, `date`, `emoji`, `inlineCard` | the `adf:` link forms above |
 | `mediaSingle` with external `media` | `![alt](url)` |
 | `mediaSingle` with one Media Services file that fits [the read-back rule](#reading-file-media-back) | `![alt](adf:media/UUID?…)` |
@@ -425,7 +432,9 @@ gives the same document. All of these must hold:
 - `media` has only these attributes: `type`, `id`, `collection`, `alt`, `width`, `height`,
   `localId`. `id` is a UUID, `collection` is present and uses the characters `A-Za-z0-9_-` (at
   most 64, and it may be `""`), `width` and `height` are absent or integers from 1 to 100000, and
-  `alt` is absent or a string;
+  `alt` is absent or a string. A present `alt` has no control characters or line breaks and no
+  leading or trailing whitespace (Unicode whitespace counts, so a whitespace-only `alt` fails
+  too); an empty `alt` is fine and is dropped;
 - `mediaSingle` has only these attributes: `layout`, `width`, `widthType`, `localId`. `layout` is
   absent or one of the layouts listed [above](#file-media-adfmedia-images). `width` and
   `widthType` are either both absent, or `width` is an integer from 1 to 100 and `widthType` is
@@ -443,6 +452,13 @@ attributes (`occurrenceKey`, for example) or with an id that is not a UUID; a `m
 `link`; a `mediaGroup`; and a paragraph holding a `mediaInline`. A lone external `mediaSingle`
 keeps its `![alt](url)` form.
 
+**Limitation.** A file image is written inside a table cell or list item only after a paragraph
+(`| text![alt](adf:media/…) |`, `- text` followed by the image line), because `| ![alt](…) |` reads
+back as an empty paragraph followed by the image. A table cell whose only child is a
+`mediaSingle`, or a list item that starts with one, is therefore not a GFM shape: the whole table
+or list becomes one ```` ```adf ```` block (`W_ADF_PASSTHROUGH`). The `::: cell` box of a 1×1
+table is not affected.
+
 ### Plain flavour: media
 
 `--md-flavor plain` has no syntax for Media Services files, because plain Markdown is for reading.
@@ -453,7 +469,7 @@ without a warning, wherever the node is, including in table cells and inline:
 |---|---|
 | `mediaSingle` with a file | `[image: alt]` (`[image]` when there is no alt) |
 | a file in a `mediaGroup` | `[attachment: alt]`, or `[attachment]` when there is no alt; one marker per file, each on its own line |
-| `mediaInline` | the same marker as a `mediaGroup` file, inline in its paragraph, with single spaces around it |
+| `mediaInline` | the same marker as a `mediaGroup` file, inline in its paragraph, inserted as is: no spaces are added around it, so only the spaces already in the neighbouring text separate it (`Log: ` + chip + ` attached.` gives `Log: [attachment] attached.`, but text directly next to the chip runs into it) |
 | `mediaSingle` with external media | `![alt](url)` (the caption goes on the next line) |
 
 Markers are not read back: converting plain Markdown to ADF gives text, not media. Use the
@@ -472,6 +488,8 @@ where `normalize`:
   position;
 - splits `\n` inside text nodes into `hardBreak`s;
 - gives a file `mediaSingle` without a `layout` the layout `center`;
+- drops an empty file `alt` and an explicit `widthType` of `percentage` (the default), both
+  silently;
 - drops every attribute and mark that `adf_to_md` drops, as described above (each one is
   reported with `W_ATTR_DROPPED`, so a conversion without that warning drops nothing but
   `localId`s and empty or default attributes).

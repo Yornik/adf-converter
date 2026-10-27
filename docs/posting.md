@@ -271,16 +271,22 @@ Build failed on the second step:
 - Confluence: `collection` is what the upload returned, for example `contentId-123456` (see
   [below](#confluence-upload-and-media-id)).
 - Add `width` and `height`, the file's size in pixels. Read them from the file (for example
-  `file shot.png`, or `identify -format '%w %h' shot.png`); neither upload API returns them.
+  `file shot.png`, `sips -g pixelWidth -g pixelHeight shot.png` on macOS, or
+  `identify -format '%w %h' shot.png`); neither upload API returns them.
   Atlassian's `media` documentation says both must be set inside a `mediaSingle`, or the media
   does not display. Whether the products still enforce that is unverified.
 - Add `layout=wide`, `size=720px` or `size=50%` to control how it is shown
   ([all parameters](syntax.md#file-media-adfmedia-images)).
 - `adf` checks the shape of the id, not that it exists. A wrong id converts without a warning and
   then fails when you post, or shows nothing.
-- Media is a block. If you write the line inside a list item, a quote or a table cell, `adf` moves
-  it out where the container does not allow it (`W_BLOCK_HOISTED`). Put it on its own line,
-  outside lists and tables.
+- Media is a block. Written in the middle of a paragraph, it splits the paragraph (the text before
+  and after become separate paragraphs; in a heading the image follows the heading), without a
+  warning. In a list item, a quote, a panel, an expand or a table cell it stays inside the
+  container. Only in a task item or an `adf:` link label is it moved out (`W_BLOCK_HOISTED`), and
+  then the task list is split around it. Put it on its own line.
+- A table cell or list item that holds only an image (no text before it) is not written as
+  Markdown when `adf` reads it back: the whole table or list becomes a raw ```` ```adf ```` block
+  (`W_ADF_PASSTHROUGH`). Images after a paragraph are fine.
 
 ### Jira: upload and media id
 
@@ -307,11 +313,12 @@ att_id=$(jq -r '.[0].id' attachment.json)
 out=$(curl -sS -o /dev/null -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   -w '%{http_code} %{redirect_url}' \
   "$JIRA_BASE_URL/rest/api/3/attachment/content/$att_id")
-status=${out%% *}
 media_id=$(printf '%s\n' "${out#* }" |
   sed -n 's|^https://api\.media\.atlassian\.com/file/\([0-9A-Fa-f-]\{36\}\)/.*|\1|p')
-test -n "$media_id" && echo "$media_id" || echo "no media id found (HTTP $status)" >&2
+test -n "$media_id" && echo "$media_id" || echo "no media id found (HTTP ${out%% *})" >&2
 ```
+
+The snippets work in sh, bash and zsh. (Do not name a variable `status`: it is read-only in zsh.)
 
 - Do not add `-L`, and do not print or save the redirect URL: it can carry a short-lived access
   token for the media service. Keep only the id.
@@ -344,6 +351,11 @@ Confluence v2 has no upload endpoint
 ([CONFCLOUD-77196](https://jira.atlassian.com/browse/CONFCLOUD-77196)), so uploading uses the v1
 API. The page must exist first: create it, upload, then update it ([create](#create-a-page),
 [update](#update-a-page)).
+
+The upload below uses a v1 attachment endpoint. v1 attachment endpoints may be retired:
+[CONFCLOUD-84981](https://jira.atlassian.com/browse/CONFCLOUD-84981) describes the v1 endpoint for
+comment attachments as deprecated and returning `410 Gone`. Re-check the page upload in the sandbox
+run ([maintainers.md](maintainers.md#sandbox-checklist-file-media)).
 
 **1. Upload** (documented). The header value is `nocheck` here, not `no-check`.
 
@@ -403,11 +415,14 @@ above. `adf` accepts it; whether the product renders it in a comment or page has
   alt text and reports `W_INVALID_EXTENSION_ARG`. A made-up UUID, or a UUID from another issue,
   passes `adf` and is reported to fail in Jira with `400` `ATTACHMENT_VALIDATION_ERROR`
   (community-reported).
-- **Same file name twice on Confluence.** Uploading a file with the name of an existing
-  attachment can reassign it and leave the earlier media id unresolved in the page
-  ([CONFCLOUD-84732](https://jira.atlassian.com/browse/CONFCLOUD-84732),
-  [CONFCLOUD-84716](https://jira.atlassian.com/browse/CONFCLOUD-84716)). Give every upload a
-  unique name.
+- **The same file on a Confluence page and in a comment.** A bug report says that attaching a file
+  that is already attached to a page to a comment on that page removes it from the page and breaks
+  both copies
+  ([CONFCLOUD-84716](https://jira.atlassian.com/browse/CONFCLOUD-84716), long-term backlog). The
+  ticket does not say that the file name is the cause; give every upload a unique name anyway.
+  Comment embeds that fail with `UNKNOWN_MEDIA_ID` were a separate bug in pages converted from the
+  legacy editor, marked fixed in September 2026
+  ([CONFCLOUD-84732](https://jira.atlassian.com/browse/CONFCLOUD-84732)).
 - **Jira ignores the collection.** Reported readbacks of Jira content show `collection: ""`
   whatever was sent (community-reported). Leave it out for Jira.
 - **Jira Service Management.** The comment bodies of the JSM request API are plain strings, not
@@ -469,10 +484,11 @@ a separate step that you run yourself:
 
 Sources for the community-reported steps:
 [developer community 74338](https://community.developer.atlassian.com/t/74338) and
-[an Atlassian community answer](https://community.atlassian.com/t/5/Jira-questions/How-can-I-add-an-image-in-a-comment/qaq-p/952016)
+[an Atlassian community answer](https://community.atlassian.com/t5/Jira-questions/How-can-I-add-an-image-in-a-comment/qaq-p/952016)
 (the redirect lookup, 2023 to 2024),
-[developer community 94822](https://community.developer.atlassian.com/t/94822) (shapes seen in
-real Jira data), and the Confluence tickets linked above.
+[developer community 94822](https://community.developer.atlassian.com/t/94822) (a report that media
+ids differ from attachment ids and that `mediaInline` carries no file name), and the Confluence
+tickets linked above.
 
 ## acli (Atlassian CLI)
 

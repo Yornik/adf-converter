@@ -216,7 +216,9 @@ test -n "$media_id" || echo "no media id (HTTP ${out%% *})" >&2
 
 3. Write the line (Jira: no `collection`), pre-flight and post as in the sections above:
    `![shot.png](adf:media/$media_id?width=1512&height=945)` (use an unquoted heredoc so the shell
-   fills in `$media_id`). Read the pixel size from the file.
+   fills in `$media_id`). Read the pixel size from the file: `file shot.png` prints it, and so do
+   `sips -g pixelWidth -g pixelHeight shot.png` (macOS) and `identify -format '%w %h' shot.png`
+   (ImageMagick). Attach the file to the same issue that holds the comment or description.
 
 ```sh
 # Confluence: 1. upload to the page with v1 (documented); header value is nocheck.
@@ -234,11 +236,18 @@ Pitfalls:
 - Wrong id (attachment id, made-up or from another issue): `adf` accepts any UUID; Jira answers
   `400` `ATTACHMENT_VALIDATION_ERROR` (community-reported). A non-UUID gives
   `W_INVALID_EXTENSION_ARG` and the alt text.
-- Confluence: uploading the same file name again can break the earlier media id
-  (CONFCLOUD-84732, CONFCLOUD-84716): use unique names. Files uploaded through REST are reported
-  not to render in Confluence comments (CONFCLOUD-84916; editor uploads use the collection
-  `comment-container-<pageId>`).
-- Media is a block: keep the line outside lists, tables and quotes. Give `width` and `height`.
+- Confluence: attaching a file that is already on the page to a comment on that page is reported
+  to remove it from the page (CONFCLOUD-84716, open), so give every upload a unique name. Files
+  uploaded through REST are reported not to render in Confluence comments (CONFCLOUD-84916;
+  editor uploads use the collection `comment-container-<pageId>`). The v1 attachment endpoints may
+  be retired (CONFCLOUD-84981 reports 410 Gone for the comment one), so check the upload in the
+  sandbox run before relying on it.
+- Media is a block. In the middle of a paragraph it splits the paragraph, and after text in a
+  heading it follows the heading, both without a warning; it stays inside list items, quotes,
+  panels, expands and table cells; only in task items and `adf:` labels is it moved out
+  (`W_BLOCK_HOISTED`). Put it on its own line. A table cell or list item holding only an image
+  makes the whole table or list a raw ```` ```adf ```` block when read back. Give `width` and
+  `height`.
 - JSM request comments are plain strings, not ADF; use `POST /rest/api/3/issue/{key}/comment`.
 - Other files (PDF, logs) have no Markdown syntax in this version.
 
