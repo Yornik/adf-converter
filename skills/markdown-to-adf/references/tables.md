@@ -115,9 +115,41 @@ carry.
 
 Do not turn CSV into a Markdown table yourself: `--from csv` does not go through Markdown, so
 nothing in the data needs escaping. `--from csv` makes a document that is only the table. To put
-a CSV table between paragraphs of one comment, use the `csv2md.py` route
-([below](#before-adf-030-the-csv2mdpy-helper)), or post the table as its own comment. (Inline
-`csv` blocks in Markdown are planned, not available yet.)
+a CSV table between paragraphs of one comment, use a `csv` fence
+([next section](#csv-in-the-middle-of-a-markdown-document)), or post the table as its own comment.
+
+## CSV in the middle of a Markdown document
+
+A ```` ```csv ```` or ```` ```tsv ```` fence in Markdown becomes a table (adf 0.3.0 or later), so
+one comment can hold text, a CSV table and more text:
+
+`````markdown
+Results of the run:
+
+```csv align=numbers
+Step,Seconds
+Build,41
+Test,128
+```
+
+All steps passed.
+`````
+
+- The word after the fence is exactly `csv` or `tsv` (lowercase). Options follow as `key=value`
+  words, no spaces: `delimiter=semicolon` (also `comma`, `tab`, `pipe`, one character; `tsv`
+  defaults to `tab`, an explicit `delimiter=` wins), `header=false`, `max-rows=25` (the rest is
+  left out with `W_CSV_TRUNCATED`), `align=numbers`. Each at most once.
+- The same reading rules and limits as `--from csv`: UTF-8, quotes, `""`, blank lines skipped, cells
+  are text, never Markdown. The cells count toward the 100,000 cells of all tables in the document.
+- Errors exit 3 and write nothing: `E_CSV_OPTION` (bad option; located at the fence line),
+  `E_INPUT_CSV` (unterminated quote, or no rows; located at the Markdown line), `E_INPUT_TOO_LARGE`.
+- Like any table, it is moved out of a list item, quote, panel or `::: cell` box
+  (`W_BLOCK_HOISTED`); put the fence at the top level or in `<details>`.
+- **Behaviour change.** A ```` ```csv ```` fence used to be a code block. To show CSV as code, use
+  another language word, such as ```` ```text ````, or pass `--extensions` with a list that leaves
+  out `csv` (the fence then stays code, with `W_EXTENSION_DISABLED`).
+- One way: converting the ADF back to Markdown writes a GFM table, not a fence. A Jira code block
+  whose language is `csv` or `tsv` comes back as a ```` ```adf ```` block (`W_ADF_PASSTHROUGH`); leave it alone.
 
 ## Read or edit a table in Markdown
 

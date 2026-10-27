@@ -82,7 +82,7 @@ impl CsvParams {
             header: self.header.unwrap_or(base.header),
             max_rows: self.max_rows,
             align_numbers: self.align_numbers.unwrap_or(base.align_numbers),
-            limits: limits.clone(),
+            limits: *limits,
         }
     }
 }
@@ -102,9 +102,12 @@ pub(crate) fn embedded_table(
     opts: &CsvToAdfOptions,
 ) -> Result<Conversion<Table>, Diagnostics> {
     let Conversion { output, warnings } = super::to_adf(csv, opts)?;
-    let mut tables = output.content.into_iter().filter_map(|block| match block {
-        DocBlock::Table(table) => Some(table),
-        _ => None,
+    let mut tables = output.content.into_iter().filter_map(|block| {
+        if let DocBlock::Table(table) = block {
+            Some(table)
+        } else {
+            None
+        }
     });
     match (tables.next(), tables.next()) {
         (Some(table), None) => Ok(Conversion {

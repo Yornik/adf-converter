@@ -1,0 +1,5 @@
+# An empty body is E_INPUT_CSV, located at the fence.
+bin.name = "adf"
+args = ["convert"]
+status.code = 3
+binary = true

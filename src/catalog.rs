@@ -324,6 +324,24 @@ pub const FEATURES: &[Feature] = &[
         "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
     ),
     with_note(
+        extension(
+            "csv",
+            "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text",
+            "```csv align=numbers\nItem,Qty,Notes\nWidget,3,\"Blue, small\"\nGadget,12,\n```\n",
+            &[
+                "table",
+                "tableRow",
+                "tableHeader",
+                "tableCell",
+                "paragraph",
+                "hardBreak",
+                "link",
+                "alignment",
+            ],
+        ),
+        "one-way: ADF to Markdown writes a GFM table. A table in a list item or quote is hoisted like a GFM table (W_BLOCK_HOISTED); a bad option is E_CSV_OPTION, a bad body E_INPUT_CSV; --extensions without csv keeps the fence a code block (W_EXTENSION_DISABLED); to show CSV as code use another language word such as text",
+    ),
+    with_note(
         feature(
             "csv-tables",
             Csv,

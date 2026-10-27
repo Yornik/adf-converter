@@ -1272,6 +1272,27 @@ fn code_in_the_language_adf_passes_through() {
 }
 
 #[test]
+fn code_in_the_language_csv_or_tsv_passes_through() {
+    // "```csv" is a table to Markdown → ADF (extension `csv`), so a code block must not use it.
+    for language in ["csv", "tsv"] {
+        let content = json!([{"type": "codeBlock", "attrs": {"language": language}, "content": [t("a,b\n1,2")]}]);
+        let written = md(content.clone());
+        assert!(written.starts_with("```adf\n"), "{language}: {written}");
+        assert_round_trip(content.clone(), &written);
+        assert_eq!(
+            warnings(content.clone()),
+            vec![(Code::AdfPassthrough, "/content/0".to_owned())]
+        );
+        assert_eq!(plain(content), format!("```{language}\na,b\n1,2\n```\n"));
+    }
+    // Other languages, and a language that only starts with the word, are written as they are.
+    assert_round_trip(
+        json!([{"type": "codeBlock", "attrs": {"language": "csvx"}, "content": [t("a,b")]}]),
+        "```csvx\na,b\n```\n",
+    );
+}
+
+#[test]
 fn leading_rule_is_not_front_matter() {
     // `---`, a `key: value` line and `---` would be removed as YAML front matter.
     assert_round_trip(

@@ -1,0 +1,5 @@
+# A csv fence in a list item is hoisted out like a GFM table; --strict refuses that (exit 5).
+bin.name = "adf"
+args = ["convert", "--strict"]
+status.code = 5
+binary = true

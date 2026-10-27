@@ -1,0 +1,5 @@
+# An unknown option is E_CSV_OPTION, located at the info string of the fence.
+bin.name = "adf"
+args = ["convert"]
+status.code = 3
+binary = true

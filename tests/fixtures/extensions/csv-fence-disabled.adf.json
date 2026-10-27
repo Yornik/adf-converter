@@ -1,0 +1,39 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "With the csv extension off the fences stay code blocks."
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "csv"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Item,Qty\nWidget,3"
+        }
+      ]
+    },
+    {
+      "type": "codeBlock",
+      "attrs": {
+        "language": "tsv"
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "a\tb"
+        }
+      ]
+    }
+  ]
+}

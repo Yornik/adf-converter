@@ -318,6 +318,23 @@
       "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
     },
     {
+      "name": "csv",
+      "kind": "extension",
+      "extension": "csv",
+      "syntax": "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "hardBreak",
+        "link",
+        "alignment"
+      ],
+      "note": "one-way: ADF to Markdown writes a GFM table. A table in a list item or quote is hoisted like a GFM table (W_BLOCK_HOISTED); a bad option is E_CSV_OPTION, a bad body E_INPUT_CSV; --extensions without csv keeps the fence a code block (W_EXTENSION_DISABLED); to show CSV as code use another language word such as text"
+    },
+    {
       "name": "csv-tables",
       "kind": "csv",
       "syntax": "adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back",
@@ -414,6 +431,21 @@
       "adf": [
         "mediaSingle",
         "media"
+      ],
+      "default": true
+    },
+    {
+      "name": "csv",
+      "syntax": "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "hardBreak",
+        "link",
+        "alignment"
       ],
       "default": true
     }
@@ -522,6 +554,12 @@
       "severity": "error",
       "exit_code": 3,
       "summary": "The ADF document has no table with the requested number."
+    },
+    {
+      "code": "E_CSV_OPTION",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "A ```csv fence or an adf:csv include has an unknown, repeated or invalid option."
     },
     {
       "code": "W_MARK_DROPPED",
