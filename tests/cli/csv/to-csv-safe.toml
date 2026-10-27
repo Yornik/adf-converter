@@ -1,0 +1,4 @@
+# --csv-safe prefixes cells a spreadsheet would run as a formula.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv", "--csv-safe"]
+binary = true

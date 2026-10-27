@@ -5,8 +5,9 @@ use serde::Serialize;
 use super::Outcome;
 use super::args::{ValidateArgs, ValidateFrom};
 use super::convert::{
-    check_adf_field, check_field_used, markdown_options, markdown_pipeline, parse_and_unwrap,
-    parse_envelope, prefix_pointers, read_input, resolve_target, strict_failure,
+    check_adf_field, check_field_used, check_no_csv_input_flags, csv_options, csv_pipeline,
+    markdown_options, markdown_pipeline, parse_and_unwrap, parse_envelope, prefix_pointers,
+    read_input, resolve_target, strict_failure,
 };
 use super::report::DiagnosticJson;
 use crate::adf::envelope::Envelope;
@@ -97,13 +98,30 @@ pub(crate) fn run(args: &ValidateArgs) -> Outcome {
     }
 }
 
+/// Flags that only apply to CSV input are refused for any other input, before it is read.
+fn check_flags(args: &ValidateArgs) -> Result<(), Box<Outcome>> {
+    if args.from == ValidateFrom::Csv {
+        return Ok(());
+    }
+    let hint = "Add --from csv to dry-run a CSV conversion";
+    if args.csv.delimiter.is_some() {
+        return Err(Box::new(Outcome::usage(
+            "--delimiter only applies with --from csv",
+            hint,
+        )));
+    }
+    check_no_csv_input_flags(&args.csv, hint)
+}
+
 fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
+    check_flags(args)?;
     let input = match read_input(args.input.as_deref(), "validate") {
         Ok(input) => input,
         // Usage errors stay on stderr; with --json, input errors become a report.
         Err(outcome) if args.json && outcome.exit != Code::Usage.exit_code() => {
             let from = match args.from {
                 ValidateFrom::Md => "md",
+                ValidateFrom::Csv => "csv",
                 ValidateFrom::Auto | ValidateFrom::Adf => "adf",
             };
             return Ok(Checked {
@@ -118,7 +136,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
     };
     let from_adf = match args.from {
         ValidateFrom::Adf => true,
-        ValidateFrom::Md => false,
+        ValidateFrom::Md | ValidateFrom::Csv => false,
         ValidateFrom::Auto => input.text.trim_start().starts_with('{'),
     };
     let label = Some(input.label.clone());
@@ -127,7 +145,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
         if args.envelope.envelope.is_some() {
             return Err(Box::new(Outcome::usage(
                 "-e/--envelope cannot be used when validating ADF; the envelope is detected from the input",
-                "Drop -e, or use --from md to validate a Markdown conversion",
+                "Drop -e, or use --from md or --from csv to validate a conversion",
             )));
         }
         let field = args.envelope.field.as_deref();
@@ -167,8 +185,12 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
     let envelope: Envelope =
         parse_envelope(args.envelope.envelope, args.envelope.field.as_deref())?;
     let target = resolve_target(args.target, &envelope);
-    let opts = markdown_options(&args.markdown, target);
-    let mut diagnostics = match markdown_pipeline(&input.text, &opts) {
+    let converted = if args.from == ValidateFrom::Csv {
+        csv_pipeline(&input.text, &csv_options(&args.csv, target))
+    } else {
+        markdown_pipeline(&input.text, &markdown_options(&args.markdown, target))
+    };
+    let mut diagnostics = match converted {
         Ok(converted) => converted.warnings,
         Err(diagnostics) => diagnostics,
     };
@@ -178,7 +200,11 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
         "--strict: the conversion would be lossy ({codes})",
     );
     Ok(Checked {
-        from: "md",
+        from: if args.from == ValidateFrom::Csv {
+            "csv"
+        } else {
+            "md"
+        },
         target,
         envelope: Some(envelope.name()),
         label,
@@ -198,6 +224,7 @@ fn summary(checked: &Checked, errors: usize, warnings: usize) -> String {
     let label = checked.label.as_deref().unwrap_or("-");
     let what = match checked.from {
         "md" => "Markdown conversion",
+        "csv" => "CSV conversion",
         _ => "ADF",
     };
     let envelope = checked
@@ -224,4 +251,89 @@ fn summary(checked: &Checked, errors: usize, warnings: usize) -> String {
         "{label}: {verdict} {what} for {}{envelope}: {counts}",
         checked.target.as_str()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::args::{Cli, Command};
+    use clap::Parser as _;
+    use serde_json::Value;
+
+    fn validate_args(argv: &[&str]) -> ValidateArgs {
+        let mut full = vec!["adf", "validate"];
+        full.extend_from_slice(argv);
+        let Command::Validate(parsed) = Cli::try_parse_from(full).unwrap().command else {
+            panic!("expected validate");
+        };
+        parsed
+    }
+
+    #[test]
+    fn csv_flags_need_csv_input() {
+        let cases: &[(&[&str], &str)] = &[
+            (
+                &["--delimiter", "tab"],
+                "--delimiter only applies with --from csv",
+            ),
+            (&["--no-header"], "--no-header only applies with --from csv"),
+            (
+                &["--max-rows", "2"],
+                "--max-rows only applies with --from csv",
+            ),
+            (
+                &["--align-numbers"],
+                "--align-numbers only applies with --from csv",
+            ),
+            (
+                &["--from", "md", "--no-header"],
+                "--no-header only applies with --from csv",
+            ),
+            (
+                &["--from", "adf", "--delimiter", ";"],
+                "--delimiter only applies with --from csv",
+            ),
+        ];
+        for (argv, message) in cases {
+            let outcome = *check_flags(&validate_args(argv)).unwrap_err();
+            assert_eq!(outcome.exit, 2, "{argv:?}");
+            assert_eq!(&outcome.diagnostics[0].message, message, "{argv:?}");
+        }
+        let args = validate_args(&[
+            "--from",
+            "csv",
+            "--delimiter",
+            "pipe",
+            "--no-header",
+            "--max-rows",
+            "2",
+            "--align-numbers",
+        ]);
+        assert!(check_flags(&args).is_ok());
+        // `--table` and `--csv-safe` belong to `convert --to csv`; validate does not have them.
+        assert!(Cli::try_parse_from(["adf", "validate", "--from", "csv", "--table", "1"]).is_err());
+    }
+
+    #[test]
+    fn auto_never_picks_csv() {
+        let dir = std::env::temp_dir().join(format!("adf-validate-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("t.csv");
+        std::fs::write(&path, "a,b\n1,2\n").unwrap();
+        let path = path.display().to_string();
+        let checked = check(&validate_args(&[&path])).unwrap();
+        assert_eq!(checked.from, "md");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn report_says_csv_for_unreadable_csv_input() {
+        let args = validate_args(&["--from", "csv", "--json", "does-not-exist.csv"]);
+        let outcome = run(&args);
+        assert_eq!(outcome.exit, 3);
+        let report: Value = serde_json::from_slice(&outcome.stdout).unwrap();
+        assert_eq!(report["from"], "csv");
+        assert_eq!(report["valid"], false);
+        assert_eq!(report["errors"][0]["code"], "E_INPUT_READ");
+    }
 }

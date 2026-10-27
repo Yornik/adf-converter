@@ -1,0 +1,4 @@
+# CSV to a table; the first row is the header.
+bin.name = "adf"
+args = ["convert", "--from", "csv"]
+binary = true

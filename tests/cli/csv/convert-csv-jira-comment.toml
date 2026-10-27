@@ -1,0 +1,4 @@
+# Quoted fields keep commas; a line break inside a cell becomes a hardBreak.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "-e", "jira-comment"]
+binary = true

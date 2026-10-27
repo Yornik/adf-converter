@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--field needs -e jira-field when the input is Markdown or CSV","hint":"Add -e jira-field to wrap the document in that field, or use --from adf to read a field of a Jira issue","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

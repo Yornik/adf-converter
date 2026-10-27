@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"unexpected argument '--table' found","hint":"A similar argument exists: '--target'. Usage: adf validate --from <FROM> --target <TARGET> [INPUT]. For more information, try '--help'.","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

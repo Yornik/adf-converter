@@ -1,0 +1,4 @@
+# --to csv writes the first table.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv"]
+binary = true

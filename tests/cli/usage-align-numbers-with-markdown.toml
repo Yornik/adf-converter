@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["convert", "--align-numbers"]
+status.code = 2
+binary = true

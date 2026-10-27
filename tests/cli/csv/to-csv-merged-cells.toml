@@ -1,0 +1,4 @@
+# Merged cells repeat their text, with a warning that points into the envelope.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv"]
+binary = true

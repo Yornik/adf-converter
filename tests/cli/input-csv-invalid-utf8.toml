@@ -1,0 +1,5 @@
+# Invalid UTF-8 in CSV input is reported with the byte offset, like Markdown.
+bin.name = "adf"
+args = ["convert", "--from", "csv"]
+status.code = 3
+binary = true

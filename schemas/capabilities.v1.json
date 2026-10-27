@@ -35,7 +35,7 @@
     "directions": {
       "type": "array",
       "items": {
-        "enum": ["md->adf", "adf->md"]
+        "enum": ["md->adf", "adf->md", "csv->adf", "adf->csv"]
       },
       "uniqueItems": true
     },
@@ -80,7 +80,7 @@
       "uniqueItems": true
     },
     "features": {
-      "description": "Supported Markdown constructs (docs/syntax.md).",
+      "description": "Supported Markdown constructs (docs/syntax.md), and the CSV table input (kind csv).",
       "type": "array",
       "items": {
         "type": "object",
@@ -93,7 +93,7 @@
             "pattern": "^[a-z][a-z-]*$"
           },
           "kind": {
-            "enum": ["commonmark", "gfm", "extension"]
+            "enum": ["commonmark", "gfm", "extension", "csv"]
           },
           "extension": {
             "description": "The --extensions name (kind extension only).",
@@ -209,7 +209,7 @@
           "minimum": 1
         },
         "max_markdown_bytes": {
-          "description": "Markdown input size in bytes.",
+          "description": "Markdown and CSV input size in bytes.",
           "type": "integer",
           "minimum": 1
         },
@@ -229,7 +229,7 @@
           "minimum": 1
         },
         "max_table_cells": {
-          "description": "Table cells in Markdown input, counting padding of short rows.",
+          "description": "Table cells in Markdown and CSV input, counting padding of short rows.",
           "type": "integer",
           "minimum": 1
         },

@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_JSON","message":"invalid JSON: key must be a string","location":{"file":"-","line":1,"column":2},"docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_json","exit_code":3}

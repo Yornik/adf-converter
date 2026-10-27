@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv", "-e", "jira-comment"]
+status.code = 2
+binary = true

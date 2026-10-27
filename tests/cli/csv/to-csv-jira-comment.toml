@@ -1,0 +1,4 @@
+# Envelopes are unwrapped like for --to md.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv"]
+binary = true
