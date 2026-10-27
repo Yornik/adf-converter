@@ -1,0 +1,424 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Kind"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Content"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "list"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "bulletList",
+                  "content": [
+                    {
+                      "type": "listItem",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "one"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "listItem",
+                      "content": [
+                        {
+                          "type": "paragraph",
+                          "content": [
+                            {
+                              "type": "text",
+                              "text": "two"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "orderedList",
+                          "content": [
+                            {
+                              "type": "listItem",
+                              "content": [
+                                {
+                                  "type": "paragraph",
+                                  "content": [
+                                    {
+                                      "type": "text",
+                                      "text": "two-a"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "code"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "codeBlock",
+                  "attrs": {
+                    "language": "rust"
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "fn main() {\n    println!(\"hi\");\n}"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "quote"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "blockquote",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "quoted words"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "panel"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "panel",
+                  "attrs": {
+                    "panelType": "info"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "panel one"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "panel two"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "expand"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "nestedExpand",
+                  "attrs": {
+                    "title": "T"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "hidden"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "heading"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "heading",
+                  "attrs": {
+                    "level": 3
+                  },
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Title"
+                    }
+                  ]
+                },
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "body"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "tasks"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "taskList",
+                  "attrs": {
+                    "localId": "t1"
+                  },
+                  "content": [
+                    {
+                      "type": "taskItem",
+                      "attrs": {
+                        "localId": "i1",
+                        "state": "TODO"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "do it"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "rule"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "above"
+                    }
+                  ]
+                },
+                {
+                  "type": "rule"
+                },
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "below"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

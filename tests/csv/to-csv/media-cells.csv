@@ -1,0 +1,4 @@
+Kind,Value
+image,[image: shot.png] Figure 1
+files,[attachment: report.pdf] [attachment]
+inline,see [attachment: log.txt]

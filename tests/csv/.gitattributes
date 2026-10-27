@@ -1,0 +1,5 @@
+# Stored verbatim: these fixtures test BOM, CR/CRLF line endings and control characters.
+bom.csv -text
+crlf.csv -text
+lone-cr.csv -text
+control-chars.csv -text

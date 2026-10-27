@@ -1,0 +1,203 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Name"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Role"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "City"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Ann"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Engineer"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Utrecht"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Bob"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Designer"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Delft"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Cleo"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Analyst"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Leiden"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

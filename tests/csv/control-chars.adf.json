@@ -1,0 +1,247 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "ok"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "text"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "nul"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "ab"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "bell"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "xy"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "esc"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "[31mred"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "mixed"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "line one"
+                    },
+                    {
+                      "type": "hardBreak"
+                    },
+                    {
+                      "type": "text",
+                      "text": "line two"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "del"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "tabs ok"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "a\tb"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

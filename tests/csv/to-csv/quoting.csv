@@ -1,0 +1,14 @@
+Case,Value
+comma,"a, b"
+quote,"say ""hi"""
+only quote,""""
+leading space," lead"
+trailing space,"trail "
+leading tab,"	lead"
+semicolon,a;b
+pipe,a|b
+empty,
+hard break,"line one
+line two"
+two paragraphs,para one para two
+plain,plain

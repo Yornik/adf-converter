@@ -1,0 +1,98 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "A"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "bodiedExtension",
+                  "attrs": {
+                    "extensionType": "x",
+                    "extensionKey": "y"
+                  },
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "inside extension"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "a"
+                    },
+                    {
+                      "type": "futureInline",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "b"
+                        },
+                        {
+                          "type": "text",
+                          "text": "c"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "text": "d"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
