@@ -83,7 +83,7 @@ Markdown options:
 
       --extensions <LIST>
           ADF extensions to recognise: all, none, or a comma-separated list
-          (alerts,details,cells,raw-adf,mention,status,date,emoji,card)
+          (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
           
           [default: all]
 

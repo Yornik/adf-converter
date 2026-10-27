@@ -14,14 +14,14 @@ E_SCHEMA                  error 4   The ADF document does not match the ADF JSON
 E_TARGET                  error 4   The ADF document uses a node, mark or attribute the target product does not accept.
 E_INVARIANT               error 4   The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema.
 E_LOSSY                   error 5   The conversion would lose information and --strict (or --html error) is set.
-W_MARK_DROPPED            warning   A text mark was dropped because ADF does not allow it there (for example bold on inline code), or an image title was dropped (--images external).
+W_MARK_DROPPED            warning   A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).
 W_HEADING_DEMOTED         warning   A heading inside a list item or quote became a bold paragraph.
 W_BLOCK_HOISTED           warning   A block was moved out of a container that cannot hold it (for example a table inside a list).
 W_BLOCK_FLATTENED         warning   A nested container was merged into its parent (for example a quote inside a quote).
 W_HTML_AS_TEXT            warning   Raw HTML without an ADF equivalent was kept as literal text.
 W_HTML_DROPPED            warning   Raw HTML was dropped (--html drop), or an unrecognised tag was removed from an expand title.
 W_IMAGE_AS_LINK           warning   An image became a link; ADF images need media uploaded to Jira/Confluence.
-W_IMAGE_DROPPED           warning   An image was dropped (--images drop).
+W_IMAGE_DROPPED           warning   An image was dropped (--images drop), including an adf:media file image.
 W_UNSAFE_URL              warning   A link target is not an allowed URL (http, https, ftp, ftps, mailto, tel, /path, #anchor) and became plain text.
 W_CONTROL_CHAR            warning   Control characters were removed from text.
 W_TABLE_CELL_DROPPED      warning   Table cells beyond the header row's width were dropped.

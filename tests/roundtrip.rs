@@ -12,7 +12,7 @@
 
 mod support;
 
-use adf_converter::{ImagePolicy, MdFlavor, MdToAdfOptions};
+use adf_converter::{ImagePolicy, MdFlavor, MdToAdfOptions, Target};
 use serde_json::{Value, json};
 
 #[test]
@@ -182,9 +182,186 @@ fn jira_shaped_documents_round_trip_after_normalize() {
     assert!(failures.is_empty(), "{}\n", failures.join("\n\n"));
 }
 
+/// Documents with Media Services files as Jira stores them: pasted screenshots with `localId`s
+/// and no layout, a `mediaGroup` and files in lists, quotes, panels and tables. Expressible
+/// images are written as `adf:media` images, the rest stays in raw `adf` blocks.
+fn jira_file_media_cases() -> Vec<(&'static str, Value)> {
+    let id = "11111111-2222-3333-4444-555555555555";
+    vec![
+        (
+            "pasted screenshot with localIds and an empty alt",
+            doc(json!([
+                {"type":"paragraph","content":[{"type":"text","text":"Steps to reproduce:"}]},
+                {"type":"mediaSingle","attrs":{"layout":"center","localId":"ms-1"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","width":1512,"height":945,"localId":"m-1"}}]},
+                {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555556","collection":"","alt":""}}]}
+            ])),
+        ),
+        (
+            "sized, aligned and named",
+            doc(json!([
+                {"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"contentId-123456","alt":"shot.png","width":1512,"height":945}}]},
+                {"type":"mediaSingle","attrs":{"layout":"wrap-left","width":50,"widthType":"percentage"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":"AAAAAAAA-bbbb-2222-CCCC-333344445555","collection":"comment-container-123456","alt":"A [chart] | *x*"}}]}
+            ])),
+        ),
+        (
+            "files in containers",
+            doc(json!([
+                {"type":"bulletList","content":[
+                    {"type":"listItem","content":[{"type":"paragraph"},{"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                        {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"in a list"}}]}]}]},
+                {"type":"blockquote","content":[{"type":"paragraph","content":[{"type":"text","text":"quoted"}]},{"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"in a quote"}}]}]},
+                {"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"in a panel"}}]}]},
+                {"type":"expand","attrs":{"title":"Details"},"content":[{"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"in an expand"}}]}]},
+                {"type":"table","attrs":{"isNumberColumnEnabled":false,"layout":"default"},"content":[
+                    {"type":"tableRow","content":[{"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Shot"}]}]}]},
+                    {"type":"tableRow","content":[{"type":"tableCell","content":[
+                        {"type":"paragraph","content":[{"type":"text","text":"see"}]},
+                        {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                            {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"in a cell","width":10,"height":20}}]}]}]}]}
+            ])),
+        ),
+        (
+            "files that stay raw ADF",
+            doc(json!([
+                {"type":"mediaGroup","content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"report.pdf"}}]},
+                {"type":"paragraph","content":[{"type":"text","text":"see "},
+                    {"type":"mediaInline","attrs":{"type":"file","id":id,"collection":""}}]},
+                {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"with caption"}},
+                    {"type":"caption","content":[{"type":"text","text":"Figure 1"}]}]},
+                {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":"legacy-id","collection":"contentId-1"}}]}
+            ])),
+        ),
+    ]
+}
+
+/// Documents with Media Services files as Confluence stores them (`contentId-<page>` collection,
+/// pixel width, a border mark on the media, a caption).
+fn confluence_file_media_cases() -> Vec<(&'static str, Value)> {
+    let id = "66666666-7777-8888-9999-000000000000";
+    vec![
+        (
+            "page screenshot",
+            doc(json!([
+                {"type":"mediaSingle","attrs":{"layout":"center","width":760,"widthType":"pixel"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"contentId-987654","width":1280,"height":720,"alt":"arch.png"}}]},
+                {"type":"mediaSingle","attrs":{"layout":"full-width","width":100,"widthType":"percentage"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"contentId-987654"}}]}
+            ])),
+        ),
+        (
+            "border and caption stay raw ADF",
+            doc(json!([
+                {"type":"mediaSingle","attrs":{"layout":"center","width":760,"widthType":"pixel"},"content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"contentId-987654","width":1280,"height":720},
+                     "marks":[{"type":"border","attrs":{"color":"#091e4224","size":2}}]},
+                    {"type":"caption","content":[{"type":"text","text":"Architecture"}]}]}
+            ])),
+        ),
+    ]
+}
+
+/// `target` is the product the documents come from: Jira rejects marks (`border`) that
+/// Confluence stores, so a raw block holding one only converts back for Confluence.
+fn assert_file_media_round_trips(cases: &[(&str, Value)], target: Target) {
+    let external_images = MdToAdfOptions {
+        images: ImagePolicy::External,
+        target,
+        ..MdToAdfOptions::default()
+    };
+    for (name, x) in cases {
+        let errors = support::schema_errors(x);
+        assert!(
+            errors.is_empty(),
+            "{name}: the input is not schema-valid: {errors:?}"
+        );
+    }
+    let failures: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, x)| round_trip_document(name, x, &external_images))
+        .collect();
+    assert!(failures.is_empty(), "{}\n", failures.join("\n\n"));
+}
+
+#[test]
+fn jira_shaped_file_media_round_trips_after_normalize() {
+    assert_file_media_round_trips(&jira_file_media_cases(), Target::Jira);
+}
+
+#[test]
+fn confluence_shaped_file_media_round_trips_after_normalize() {
+    assert_file_media_round_trips(&confluence_file_media_cases(), Target::Confluence);
+}
+
+/// The file media documents are valid ADF, and the Markdown for them contains the syntax only
+/// for the expressible images (this direction does not need Markdown → ADF).
+#[test]
+fn file_media_documents_are_written_as_syntax_or_raw_adf() {
+    let all: Vec<(&str, Value)> = jira_file_media_cases()
+        .into_iter()
+        .chain(confluence_file_media_cases())
+        .collect();
+    for (name, x) in &all {
+        let (markdown, warnings) = support::adf_to_markdown(x, MdFlavor::Roundtrip)
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let raw = name.contains("raw");
+        assert_eq!(markdown.contains("```adf"), raw, "{name}:\n{markdown}");
+        assert_eq!(
+            markdown.contains("](adf:media/"),
+            !raw,
+            "{name}:\n{markdown}"
+        );
+        let passthrough = warnings
+            .iter()
+            .filter(|w| w.code.to_string() == "W_ADF_PASSTHROUGH")
+            .count();
+        assert_eq!(passthrough > 0, raw, "{name}: {warnings:?}");
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // normalize() itself (independent of the converter)
 // ---------------------------------------------------------------------------------------------
+
+#[test]
+fn normalize_keeps_the_size_of_file_media_and_drops_that_of_external_media() {
+    let file = json!({"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel","localId":"a"},"content":[
+        {"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"","alt":"","width":1,"height":2,"localId":"b"}}]});
+    let external = json!({"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[
+        {"type":"media","attrs":{"type":"external","url":"https://example.com/a.png","width":1,"height":2}}]});
+    let x = doc(json!([file, external]));
+    let expected = doc(json!([
+        {"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[
+            {"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"","width":1,"height":2}}]},
+        {"type":"mediaSingle","attrs":{"layout":"wide"},"content":[
+            {"type":"media","attrs":{"type":"external","url":"https://example.com/a.png"}}]}
+    ]));
+    assert_eq!(support::normalize(&x), expected);
+}
+
+#[test]
+fn normalize_gives_media_single_the_default_layout_and_drops_the_default_width_type() {
+    let media = json!({"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"c"}});
+    let x = doc(json!([
+        {"type":"mediaSingle","content":[media]},
+        {"type":"mediaSingle","attrs":{"width":50,"widthType":"percentage"},"content":[media]}
+    ]));
+    let expected = doc(json!([
+        {"type":"mediaSingle","attrs":{"layout":"center"},"content":[media]},
+        {"type":"mediaSingle","attrs":{"layout":"center","width":50},"content":[media]}
+    ]));
+    assert_eq!(support::normalize(&x), expected);
+    assert_eq!(support::normalize(&expected), expected);
+}
 
 #[test]
 fn normalize_replaces_task_ids_by_position_and_drops_other_local_ids() {

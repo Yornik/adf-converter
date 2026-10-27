@@ -869,6 +869,521 @@ fn images_by_policy() {
     assert_eq!(codes(&warnings), vec![Code::ImageDropped]);
 }
 
+// --- adf:media images ---
+
+const MEDIA_ID: &str = "11111111-2222-3333-4444-555555555555";
+
+/// `run_with`, plus the product rules of both targets.
+fn run_media(md: &str, opts: &MdToAdfOptions) -> (Value, Vec<Diagnostic>) {
+    let (value, warnings) = run_with(md, opts);
+    for target in [crate::Target::Jira, crate::Target::Confluence] {
+        let problems = crate::validate_adf(&value, target);
+        assert!(
+            problems.iter().all(|d| !d.is_error()),
+            "{target:?}: {problems:?}\n{value}"
+        );
+    }
+    (value, warnings)
+}
+
+fn media_content(md: &str) -> Value {
+    run_media(md, &MdToAdfOptions::default()).0["content"].clone()
+}
+
+/// A `mediaSingle` with a file `media` of the default id: `attrs` are those of the
+/// `mediaSingle`, `media` the extra attrs of the `media` (after `type`, `id` and `collection`).
+fn file_media(single: Value, collection: &str, media: Value) -> Value {
+    let mut single_attrs = json!({"layout": "center"});
+    single_attrs
+        .as_object_mut()
+        .unwrap()
+        .extend(single.as_object().unwrap().clone());
+    let mut attrs = json!({"type": "file", "id": MEDIA_ID, "collection": collection});
+    attrs
+        .as_object_mut()
+        .unwrap()
+        .extend(media.as_object().unwrap().clone());
+    json!({"type": "mediaSingle", "attrs": single_attrs,
+           "content": [{"type": "media", "attrs": attrs}]})
+}
+
+/// The default file image with an alt text.
+fn file_alt(alt: &str) -> Value {
+    file_media(json!({}), "", json!({"alt": alt}))
+}
+
+#[test]
+fn adf_media_exact_output() {
+    let md = format!(
+        "![shot.png](adf:media/{MEDIA_ID}?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)"
+    );
+    let (value, warnings) = run_media(&md, &MdToAdfOptions::default());
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(
+        serde_json::to_string(&value["content"]).unwrap(),
+        r#"[{"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[{"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"contentId-123456","alt":"shot.png","width":1512,"height":945}}]}]"#
+    );
+    // Defaults: layout center, no width, collection "", no alt for an empty alt text.
+    assert_eq!(
+        media_content(&format!("![](adf:media/{MEDIA_ID})")),
+        json!([file_media(json!({}), "", json!({}))])
+    );
+    assert_eq!(
+        media_content(&format!("![a](adf:media/{MEDIA_ID})")),
+        json!([file_alt("a")])
+    );
+}
+
+#[test]
+fn adf_media_parameters() {
+    let cases = [
+        ("?width=5", json!({}), "", json!({"width": 5})),
+        ("?height=5", json!({}), "", json!({"height": 5})),
+        (
+            "?height=100000&width=1",
+            json!({}),
+            "",
+            json!({"width": 1, "height": 100_000}),
+        ),
+        (
+            "?collection=comment-container-9",
+            json!({}),
+            "comment-container-9",
+            json!({}),
+        ),
+        (
+            "?layout=full-width",
+            json!({"layout": "full-width"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?layout=wrap-right",
+            json!({"layout": "wrap-right"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?layout=wrap-left",
+            json!({"layout": "wrap-left"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?layout=align-end",
+            json!({"layout": "align-end"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?layout=align-start",
+            json!({"layout": "align-start"}),
+            "",
+            json!({}),
+        ),
+        ("?layout=center", json!({}), "", json!({})),
+        ("?size=1%", json!({"width": 1}), "", json!({})),
+        ("?size=100%", json!({"width": 100}), "", json!({})),
+        (
+            "?size=1px",
+            json!({"width": 1, "widthType": "pixel"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?size=100000px",
+            json!({"width": 100_000, "widthType": "pixel"}),
+            "",
+            json!({}),
+        ),
+        (
+            "?size=40%&layout=align-end&height=3&collection=c_1",
+            json!({"layout": "align-end", "width": 40}),
+            "c_1",
+            json!({"height": 3}),
+        ),
+    ];
+    for (query, single, collection, media) in cases {
+        let mut media = media;
+        media
+            .as_object_mut()
+            .unwrap()
+            .insert("alt".into(), json!("a"));
+        // The alt text comes right after the collection.
+        let mut expected = file_media(single, collection, json!({"alt": "a"}));
+        let attrs = expected["content"][0]["attrs"].as_object_mut().unwrap();
+        attrs.extend(media.as_object().unwrap().clone());
+        let (value, warnings) = run_media(
+            &format!("![a](adf:media/{MEDIA_ID}{query})"),
+            &MdToAdfOptions::default(),
+        );
+        assert!(warnings.is_empty(), "{query}: {warnings:?}");
+        assert_eq!(value["content"], json!([expected]), "{query}");
+    }
+}
+
+#[test]
+fn adf_media_scheme_kind_and_id_case_and_angle_destinations() {
+    let upper = "ABCDEF01-2222-3333-4444-5555555555AB";
+    let expected = json!([{"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+        {"type": "media", "attrs": {"type": "file", "id": upper, "collection": "", "alt": "a"}}]}]);
+    for dest in [
+        format!("adf:media/{upper}"),
+        format!("ADF:MEDIA/{upper}"),
+        format!("Adf:Media/{upper}"),
+        format!("<adf:media/{upper}>"),
+    ] {
+        assert_eq!(media_content(&format!("![a]({dest})")), expected, "{dest}");
+    }
+    // Reference-style images work too.
+    assert_eq!(
+        media_content(&format!("![a][m]\n\n[m]: adf:media/{upper}")),
+        expected
+    );
+}
+
+#[test]
+fn adf_media_alt_text_follows_the_external_rules() {
+    assert_eq!(
+        media_content(&format!("![\u{7} a *b*\n`c` \u{7}](adf:media/{MEDIA_ID})")),
+        json!([file_alt("a b c")])
+    );
+    let (_, warnings) = run_media(
+        &format!("![x\u{7}](adf:media/{MEDIA_ID})"),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(codes(&warnings), vec![Code::ControlChar]);
+    // Whitespace only: no alt attribute.
+    assert_eq!(
+        media_content(&format!("![ \n ](adf:media/{MEDIA_ID})")),
+        json!([file_media(json!({}), "", json!({}))])
+    );
+    // A nested image's alt text joins the outer one.
+    let external = opts_with(|o| o.images = ImagePolicy::External);
+    assert_eq!(
+        run_media(
+            &format!("![a ![b](adf:media/{MEDIA_ID}) c](https://x/i.png)"),
+            &external
+        )
+        .0["content"],
+        json!([{"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+            {"type": "media", "attrs": {"type": "external", "url": "https://x/i.png", "alt": "a b c"}}]}])
+    );
+}
+
+#[test]
+fn adf_media_is_not_affected_by_link_and_external_policies() {
+    let md = format!("![a](adf:media/{MEDIA_ID})");
+    for images in [ImagePolicy::Link, ImagePolicy::External] {
+        let opts = opts_with(|o| o.images = images);
+        let (value, warnings) = run_media(&md, &opts);
+        assert_eq!(value["content"], json!([file_alt("a")]));
+        assert!(warnings.is_empty(), "{warnings:?}");
+    }
+    // Other adf: kinds are still ordinary (unsafe) image URLs.
+    let (value, warnings) = run("![a](adf:mention/x) ![b](adf:bogus)");
+    assert_eq!(value["content"], json!([pt("a b")]));
+    assert_eq!(codes(&warnings), vec![Code::UnsafeUrl; 2]);
+}
+
+#[test]
+fn adf_media_dropped_by_images_drop() {
+    let drop = opts_with(|o| o.images = ImagePolicy::Drop);
+    let (value, warnings) = run_media(
+        &format!("a ![x](adf:media/{MEDIA_ID}?width=1) b ![y](adf:media/bad) c"),
+        &drop,
+    );
+    assert_eq!(value["content"], json!([pt("a  b  c")]));
+    assert_eq!(codes(&warnings), vec![Code::ImageDropped; 2]);
+    // The location is the image.
+    let at = warnings[0].location.as_ref().unwrap();
+    assert_eq!((at.line, at.column), (Some(1), Some(3)));
+}
+
+#[test]
+fn adf_media_with_the_extension_disabled_keeps_the_alt_text() {
+    let md = format!("a ![the *shot*](adf:media/{MEDIA_ID}) b ![](adf:media/{MEDIA_ID}) c");
+    for images in [ImagePolicy::Link, ImagePolicy::External] {
+        let opts = opts_with(|o| {
+            o.images = images;
+            o.extensions = Extensions::parse("alerts").unwrap();
+        });
+        let (value, warnings) = run_media(&md, &opts);
+        assert_eq!(value["content"], json!([pt("a the shot b  c")]));
+        assert_eq!(codes(&warnings), vec![Code::ExtensionDisabled; 2]);
+        let at = warnings[0].location.as_ref().unwrap();
+        assert_eq!((at.line, at.column), (Some(1), Some(3)));
+    }
+    // Other extensions do not matter, and a disabled media extension leaves external images alone.
+    let opts = opts_with(|o| {
+        o.images = ImagePolicy::External;
+        o.extensions = Extensions::none();
+    });
+    let (value, warnings) = run_media("![e](https://x/i.png)", &opts);
+    assert_eq!(value["content"][0]["type"], "mediaSingle");
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
+fn adf_media_invalid_arguments_fall_back_to_the_alt_text() {
+    let cases = [
+        // (destination, text of the argument that the message must mention)
+        ("adf:media", "media ID"),
+        ("adf:media/", "media ID"),
+        ("adf:media/?width=1", "media ID"),
+        ("adf:media/not-a-uuid", "UUID"),
+        ("adf:media/11111111-2222-3333-4444-55555555555", "UUID"),
+        ("adf:media/11111111-2222-3333-4444-55555555555g", "UUID"),
+        ("adf:media/11111111-2222-3333-4444-555555555555/x", "UUID"),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?collection=a%20b",
+            "collection",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?collection=a.b",
+            "collection",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=0",
+            "width",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=100001",
+            "width",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=1.5",
+            "width",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?height=-1",
+            "height",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?height=tall",
+            "height",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?layout=left",
+            "layout",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?layout=Wide",
+            "layout",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?size=0%",
+            "size",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?size=101%",
+            "size",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?size=0px",
+            "size",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?size=100001px",
+            "size",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?size=50",
+            "size",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?colour=red",
+            "unknown parameter",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=1&width=2",
+            "repeats",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=",
+            "empty value",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width",
+            "no value",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?",
+            "empty parameter",
+        ),
+        (
+            "adf:media/11111111-2222-3333-4444-555555555555?width=1&",
+            "empty parameter",
+        ),
+    ];
+    for (dest, needle) in cases {
+        let (value, warnings) = run_media(
+            &format!("see ![the alt](<{dest}>) now"),
+            &MdToAdfOptions::default(),
+        );
+        assert_eq!(value["content"], json!([pt("see the alt now")]), "{dest}");
+        assert_eq!(codes(&warnings), vec![Code::InvalidExtensionArg], "{dest}");
+        let w = &warnings[0];
+        assert!(w.message.contains(needle), "{dest}: {}", w.message);
+        assert!(w.hint.is_some());
+        let at = w.location.as_ref().unwrap();
+        assert_eq!((at.line, at.column), (Some(1), Some(5)), "{dest}");
+        // The same under --images external, and without alt text nothing is left.
+        let external = opts_with(|o| o.images = ImagePolicy::External);
+        let (value, warnings) = run_media(&format!("![](<{dest}>)"), &external);
+        assert_eq!(value["content"], json!([]), "{dest}");
+        assert_eq!(codes(&warnings), vec![Code::InvalidExtensionArg]);
+    }
+}
+
+#[test]
+fn adf_media_title_and_link_are_dropped_like_external_images() {
+    let (value, warnings) = run_media(
+        &format!("![a](adf:media/{MEDIA_ID} \"A title\")"),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(value["content"], json!([file_alt("a")]));
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+    let (value, warnings) = run_media(
+        &format!("[![a](adf:media/{MEDIA_ID})](https://example.com)"),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(value["content"], json!([file_alt("a")]));
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped]);
+    let (_, warnings) = run_media(
+        &format!("[![a](adf:media/{MEDIA_ID} \"T\")](https://example.com)"),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(codes(&warnings), vec![Code::MarkDropped; 2]);
+    // Marks around the image do not matter.
+    let (value, warnings) = run_media(
+        &format!("**![a](adf:media/{MEDIA_ID})**"),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(value["content"], json!([file_alt("a")]));
+    assert!(warnings.is_empty(), "{warnings:?}");
+    // An invalid image keeps the marks of its surroundings on the alt text.
+    let (value, _) = run_media("**![a](adf:media/x)**", &MdToAdfOptions::default());
+    assert_eq!(
+        value["content"],
+        json!([p(json!([tm("a", json!([{"type": "strong"}]))]))])
+    );
+}
+
+#[test]
+fn adf_media_placement_in_every_container() {
+    let img = |alt: &str| format!("![{alt}](adf:media/{MEDIA_ID})");
+    let opts = MdToAdfOptions::default();
+    // Paragraph.
+    assert_eq!(
+        media_content(&format!("before {} after", img("a"))),
+        json!([pt("before"), file_alt("a"), pt("after")])
+    );
+    // Two images in a row: no empty paragraph between.
+    assert_eq!(
+        media_content(&format!("{} {}", img("a"), img("b"))),
+        json!([file_alt("a"), file_alt("b")])
+    );
+    // Heading.
+    let (value, warnings) = run_media(&format!("# Title {} end", img("h")), &opts);
+    assert_eq!(
+        value["content"],
+        json!([{"type": "heading", "attrs": {"level": 1}, "content": [t("Title end")]}, file_alt("h")])
+    );
+    assert!(warnings.is_empty(), "{warnings:?}");
+    // List item: the image follows the paragraph inside the item.
+    assert_eq!(
+        media_content(&format!("- one {}\n- {}", img("i"), img("j"))),
+        json!([bullet(json!([
+            li(json!([{"type": "paragraph", "content": [t("one")]}, file_alt("i")])),
+            li(json!([{"type": "paragraph"}, file_alt("j")]))
+        ]))])
+    );
+    // Task item: hoisted after the list.
+    let (value, warnings) = run_media(&format!("- [ ] todo {} x", img("t")), &opts);
+    let mut c = value["content"].clone();
+    strip_ids(&mut c);
+    assert_eq!(
+        c,
+        json!([
+            task_list(json!([task("TODO", json!([t("todo x")]))])),
+            file_alt("t")
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+    // Blockquote.
+    assert_eq!(
+        media_content(&format!("> q {}", img("q"))),
+        json!([{"type": "blockquote", "content": [
+            {"type": "paragraph", "content": [t("q")]}, file_alt("q")]}])
+    );
+    // Panel through an alert.
+    assert_eq!(
+        media_content(&format!("> [!NOTE]\n> p {}", img("p"))),
+        json!([{"type": "panel", "attrs": {"panelType": "info"}, "content": [
+            {"type": "paragraph", "content": [t("p")]}, file_alt("p")]}])
+    );
+    // Table cell.
+    assert_eq!(
+        media_content(&format!("| a |\n|---|\n| x {} |", img("c"))),
+        json!([{"type": "table", "attrs": {"isNumberColumnEnabled": false, "layout": "default"},
+            "content": [
+                {"type": "tableRow", "content": [{"type": "tableHeader", "content": [
+                    {"type": "paragraph", "content": [t("a")]}]}]},
+                {"type": "tableRow", "content": [{"type": "tableCell", "content": [
+                    {"type": "paragraph", "content": [t("x")]}, file_alt("c")]}]}]}])
+    );
+    // Details → expand.
+    assert_eq!(
+        media_content(&format!(
+            "<details><summary>S</summary>\n\nin {}\n\n</details>",
+            img("e")
+        )),
+        json!([{"type": "expand", "attrs": {"title": "S"}, "content": [
+            {"type": "paragraph", "content": [t("in")]}, file_alt("e")]}])
+    );
+    // Box cell.
+    assert_eq!(
+        media_content(&format!("::: cell\nbox {}\n:::", img("b"))),
+        json!([one_cell_box(json!([
+            {"type": "paragraph", "content": [t("box")]}, file_alt("b")]))])
+    );
+}
+
+#[test]
+fn adf_media_inside_an_adf_link_label_moves_after_the_node() {
+    let (value, warnings) = run_media(
+        &format!("[![x](adf:media/{MEDIA_ID}) @Jane](adf:mention/abc) today."),
+        &MdToAdfOptions::default(),
+    );
+    assert_eq!(
+        value["content"],
+        json!([
+            p(json!([{"type": "mention", "attrs": {"id": "abc", "text": "@Jane"}}])),
+            file_alt("x"),
+            pt("today.")
+        ])
+    );
+    assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
+}
+
+#[test]
+fn adf_media_documents_are_deterministic_for_every_option_set() {
+    let md = format!(
+        "# T\n\n![a](adf:media/{MEDIA_ID}?size=10%) text ![b](adf:media/zzz)\n\n- ![c](adf:media/{MEDIA_ID}?layout=wide)\n"
+    );
+    for images in [ImagePolicy::Link, ImagePolicy::External, ImagePolicy::Drop] {
+        for extensions in [Extensions::all(), Extensions::none()] {
+            let opts = MdToAdfOptions {
+                images,
+                extensions,
+                ..MdToAdfOptions::default()
+            };
+            let _ = run_media(&md, &opts);
+        }
+    }
+}
+
 #[test]
 fn recognised_inline_html() {
     assert_eq!(
@@ -1101,7 +1616,7 @@ fn alerts_in_containers_that_cannot_hold_panels() {
     assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
     assert_eq!(
         warnings[0].message,
-        "An alert is not allowed in a task item; it was moved after the task list"
+        "An alert is not allowed in a task item; it was moved out of the task list"
     );
     // ...also through several levels...
     let (mut value, warnings) = run("- - [ ] t\n\n    > [!NOTE]\n    > x");
@@ -2444,5 +2959,27 @@ fn quadratic_emphasis_input_is_refused_fast() {
         start.elapsed() < std::time::Duration::from_secs(1),
         "{:?}",
         start.elapsed()
+    );
+}
+
+/// `adf:media` is an image form; written as a link it keeps the label as text and says so,
+/// instead of calling the kind unknown.
+#[test]
+fn adf_media_written_as_a_link_points_at_the_image_form() {
+    let md = "[report](adf:media/11111111-2222-3333-4444-555555555555)\n";
+    let conversion = super::to_adf(md, &MdToAdfOptions::default()).unwrap();
+    let warning = conversion
+        .warnings
+        .iter()
+        .find(|w| w.code == Code::UnknownExtension)
+        .expect("a warning");
+    assert!(
+        warning.message.contains("![alt](adf:media/"),
+        "{}",
+        warning.message
+    );
+    assert_eq!(
+        conversion.output.to_value().unwrap()["content"][0]["content"][0]["text"],
+        "report"
     );
 }

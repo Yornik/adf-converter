@@ -1,0 +1,37 @@
+## media (extension)
+
+Syntax: ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
+
+```markdown
+![shot.png](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)
+```
+
+```json
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "wide",
+        "width": 720,
+        "widthType": "pixel"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555555",
+            "collection": "contentId-123456",
+            "alt": "shot.png",
+            "width": 1512,
+            "height": 945
+          }
+        }
+      ]
+    }
+  ]
+}
+```

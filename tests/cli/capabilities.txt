@@ -45,6 +45,7 @@ ADF extensions (--extensions; all on by default):
   date            [YYYY-MM-DD](adf:date)
   emoji           [😄](adf:emoji/:smile:)
   card            [https://…](adf:card)
+  media           ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
 
 Exit codes:
   0  ok (warnings may have been printed)

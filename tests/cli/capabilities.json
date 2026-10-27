@@ -303,6 +303,17 @@
       "adf": [
         "inlineCard"
       ]
+    },
+    {
+      "name": "media",
+      "kind": "extension",
+      "extension": "media",
+      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+      "adf": [
+        "mediaSingle",
+        "media"
+      ],
+      "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
     }
   ],
   "extensions": [
@@ -376,6 +387,15 @@
       "syntax": "[https://…](adf:card)",
       "adf": [
         "inlineCard"
+      ],
+      "default": true
+    },
+    {
+      "name": "media",
+      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+      "adf": [
+        "mediaSingle",
+        "media"
       ],
       "default": true
     }
@@ -477,7 +497,7 @@
       "code": "W_MARK_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code), or an image title was dropped (--images external)."
+      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image)."
     },
     {
       "code": "W_HEADING_DEMOTED",
@@ -519,7 +539,7 @@
       "code": "W_IMAGE_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "An image was dropped (--images drop)."
+      "summary": "An image was dropped (--images drop), including an adf:media file image."
     },
     {
       "code": "W_UNSAFE_URL",

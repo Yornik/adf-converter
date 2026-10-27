@@ -16,7 +16,7 @@ pub(crate) enum Segment {
     Media(MediaSingle),
 }
 
-/// Splits tokens at external images (`--images external`), which become blocks.
+/// Splits tokens at images that become blocks (`--images external`, `adf:media`).
 pub(crate) fn split_media(toks: Vec<Tok>) -> Vec<Segment> {
     let mut out = Vec::new();
     let mut current = Vec::new();
@@ -28,6 +28,11 @@ pub(crate) fn split_media(toks: Vec<Tok>) -> Vec<Segment> {
                 }
                 out.push(Segment::Media(media));
             }
+            // The line break that ended the image's line would start the next paragraph with an
+            // empty line (`--softbreak hardbreak`); the break before the image is already
+            // dropped as a trailing break.
+            Tok::HardBreak
+                if current.is_empty() && matches!(out.last(), Some(Segment::Media(_))) => {}
             Tok::Text { .. } | Tok::HardBreak | Tok::Node(_) => current.push(tok),
         }
     }

@@ -7,6 +7,7 @@ use crate::adf::reader::Node;
 use super::block::{Container, is_single_empty_paragraph, media_single, render_children};
 use super::escape::{TextContext, TextEscape, code_span, escape_text};
 use super::inline::{InlineKind, render_inline};
+use super::media::group_markers;
 use super::{Ctx, Fail};
 
 /// Column alignment of a GFM table (`alignment` mark on each cell's paragraph).
@@ -387,6 +388,13 @@ fn plain_cell(cell: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
                     parts.push(code_span(line, true));
                 }
             }
+            "mediaSingle" => {
+                let md = media_single(block, true, cx)?;
+                if !md.is_empty() {
+                    parts.push(md);
+                }
+            }
+            "mediaGroup" => parts.extend(group_markers(block, true)),
             _ => {
                 let text = cell_text(&block.text_content());
                 if !text.is_empty() {

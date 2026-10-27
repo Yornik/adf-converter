@@ -311,6 +311,15 @@ pub const FEATURES: &[Feature] = &[
         "[https://example.atlassian.net/browse/PROJ-1](adf:card)\n",
         &["inlineCard"],
     ),
+    with_note(
+        extension(
+            "media",
+            "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+            "![shot.png](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)\n",
+            &["mediaSingle", "media"],
+        ),
+        "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
+    ),
 ];
 
 /// Looks a feature up by name (case-insensitive).
@@ -401,6 +410,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
         "date" => extensions.date,
         "emoji" => extensions.emoji,
         "card" => extensions.card,
+        "media" => extensions.media,
         _ => false,
     }
 }
@@ -475,10 +485,10 @@ pub fn advice(code: Code) -> &'static str {
         Code::TaskNumberingLost => "Use - [ ] instead of 1. [ ] for task lists.",
         Code::FrontMatterDropped => "Remove the front matter from the input if it is not needed.",
         Code::UnknownExtension => {
-            "Use one of the adf: link kinds mention, status, date, emoji or card (`adf capabilities` lists them)."
+            "Use one of the adf: link kinds mention, status, date, emoji or card, or the adf:media image form ![alt](adf:media/<uuid>) (`adf capabilities` lists them)."
         }
         Code::InvalidExtensionArg => {
-            "Fix the argument of the adf: link; `adf examples NAME` shows the syntax."
+            "Fix the argument of the adf: link or adf:media image; `adf examples NAME` shows the syntax."
         }
         Code::ExtensionDisabled => {
             "Enable the extension with --extensions, or write plain Markdown."

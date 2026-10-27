@@ -50,9 +50,14 @@ fn normalize(value: &Value) -> Value {
                             out.insert(key.clone(), item.clone());
                             continue;
                         };
+                        // File media keeps its size: `adf:media` carries it.
+                        let file = is_file_media(map, &ty);
                         let kept: Map<String, Value> = attrs
                             .iter()
-                            .filter(|(name, _)| *name != "localId" && !droppable(&ty, name))
+                            .filter(|(name, _)| {
+                                *name != "localId" && (file || !droppable(&ty, name))
+                            })
+                            .filter(|(name, v)| !is_media_default(&ty, name, v))
                             .map(|(name, v)| (name.clone(), normalize(v)))
                             .collect();
                         if !kept.is_empty() || matches!(ty.as_str(), "expand" | "nestedExpand") {
@@ -84,9 +89,42 @@ fn normalize(value: &Value) -> Value {
                     }
                 }
             }
+            if ty == "mediaSingle" {
+                // An absent layout reads back as `center`.
+                let attrs = out
+                    .entry("attrs")
+                    .or_insert_with(|| Value::Object(Map::new()));
+                if let Some(attrs) = attrs.as_object_mut() {
+                    attrs
+                        .entry("layout")
+                        .or_insert_with(|| Value::String("center".to_owned()));
+                }
+            }
             Value::Object(out)
         }
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => value.clone(),
+    }
+}
+
+/// Media attributes that read back as absent: `size=<n>%` has no `widthType`, and an empty alt
+/// is no alt.
+fn is_media_default(ty: &str, name: &str, value: &Value) -> bool {
+    match (ty, name) {
+        ("mediaSingle", "widthType") => value.as_str() == Some("percentage"),
+        ("media", "alt") => value.as_str() == Some(""),
+        _ => false,
+    }
+}
+
+/// A `media` of type `file`, or a `mediaSingle` whose first child is one.
+fn is_file_media(node: &Map<String, Value>, ty: &str) -> bool {
+    match ty {
+        "media" => node.get("attrs").is_some_and(|a| a["type"] == "file"),
+        "mediaSingle" => node
+            .get("content")
+            .and_then(|c| c.get(0))
+            .is_some_and(|child| child["type"] == "media" && child["attrs"]["type"] == "file"),
+        _ => false,
     }
 }
 
@@ -551,7 +589,7 @@ fn feature_docs() -> Vec<(&'static str, Value)> {
                 // A nested passthrough must be valid ADF where it stands (a decisionList is not
                 // allowed in a list item), or the ```adf block cannot convert back.
                 {"type": "bulletList", "content": [li(&[para("item"), json!({"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
-                    {"type": "media", "attrs": {"type": "file", "id": "6e7c7f2c-1b2a-4c3d-9e8f-0a1b2c3d4e5f", "collection": "contentId-1"}}
+                    {"type": "media", "attrs": {"type": "file", "id": "legacy-media-id", "collection": "contentId-1"}}
                 ]})])]},
             ])),
         ),
@@ -581,6 +619,148 @@ fn external_images_round_trip_with_images_external() {
         ..MdToAdfOptions::default()
     };
     assert_roundtrip_with(&document, &opts);
+}
+
+/// The read-back options of the round-trip harness: all extensions on, `--images external`.
+fn read_back_options() -> MdToAdfOptions {
+    MdToAdfOptions {
+        images: ImagePolicy::External,
+        extensions: crate::options::Extensions::all(),
+        ..MdToAdfOptions::default()
+    }
+}
+
+fn file_single(media_attrs: Value, single_attrs: Value) -> Value {
+    let mut attrs =
+        json!({"type": "file", "id": "11111111-2222-3333-4444-555555555555", "collection": ""});
+    if let (Some(attrs), Some(extra)) = (attrs.as_object_mut(), media_attrs.as_object()) {
+        attrs.extend(extra.clone());
+    }
+    json!({"type": "mediaSingle", "attrs": single_attrs, "content": [{"type": "media", "attrs": attrs}]})
+}
+
+/// Every expressible file image, in every container, with a few that stay raw ADF around them.
+fn file_media_docs() -> Vec<(&'static str, Value)> {
+    let center = || json!({"layout": "center"});
+    vec![
+        (
+            "defaults",
+            doc(json!([
+                file_single(json!({}), center()),
+                file_single(json!({"alt": "shot.png"}), json!({"layout": "full-width"})),
+            ])),
+        ),
+        (
+            "every parameter",
+            doc(json!([file_single(
+                json!({"collection": "contentId-123456", "alt": "shot.png", "width": 1512, "height": 945}),
+                json!({"layout": "wide", "width": 720, "widthType": "pixel"})
+            )])),
+        ),
+        (
+            "percentage sizes",
+            doc(json!([
+                file_single(json!({}), json!({"layout": "align-end", "width": 50})),
+                file_single(
+                    json!({}),
+                    json!({"layout": "wrap-left", "width": 100, "widthType": "percentage"})
+                ),
+            ])),
+        ),
+        (
+            "upper case id and escaped alt",
+            doc(json!([file_single(
+                json!({"id": "AAAAAAAA-BBBB-2222-CCCC-DDDDEEEEFFFF", "alt": "A [chart] | *x* `y`"}),
+                center()
+            )])),
+        ),
+        (
+            "containers",
+            doc(json!([
+                {"type": "bulletList", "content": [{"type": "listItem", "content": [
+                    {"type": "paragraph"}, file_single(json!({"alt": "list"}), center())]}]},
+                {"type": "blockquote", "content": [para("q"), file_single(json!({"alt": "quote"}), center())]},
+                {"type": "panel", "attrs": {"panelType": "info"}, "content": [file_single(json!({"alt": "panel"}), center())]},
+                {"type": "expand", "attrs": {"title": "More"}, "content": [file_single(json!({"alt": "expand"}), center())]},
+                table(vec![
+                    json!({"type": "tableRow", "content": [{"type": "tableHeader", "content": [para("h")]}]}),
+                    json!({"type": "tableRow", "content": [{"type": "tableCell", "content": [
+                        para("cell"), file_single(json!({"alt": "cell", "width": 1, "height": 2}), center())]}]}),
+                ]),
+                {"type": "table", "content": [{"type": "tableRow", "content": [{"type": "tableCell", "content": [
+                    para("box"), file_single(json!({"alt": "box"}), center())]}]}]},
+            ])),
+        ),
+        (
+            "raw ADF next to syntax",
+            doc(json!([
+                file_single(json!({"alt": "fine"}), center()),
+                file_single(json!({"id": "legacy-id"}), center()),
+                {"type": "mediaSingle", "attrs": center(), "content": [
+                    {"type": "media", "attrs": {"type": "file", "id": "11111111-2222-3333-4444-555555555555", "collection": ""}},
+                    {"type": "caption", "content": [t("Figure 1")]}]},
+                {"type": "mediaGroup", "content": [
+                    {"type": "media", "attrs": {"type": "file", "id": "11111111-2222-3333-4444-555555555556", "collection": "", "alt": "r.pdf"}}]},
+            ])),
+        ),
+    ]
+}
+
+#[test]
+fn file_media_round_trips_with_the_adf_media_syntax() {
+    for (name, document) in file_media_docs() {
+        eprintln!("round trip: {name}");
+        assert_roundtrip_with(&document, &read_back_options());
+    }
+}
+
+#[test]
+fn file_media_markdown_is_a_fixed_point() {
+    for (name, document) in file_media_docs() {
+        let first = to_markdown(&document, &AdfToMdOptions::default())
+            .expect("adf -> md")
+            .output;
+        let back = crate::md_to_adf(&first, &read_back_options())
+            .unwrap_or_else(|e| panic!("{name}: md -> adf failed: {e}\n{first}"));
+        let back = back.output.to_value().expect("serialise");
+        let second = to_markdown(&back, &AdfToMdOptions::default())
+            .expect("adf -> md")
+            .output;
+        assert_eq!(first, second, "{name}");
+    }
+}
+
+#[test]
+fn file_media_documents_use_the_syntax_without_warnings() {
+    for (name, document) in file_media_docs() {
+        let result = to_markdown(&document, &AdfToMdOptions::default()).expect("adf -> md");
+        let raw = name == "raw ADF next to syntax";
+        assert_eq!(result.output.contains("```adf"), raw, "{name}");
+        assert!(result.output.contains("](adf:media/"), "{name}");
+        assert_eq!(
+            result.warnings.is_empty(),
+            !raw,
+            "{name}: {:?}",
+            result.warnings
+        );
+    }
+}
+
+#[test]
+fn normalize_keeps_file_media_size_and_defaults_the_layout() {
+    let file = json!({"type": "mediaSingle", "attrs": {"width": 50, "widthType": "percentage", "localId": "x"}, "content": [
+        {"type": "media", "attrs": {"type": "file", "id": "i", "collection": "", "alt": "", "width": 3, "height": 4}}]});
+    let external = json!({"type": "mediaSingle", "attrs": {"layout": "wide", "width": 50}, "content": [
+        {"type": "media", "attrs": {"type": "external", "url": "https://e.com/a.png", "width": 3}}]});
+    assert_eq!(
+        normalize(&json!([file, external])),
+        json!([
+            {"type": "mediaSingle", "attrs": {"layout": "center", "width": 50}, "content": [
+                {"type": "media", "attrs": {"type": "file", "id": "i", "collection": "", "width": 3, "height": 4}}]},
+            {"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+                {"type": "media", "attrs": {"type": "external", "url": "https://e.com/a.png"}}]}
+        ])
+    );
 }
 
 #[test]

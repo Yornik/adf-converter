@@ -983,7 +983,7 @@ impl Lowerer<'_, '_> {
     }
 
     /// A task item: its paragraphs joined with hard breaks, its nested task lists, and the
-    /// blocks it cannot hold (hoisted after the task list).
+    /// blocks it cannot hold (hoisted out of the task list).
     fn task_item(
         &mut self,
         item: Item,
@@ -1027,7 +1027,7 @@ impl Lowerer<'_, '_> {
                             };
                             self.cx.warn(
                                 Code::BlockHoisted,
-                                "A plain list is not allowed in a task item; it was moved after the task list",
+                                "A plain list is not allowed in a task item; it was moved out of the task list",
                                 &span,
                             );
                             ups.push(block);
@@ -1047,7 +1047,7 @@ impl Lowerer<'_, '_> {
                     self.cx.warn(
                         Code::BlockHoisted,
                         format!(
-                            "{} is not allowed in a task item; it was moved after the task list",
+                            "{} is not allowed in a task item; it was moved out of the task list",
                             with_article(other.describe())
                         ),
                         &other.span(),
@@ -1070,7 +1070,7 @@ impl Lowerer<'_, '_> {
 
     /// Appends a paragraph's text to a task item's content (separated by a hard break).
     ///
-    /// External images are moved after the task list. The spaces around a moved image collapse
+    /// External images are moved out of the task list. The spaces around a moved image collapse
     /// to one (`task ![i](u) after` → `task after`), or to none at the edge of the text.
     fn task_text(&mut self, toks: &mut Vec<Tok>, content: Vec<Tok>, ups: &mut Vec<Block>) {
         let mut text = Vec::new();
@@ -1080,7 +1080,7 @@ impl Lowerer<'_, '_> {
                 Tok::Media { media, span } => {
                     self.cx.warn(
                         Code::BlockHoisted,
-                        "An image is not allowed in a task item; it was moved after the task list",
+                        "An image is not allowed in a task item; it was moved out of the task list",
                         &span,
                     );
                     ups.push(Block::Media { media, span });

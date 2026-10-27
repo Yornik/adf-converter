@@ -130,22 +130,58 @@ fn warnings_and_errors_are_in_the_right_sections() {
     );
 }
 
+/// The paragraph (up to the next blank line) that starts at the first occurrence of `marker`.
+fn paragraph_from<'a>(doc: &'a str, marker: &str) -> &'a str {
+    let start = doc
+        .find(marker)
+        .unwrap_or_else(|| panic!("no paragraph starting with {marker:?}"));
+    let rest = doc.get(start..).unwrap_or_default();
+    rest.split("\n\n").next().unwrap_or(rest)
+}
+
+/// The names in [`Extensions::NAMES`] that `paragraph` does not list in backticks.
+fn unlisted_extension_names(paragraph: &str) -> Vec<&'static str> {
+    Extensions::NAMES
+        .iter()
+        .copied()
+        .filter(|name| !paragraph.contains(&format!("`{name}`")))
+        .collect()
+}
+
+#[test]
+fn extension_list_check_notices_a_missing_name() {
+    let without_media = "Names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`, \
+                         `date`, `emoji`, `card`.";
+    assert_eq!(unlisted_extension_names(without_media), ["media"]);
+    let bare_words = "alerts details cells raw-adf mention status date emoji card media";
+    assert_eq!(unlisted_extension_names(bare_words), Extensions::NAMES);
+}
+
+#[test]
+fn skill_syntax_reference_lists_every_extension_name() {
+    let skill = read_doc("skills/markdown-to-adf/references/syntax.md");
+    let listed = paragraph_from(&skill, "All are on by default");
+    let missing = unlisted_extension_names(listed);
+    assert!(
+        missing.is_empty(),
+        "the extension list in skills/markdown-to-adf/references/syntax.md lacks {missing:?}"
+    );
+}
+
 #[test]
 fn every_extension_name_is_documented() {
     let syntax = read_doc("docs/syntax.md");
     let contract = read_doc("docs/cli-contract.md");
-    let mut missing = Vec::new();
     for name in Extensions::NAMES {
-        if !syntax.contains(&format!("`{name}`")) {
-            missing.push(*name);
-        }
         let parsed = Extensions::parse(name).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_ne!(parsed, Extensions::none(), "{name} enables nothing");
         assert_ne!(parsed, Extensions::all(), "{name} enables everything");
     }
+    let listed = paragraph_from(&syntax, "All extensions are on by default");
+    let missing = unlisted_extension_names(listed);
     assert!(
         missing.is_empty(),
-        "docs/syntax.md does not mention extensions {missing:?}"
+        "the extension list in docs/syntax.md lacks {missing:?}"
     );
     assert!(
         contract.contains("--extensions all|none|LIST"),

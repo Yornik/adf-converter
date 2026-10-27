@@ -17,10 +17,13 @@ mod block;
 mod date;
 mod escape;
 mod inline;
+mod media;
 mod passthrough;
 mod table;
 mod verify;
 
+#[cfg(test)]
+mod media_tests;
 #[cfg(test)]
 mod roundtrip_tests;
 #[cfg(test)]
