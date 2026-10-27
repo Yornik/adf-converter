@@ -38,6 +38,9 @@ use crate::options::MdToAdfOptions;
 
 use cx::Cx;
 
+// Shared with `crate::csv`: control-character stripping and GFM autolink detection.
+pub(crate) use inline::{find_autolinks, strip_controls};
+
 /// Converts Markdown source to a strict ADF document. Warnings carry line/column locations.
 pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Diagnostics> {
     let limit = opts

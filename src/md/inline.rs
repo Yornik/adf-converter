@@ -1375,7 +1375,7 @@ fn www_finder() -> &'static LinkFinder {
 
 /// GFM extended autolinks in `text`: `http(s)://…`, `www.…` (gets `http://`) and email
 /// addresses (get `mailto:`), as sorted, non-overlapping `(start, end, href)`.
-fn find_autolinks(text: &str) -> Vec<(usize, usize, Href)> {
+pub(crate) fn find_autolinks(text: &str) -> Vec<(usize, usize, Href)> {
     let mut found: Vec<(usize, usize, Href)> = Vec::new();
     for link in scheme_finder().links(text) {
         let s = link.as_str();

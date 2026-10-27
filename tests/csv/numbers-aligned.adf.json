@@ -1,0 +1,355 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Item"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Qty"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Price"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Share"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Widget"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "3"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "1,250.50"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "12%"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Gadget"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "10"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "9.99"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "-5.5%"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Gizmo"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "+7"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "0.5"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "100%"
+                    }
+                  ],
+                  "marks": [
+                    {
+                      "type": "alignment",
+                      "attrs": {
+                        "align": "end"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

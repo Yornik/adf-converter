@@ -1,0 +1,17 @@
+Kind,Text
+pipe,a | b
+stars,*not bold* and **not strong**
+underscores,_not italic_ snake_case_name
+backtick,`not code`
+html,<b>not bold</b> <script>alert(1)</script>
+link,[x](y) and ![img](z)
+windows,C:\temp\x
+backslash,\ and \\ and \*
+amp,Tom & Jerry &amp; &lt;
+hash,# not a heading
+list,- not a list
+number list,1. not a list
+quote,> not a quote
+rule,---
+fence,```not a fence```
+tilde,~~not struck~~
