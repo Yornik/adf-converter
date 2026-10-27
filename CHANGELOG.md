@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/Yornik/adf-converter/compare/v0.1.0...v0.2.0) (2026-10-27)
+
+
+### Features
+
+* file media (adf:media images) for Jira and Confluence attachments ([#11](https://github.com/Yornik/adf-converter/issues/11)) ([d5d4299](https://github.com/Yornik/adf-converter/commit/d5d429903c0b2ae87c717c98863ededd56d4916b))
+
+
+### Documentation
+
+* **skill:** tables, CSV and spreadsheets for the Agent Skill ([#12](https://github.com/Yornik/adf-converter/issues/12)) ([da03a4a](https://github.com/Yornik/adf-converter/commit/da03a4a7e8236d3e54049607227557b66381032e))
+
 ## 0.1.0 (2026-10-20)
 
 
