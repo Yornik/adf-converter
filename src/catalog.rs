@@ -324,6 +324,24 @@ pub const FEATURES: &[Feature] = &[
         "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
     ),
     with_note(
+        extension(
+            "csv",
+            "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text",
+            "```csv align=numbers\nItem,Qty,Notes\nWidget,3,\"Blue, small\"\nGadget,12,\n```\n",
+            &[
+                "table",
+                "tableRow",
+                "tableHeader",
+                "tableCell",
+                "paragraph",
+                "hardBreak",
+                "link",
+                "alignment",
+            ],
+        ),
+        "one-way: ADF to Markdown writes a GFM table. A table in a list item or quote is hoisted like a GFM table (W_BLOCK_HOISTED); a bad option is E_CSV_OPTION, a bad body E_INPUT_CSV; --extensions without csv keeps the fence a code block (W_EXTENSION_DISABLED); to show CSV as code use another language word such as text",
+    ),
+    with_note(
         feature(
             "csv-tables",
             Csv,
@@ -433,6 +451,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
         "emoji" => extensions.emoji,
         "card" => extensions.card,
         "media" => extensions.media,
+        "csv" => extensions.csv,
         _ => false,
     }
 }
@@ -520,7 +539,7 @@ pub fn advice(code: Code) -> &'static str {
         Code::SizeLimit => "Split the content into several comments, or shorten it.",
         Code::EmptyDocument => "Add content; Jira rejects empty comment bodies.",
         Code::AdfPassthrough => {
-            "Nothing to do for round trips; converting the Markdown back restores the node. Use --md-flavor plain for readable text instead."
+            "Nothing to do for round trips; converting the Markdown back restores the node (this includes code blocks whose language is csv or tsv, which a csv fence would turn into a table). Use --md-flavor plain for readable text instead."
         }
         Code::AttrDropped => {
             "Nothing to do unless the attribute matters; Markdown cannot express it."
@@ -533,6 +552,9 @@ pub fn advice(code: Code) -> &'static str {
         }
         Code::InputNoTable => {
             "The message says how many tables the document has; pass --table N with N in that range, or convert a document that holds a table."
+        }
+        Code::CsvOption => {
+            "Fix the option named in the message. Allowed: delimiter (comma, tab, semicolon, pipe or one character), header (true or false), max-rows (a whole number of at least 1) and align (numbers or none), each at most once."
         }
         Code::CsvTruncated => {
             "Raise or drop --max-rows, or attach the full file and say the table is a preview."

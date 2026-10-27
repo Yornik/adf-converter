@@ -28,10 +28,11 @@ document disagree, that's a bug.
 | `1. item` / `1) item` | `orderedList` `{order: N}` | `order` is always emitted, equal to the start number. |
 | Nested lists | `listItem` > [`paragraph`, `bulletList` …] | A list item **always starts with a paragraph**; an empty one is inserted if needed. |
 | `- [ ] task` / `- [x] task` | `taskList` > `taskItem` `{state: TODO/DONE}` | Deterministic `localId`s (UUIDv8 from a hash of the input). See [Task lists](#task-lists). |
-| ```` ```lang ```` fenced / indented code | `codeBlock` `{language}` | `language` is the first word of the info string, omitted if empty. One trailing newline is stripped. Content is never parsed as Markdown. An empty block has no `content` but keeps its `language`: ```` ``` ```` → `{"type":"codeBlock"}`, ```` ```rust ```` → `{"type":"codeBlock","attrs":{"language":"rust"}}`. |
+| ```` ```lang ```` fenced / indented code | `codeBlock` `{language}` | Except ```` ```csv ```` and ```` ```tsv ```` fences, which become tables ([Inline CSV tables](#inline-csv-tables)). `language` is the first word of the info string, omitted if empty. One trailing newline is stripped. Content is never parsed as Markdown. An empty block has no `content` but keeps its `language`: ```` ``` ```` → `{"type":"codeBlock"}`, ```` ```rust ```` → `{"type":"codeBlock","attrs":{"language":"rust"}}`. |
 | `> quote` | `blockquote` | See [Container rules](#container-rules). |
 | `---` / `***` / `___` | `rule` | |
 | GFM table | `table` > `tableRow` > `tableHeader`/`tableCell` > `paragraph` | See [Tables](#tables). |
+| ```` ```csv ```` / ```` ```tsv ```` fenced code | the same `table`, built from the CSV | ADF extension `csv`; see [Inline CSV tables](#inline-csv-tables). |
 | `> [!NOTE]` etc. | `panel` | ADF extension `alerts`; see [Panels](#panels-github-alerts). |
 | `<details><summary>T</summary>` … `</details>` | `expand` / `nestedExpand` `{title}` | ADF extension `details`. |
 | `::: cell` … `:::` | 1×1 `table` used as a box | ADF extension `cells`. |
@@ -72,7 +73,7 @@ link, em, strong, textColor, backgroundColor, strike, subsup, underline, code.
 
 All extensions are on by default. `--extensions none` turns them off;
 `--extensions alerts,details` keeps only the listed ones. Names: `alerts`, `details`, `cells`,
-`raw-adf`, `mention`, `status`, `date`, `emoji`, `card`, `media`. When an extension is off, its
+`raw-adf`, `mention`, `status`, `date`, `emoji`, `card`, `media`, `csv`. When an extension is off, its
 syntax is converted as plain Markdown, and `W_EXTENSION_DISABLED` is reported where the result
 differs.
 
@@ -159,6 +160,70 @@ The escape hatch for anything Markdown cannot express:
   a task or decision `localId` that an earlier ```` ```adf ```` block already uses; generated task
   list IDs never reuse one.
 - Inline nodes are not supported here.
+
+#### Inline CSV tables
+
+Extension `csv`. A fenced code block (backticks or tildes, anywhere a code block is allowed)
+whose info string starts with the word `csv` or `tsv` becomes a table:
+
+`````markdown
+```csv align=numbers
+Item,Qty,Notes
+Widget,3,"Blue, small"
+Gadget,12,
+```
+`````
+
+> **Behaviour change (adf 0.3.0).** A ```` ```csv ```` fence used to stay a code block. To show CSV
+> as code, use another language word, such as ```` ```text ````, or switch the extension off with
+> `--extensions` and a list that leaves out `csv` (see below). A document that relied on `csv`
+> code blocks must change one of the two.
+
+- **Which fences.** The first word of the info string is exactly `csv` or `tsv`, in lowercase.
+  `CSV`, `csvx`, `csv-data` and a block with another first word (`text csv`) stay code blocks, and
+  so do ```` ```python ```` and every other language. Indented code blocks never are tables.
+- **Options.** The other words of the info string are `key=value` options, without spaces or
+  quotes in the values. They take the same values as the CSV flags:
+
+  | Option | Values | Default |
+  |---|---|---|
+  | `delimiter` | `comma`, `tab`, `semicolon`, `pipe`, or one ASCII character | `comma`; `tab` for `tsv` |
+  | `header` | `true` or `false` (no header row: a generated `Column N` header) | `true` |
+  | `max-rows` | a whole number of at least 1: data rows to keep | all rows |
+  | `align` | `numbers` (right-align columns that hold only numbers) or `none` | `none` |
+
+  A `tsv` fence is a `csv` fence whose default delimiter is a tab; an explicit `delimiter=` wins
+  (`tsv delimiter=comma`). Each option may be given once. A word without `=`, an unknown key, a
+  repeated key or an invalid value fails the conversion with `E_CSV_OPTION` (exit 3, no output),
+  located at the info string: the line and column of the first word after the fence.
+- **Body.** The lines between the fences are the CSV text, converted with the rules of
+  [CSV and TSV tables](#csv-and-tsv-tables) and their limits. Cell text is never Markdown: `**x**`
+  and `[a](b)` in a cell stay literal text (a bare `https://…` URL becomes a link, as for CSV
+  files). The CSV comes after the container's own markers are removed, so a fence in a list item or
+  quote is written with that indentation or `> ` prefix on every line.
+- **Errors.** A quoted field that never closes, or a body with no rows (empty or only blank
+  lines), is `E_INPUT_CSV`; too many cells or too large an output is `E_INPUT_TOO_LARGE`. All
+  exit 3 and write nothing. The location of an error or warning from the CSV is a Markdown line:
+  the CSV's first line is the line after the opening fence (the column stays relative to the CSV
+  line). An error without a position of its own (no rows) points at the opening fence. Messages
+  start with `In the ```csv block:` and count lines from the CSV's first line.
+- **Warnings** of CSV conversion are kept, with Markdown line numbers: `W_CSV_TRUNCATED`
+  (`max-rows` left rows out) and `W_CONTROL_CHAR`.
+- **Placement.** The table is placed like a GFM table: it is valid in the document and in an
+  expand (a top-level `<details>`); anywhere else (a list item, quote, panel, nested expand or
+  `::: cell` box) it is [hoisted](#container-rules) with `W_BLOCK_HOISTED`.
+- **Limits.** The table's cells count toward the same 100,000 cells for all tables of the
+  document as GFM tables do, and its JSON counts toward the output size limit; see the
+  [limits](cli-contract.md#limits). A fence that is over the limit fails with
+  `E_INPUT_TOO_LARGE`.
+- **Extension off.** With `--extensions` leaving out `csv`, the fence stays a code block with the
+  language `csv` or `tsv`, and `W_EXTENSION_DISABLED` is reported at it (as for a disabled
+  ```` ```adf ```` block).
+- **One way.** ADF → Markdown writes a table as a GFM table, never as a `csv` fence; a document
+  that went Markdown → ADF → Markdown has the GFM table in place of the fence (and converts to the
+  same ADF again). A `codeBlock` whose language is `csv` or `tsv` (made with the extension off, or
+  in Jira) is written as a ```` ```adf ```` block (`W_ADF_PASSTHROUGH`), so that converting back
+  does not turn it into a table.
 
 #### Inline extensions (`adf:` links)
 
@@ -263,8 +328,9 @@ and `height` when present.
 - Tables are only valid in the document and in an expand. Elsewhere they are
   [hoisted](#container-rules).
 - CSV and TSV files become tables with `adf convert --from csv`, and a table becomes CSV with
-  `--from adf --to csv`; see [CSV and TSV tables](#csv-and-tsv-tables). Markdown has no CSV
-  syntax of its own.
+  `--from adf --to csv`; see [CSV and TSV tables](#csv-and-tsv-tables). A ```` ```csv ```` or
+  ```` ```tsv ```` fence in Markdown becomes a table too; see
+  [Inline CSV tables](#inline-csv-tables).
 - `\|` is a literal pipe, including inside code spans.
 
 ### Task lists
@@ -372,9 +438,10 @@ to the `url` of external `media`.
 `adf convert --from adf --to csv` writes one table of an ADF document as CSV. The flags are in
 [cli-contract.md](cli-contract.md#csv-input---from-csv); this section defines the mapping.
 
-Not available yet (planned, see [issue #13](https://github.com/Yornik/adf-converter/issues/13)):
-a `csv` code block inside Markdown that becomes a table (phase 2), and including a CSV file in
-the middle of a Markdown document (phase 3). Today the CSV is the whole input.
+A ```` ```csv ```` fence inside Markdown becomes a table too, with the same rules; see
+[Inline CSV tables](#inline-csv-tables). Not available yet (planned, see
+[issue #13](https://github.com/Yornik/adf-converter/issues/13)): including a CSV file in the
+middle of a Markdown document.
 
 ### CSV to a table (reading rules)
 
@@ -546,8 +613,8 @@ Fruit,Pear
   URLs, non-text nodes, column widths, and merged cells (they become repeated text).
 - Not supported: encodings other than UTF-8 (convert with `iconv`), delimiter detection, several
   tables in one file, formulas, number or date parsing (every cell is text), and merged cells or
-  header columns from CSV. A `csv` block inside Markdown and a CSV include are not yet available
-  (see above).
+  header columns from CSV. Including a CSV file in the middle of a Markdown document is not yet
+  available (see above).
 
 ## ADF → Markdown
 
@@ -575,7 +642,7 @@ Fruit,Pear
 | text | Markdown-special characters are escaped so they stay literal. `://` in unlinked text is written `\://` so it is not autolinked. Text holding control characters other than tab and line feed → ```` ```adf ```` block (`W_ADF_PASSTHROUGH`), because Markdown → ADF removes them; the JSON escapes them, so they never reach a terminal raw. |
 | `bulletList`, `orderedList {order}` | `-` / `N.` lists; nesting by indentation; an item whose first paragraph is empty → `-` alone on its line, or `- ![alt](url)` when an external image follows it. A blank line separates a list that cannot interrupt a paragraph (`N.` with `N` ≠ 1, an empty first item) from a paragraph line before it. |
 | `taskList`, `taskItem` | `- [ ]` / `- [x]` |
-| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content; `\` and `&` in the language are escaped. Language `adf` → ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), because a fence with that language is raw ADF. Code or a language holding control characters other than tab and line feed (CR included) → ```` ```adf ```` block. |
+| `codeBlock {language}` | fenced code, with a fence longer than any backtick run in the content; `\` and `&` in the language are escaped. Language `adf` → ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), because a fence with that language is raw ADF; likewise language `csv` or `tsv`, because such a fence is read back as a table (`--md-flavor plain` writes the plain fence). Code or a language holding control characters other than tab and line feed (CR included) → ```` ```adf ```` block. |
 | `blockquote` | `>`; a quote holding one empty paragraph → `>` alone |
 | `rule` | `---` (`***` as the first block, where `---` could open front matter) |
 | `panel` info / success / note / warning / error | `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` |

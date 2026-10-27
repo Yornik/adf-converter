@@ -414,6 +414,7 @@ fn raw_local_ids(parsed: &Parsed, cx: &Cx<'_>) -> Result<BTreeSet<String>, Diagn
             | Block::Code { .. }
             | Block::Rule { .. }
             | Block::Table { .. }
+            | Block::Csv { .. }
             | Block::Media { .. } => {}
         }
     }
@@ -608,9 +609,12 @@ impl Lowerer<'_, '_> {
                 );
                 self.seq(Ctx::Quote, children)
             }
-            block @ (Block::Table { .. } | Block::Box { .. }) if !ctx.allows_table() => {
+            block @ (Block::Table { .. } | Block::Csv { .. } | Block::Box { .. })
+                if !ctx.allows_table() =>
+            {
                 Ok(self.hoist(ctx, block, arrived))
             }
+            Block::Csv { table, .. } => Ok(vec![Piece::Node(Node::Table(table))]),
             Block::Table { aligns, rows, .. } => {
                 Ok(vec![Piece::Node(self.gfm_table(&aligns, rows)?)])
             }
@@ -1040,6 +1044,7 @@ impl Lowerer<'_, '_> {
                 | Block::Quote { .. }
                 | Block::Alert { .. }
                 | Block::Table { .. }
+                | Block::Csv { .. }
                 | Block::Box { .. }
                 | Block::Details { .. }
                 | Block::Raw { .. }

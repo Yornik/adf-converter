@@ -1,0 +1,5 @@
+# An invalid value is E_CSV_OPTION and names the key.
+bin.name = "adf"
+args = ["convert"]
+status.code = 3
+binary = true

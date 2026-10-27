@@ -1,0 +1,5 @@
+# A word without = is E_CSV_OPTION.
+bin.name = "adf"
+args = ["convert"]
+status.code = 3
+binary = true

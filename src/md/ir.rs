@@ -14,8 +14,8 @@ use std::ops::Range;
 use serde_json::Value;
 
 use crate::adf::model::{
-    Align, Formatting, HeadingLevel, Inline, MediaSingle, NonEmptyString, PanelType, TaskState,
-    TextMarks,
+    Align, Formatting, HeadingLevel, Inline, MediaSingle, NonEmptyString, PanelType, Table,
+    TaskState, TextMarks,
 };
 
 /// Byte range in the normalised source (see `prepass.rs`).
@@ -138,6 +138,12 @@ pub(crate) enum Block {
         rows: Vec<Row>,
         span: Span,
     },
+    /// A table made from a ```` ```csv ```` or ```` ```tsv ```` fence, already built from the
+    /// typed model; placed like a GFM table.
+    Csv {
+        table: Table,
+        span: Span,
+    },
     /// A `::: cell` box.
     Box {
         children: Vec<Block>,
@@ -173,6 +179,7 @@ impl Block {
             | Self::Quote { span, .. }
             | Self::Alert { span, .. }
             | Self::Table { span, .. }
+            | Self::Csv { span, .. }
             | Self::Box { span, .. }
             | Self::Details { span, .. }
             | Self::Raw { span, .. }
@@ -192,6 +199,7 @@ impl Block {
             Self::Quote { .. } => "quote",
             Self::Alert { .. } => "alert",
             Self::Table { .. } => "table",
+            Self::Csv { .. } => "CSV table",
             Self::Box { .. } => "::: cell box",
             Self::Details { .. } => "<details> block",
             Self::Raw { .. } => "```adf block",
