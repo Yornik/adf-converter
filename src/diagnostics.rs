@@ -75,6 +75,7 @@ codes! {
     InputCsv          = "E_INPUT_CSV",         Error, 3, "The CSV input is malformed (for example an unterminated quote) or has no rows.";
     InputNoTable      = "E_INPUT_NO_TABLE",    Error, 3, "The ADF document has no table with the requested number.";
     CsvOption         = "E_CSV_OPTION",        Error, 3, "A ```csv fence or an adf:csv include has an unknown, repeated or invalid option.";
+    Include           = "E_INCLUDE",           Error, 3, "An adf:csv include was refused (path outside the root, not a regular file, over a budget) or its file could not be read.";
     // --- warnings: Markdown -> ADF ------------------------------------------------------------
     MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).";
     HeadingDemoted    = "W_HEADING_DEMOTED",    Warning, 0, "A heading inside a list item or quote became a bold paragraph.";
@@ -96,6 +97,7 @@ codes! {
     NodeNotInTarget   = "W_NODE_NOT_IN_TARGET", Warning, 0, "A construct is not supported by the target product and was replaced by a fallback.";
     SizeLimit         = "W_SIZE_LIMIT",         Warning, 0, "The output is larger than Jira's 32,767-character field limit and may be rejected.";
     EmptyDocument     = "W_EMPTY_DOCUMENT",     Warning, 0, "The document is empty; Jira rejects empty comment bodies.";
+    IncludeDisabled   = "W_INCLUDE_DISABLED",   Warning, 0, "An adf:csv include was found but no include root is set (--include-root), so nothing was read and the image became its alt text.";
     // --- warnings: ADF -> Markdown ------------------------------------------------------------
     AdfPassthrough    = "W_ADF_PASSTHROUGH",    Warning, 0, "An ADF node without a Markdown equivalent was written as a raw ```adf block.";
     AttrDropped       = "W_ATTR_DROPPED",       Warning, 0, "ADF attributes without a Markdown equivalent were dropped (for example column widths or cell colours).";

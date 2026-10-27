@@ -538,6 +538,12 @@ pub fn advice(code: Code) -> &'static str {
         Code::CsvOption => {
             "Fix the option named in the message. Allowed: delimiter (comma, tab, semicolon, pipe or one character), header (true or false), max-rows (a whole number of at least 1) and align (numbers or none), each at most once."
         }
+        Code::Include => {
+            "Use a relative path to a regular file inside the directory given with --include-root (no .., no absolute path, no symlink out of it), and keep within the file size, cell and per-document include budgets; the message says which rule failed."
+        }
+        Code::IncludeDisabled => {
+            "Pass --include-root DIR to allow ![alt](adf:csv/PATH) to read files under DIR, or convert the CSV with --from csv and paste the table."
+        }
         Code::CsvTruncated => {
             "Raise or drop --max-rows, or attach the full file and say the table is a preview."
         }

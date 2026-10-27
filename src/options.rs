@@ -1,5 +1,7 @@
 //! Options for conversions. These mirror the CLI flags in `docs/cli-contract.md`.
 
+use std::path::PathBuf;
+
 use crate::limits::Limits;
 
 /// The product the ADF is meant for. Selects the node/mark allowlist used by validation.
@@ -169,7 +171,38 @@ pub struct MdToAdfOptions {
     pub html: HtmlPolicy,
     pub images: ImagePolicy,
     pub extensions: Extensions,
+    /// Reading CSV files named by `![alt](adf:csv/PATH)`. `None` (the default) never touches the
+    /// file system: the image becomes its alt text with `W_INCLUDE_DISABLED`.
+    pub include: Option<IncludeOptions>,
     pub limits: Limits,
+}
+
+/// Where `adf:csv/PATH` includes may read from, and how much. The only file access the Markdown
+/// can trigger; see "Including a CSV file" in `docs/syntax.md`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncludeOptions {
+    /// Every path is relative to this directory and must stay inside it.
+    pub root: PathBuf,
+    /// At most this many includes per document.
+    pub max_files: usize,
+    /// At most this many bytes read from files per document.
+    pub max_total_bytes: usize,
+}
+
+impl IncludeOptions {
+    /// Includes per document, by default.
+    pub const DEFAULT_MAX_FILES: usize = 16;
+    /// Bytes read per document, by default (4 MiB).
+    pub const DEFAULT_MAX_TOTAL_BYTES: usize = 4 * 1024 * 1024;
+
+    /// Includes under `root` with the default budgets.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: root.into(),
+            max_files: Self::DEFAULT_MAX_FILES,
+            max_total_bytes: Self::DEFAULT_MAX_TOTAL_BYTES,
+        }
+    }
 }
 
 /// The field delimiter of a CSV file: one ASCII character that is not a quote or a line break.

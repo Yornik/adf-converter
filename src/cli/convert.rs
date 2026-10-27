@@ -284,6 +284,7 @@ pub(crate) fn markdown_options(markdown: &MarkdownArgs, target: Target) -> MdToA
         html: markdown.html.into(),
         images: markdown.images.into(),
         extensions: markdown.extensions,
+        include: None,
         limits: Limits::default(),
     }
 }
