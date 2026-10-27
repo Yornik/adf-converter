@@ -283,6 +283,43 @@ images, and the exact size limit. To check them:
 - Record the results in an issue. If a construct is rejected or renders badly, open a `fix:` PR
   with a fixture; if it is confirmed, update its entry in `src/catalog.rs`.
 
+### Sandbox checklist: file media
+
+The `media` extension and the recipe in [posting.md](posting.md#attaching-files-and-screenshots)
+rest on facts that come from Atlassian's API reference, from Atlassian-staff tickets and from
+community reports, not from this project's own runs. Run the checklist once on a **personal**
+Jira Cloud and Confluence Cloud site, then replace each "not run" below with the date, the result
+and what you saw. Use invented content only: a screenshot you made of nothing private (a generated
+test pattern is enough), a throwaway project and space, and no employer or customer data. Never
+paste ids, URLs, tokens or response bodies from a real site into the repository; describe what
+happened instead.
+
+For each step, upload the test image with the recipe, write the `adf:media` line (also try the
+same node as a raw ```` ```adf ```` block), convert with `adf convert … -e jira-comment` or
+`-e confluence`, post, and look at the result in the browser. Then read it back with
+`adf convert --from adf` (roundtrip flavour) and check that the `adf:media` line or the fence
+matches what you wrote.
+
+| # | Question | How to try | Result |
+|---|---|---|---|
+| 1 | Does the redirect lookup (`GET /rest/api/3/attachment/content/{id}` without following redirects) still return the media id? Which status (`302` or `303`), and does it need authentication? | Step 2 of the Jira recipe, with and without `-u`. | not run |
+| 2 | Is `width`/`height` required on a file `media` in a Jira comment? Which `layout` and pixel `size` does Jira honour? | Post the same image with both, with only one, and with neither; vary `layout` and `size=…px`/`%`. | not run |
+| 3 | Does Jira accept a `mediaGroup`, a `mediaInline` and a caption in a comment and in a description? What does real `mediaInline` JSON look like? | Attach a text file in the Jira editor, read the comment back, and post raw ADF with each node. | not run |
+| 4 | Confluence comment media: which collection works, and does API-written file media render? Does external media render in Jira and Confluence comments? | Footer comment with the page's `contentId-<pageId>` and with `comment-container-<pageId>`; an editor-attached file read back; `--images external` in both products. | not run |
+| 5 | Which API lists a Confluence comment's attachments? (CONFCLOUD-84981 names the v1 `content/{commentId}/child/attachment` endpoint as both broken and the workaround.) | Call it for a comment with an editor-attached file. | not run |
+| 6 | Do `__fileName`, `__fileSize` and similar attributes ever appear in REST readbacks? | Read back media posted from the editor, from the API and from a page copy. | not run |
+| 7 | Do the Rovo MCP upload and comment tools exist, and do they preserve media nodes? | Only if you use that server; read the tool descriptions first. | not run |
+| 8 | Are media nodes accepted in tables, panels, lists and expands, as `adf` places them? | Post `adf:media` lines inside each container, after `adf validate` (`W_BLOCK_HOISTED` shows what `adf` moves out), and check the result renders. | not run |
+
+When the result changes what the docs say:
+- Update [posting.md](posting.md#attaching-files-and-screenshots) and the skill's
+  `references/posting.md`: remove the "community-reported" or "unverified" label only for what you
+  confirmed, and keep it for the rest.
+- If a construct is rejected or renders badly, open a `fix:` PR with a fixture; if `adf` should
+  warn about something (for example media without `width`/`height`), open an issue first, because
+  a new diagnostic code is a contract change.
+- Keep the invented UUIDs (`11111111-2222-3333-4444-555555555555`) in all docs and fixtures.
+
 ## Routine maintenance
 
 - **Renovate PRs** (crates, `Cargo.lock` maintenance, GitHub Actions, the Rust toolchain, pinned

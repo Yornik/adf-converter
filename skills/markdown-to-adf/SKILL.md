@@ -126,7 +126,8 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o "$work/issue.json"
 `--from adf` finds the document in a bare ADF document, a Jira issue response
 (`fields.description`, or `--field NAME`), a Jira comment (`body`), and a Confluence page fetched
 with `?body-format=atlas_doc_format`. Use `--md-flavor plain` to read or summarise; it is compact
-and drops what Markdown cannot show.
+and drops what Markdown cannot show (uploaded images and files leave markers such as
+`[image: shot.png]`).
 
 ## 4. Edit existing content
 
@@ -164,6 +165,11 @@ tables, links), plus:
 | `[2026-10-19](adf:date)` | date |
 | `[😄](adf:emoji/:smile:)` | emoji |
 | `[https://site.atlassian.net/browse/PROJ-1](adf:card)` | smart link card |
+| `![shot.png](adf:media/<media-id>?width=W&height=H)` | an uploaded image (file you already attached; the id is not the attachment id) |
+
+To embed an uploaded screenshot, follow "Attaching files and screenshots" in
+[references/posting.md](references/posting.md#attaching-files-and-screenshots): upload with `curl`,
+get the media id, then write the `adf:media` line. `adf` never uploads or downloads.
 
 Keep tables, headings, rules, panels and `<details>` out of lists and quotes; otherwise `adf`
 moves or converts them (`W_BLOCK_HOISTED`, `W_HEADING_DEMOTED`, `W_BLOCK_FLATTENED`). The full
