@@ -23,6 +23,7 @@ mod html;
 mod inline;
 mod ir;
 mod lower;
+mod media;
 mod prepass;
 mod tree;
 

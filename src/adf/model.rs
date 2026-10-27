@@ -808,35 +808,232 @@ impl Node for NestedExpand {
     }
 }
 
-/// An external image: `{"type":"mediaSingle","attrs":{"layout":"center"},"content":[{"type":
-/// "media","attrs":{"type":"external","url":…,"alt":…}}]}`. Only produced with
-/// `--images external`; Jira rendering of external media is unverified.
+/// Largest width or height (pixels) that `adf` writes for file media.
+pub const MAX_MEDIA_PIXELS: u32 = 100_000;
+
+/// Longest media `collection` that `adf` writes.
+pub const MAX_COLLECTION_LEN: usize = 64;
+
+/// The id of a Media Services file: a UUID (8-4-4-4-12 hex digits), kept exactly as written.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaId(String);
+
+impl MediaId {
+    /// Returns `None` unless `value` is a UUID in the 8-4-4-4-12 form (either hex case).
+    pub fn parse(value: &str) -> Option<Self> {
+        const GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
+        let mut parts = value.split('-');
+        for len in GROUPS {
+            let part = parts.next()?;
+            if part.len() != len || !part.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return None;
+            }
+        }
+        parts.next().is_none().then(|| Self(value.to_owned()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The `collection` of a Media Services file: 0 to [`MAX_COLLECTION_LEN`] characters from
+/// `[A-Za-z0-9_-]`. Empty is valid (Jira writes it). The target does not enforce the charset.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MediaCollection(String);
+
+impl MediaCollection {
+    /// Returns `None` for a value that is too long or has a character outside the charset.
+    pub fn parse(value: &str) -> Option<Self> {
+        let ok = value.len() <= MAX_COLLECTION_LEN
+            && value
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+        ok.then(|| Self(value.to_owned()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// A pixel width or height of a file: an integer from 1 to [`MAX_MEDIA_PIXELS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MediaDimension(u32);
+
+impl MediaDimension {
+    /// Returns `None` outside `1..=100000`.
+    pub fn new(value: u32) -> Option<Self> {
+        (1..=MAX_MEDIA_PIXELS)
+            .contains(&value)
+            .then_some(Self(value))
+    }
+
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+/// `mediaSingle` layouts of the schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MediaLayout {
+    Wide,
+    FullWidth,
+    #[default]
+    Center,
+    WrapRight,
+    WrapLeft,
+    AlignEnd,
+    AlignStart,
+}
+
+impl MediaLayout {
+    /// Every layout, in schema order.
+    pub const ALL: [Self; 7] = [
+        Self::Wide,
+        Self::FullWidth,
+        Self::Center,
+        Self::WrapRight,
+        Self::WrapLeft,
+        Self::AlignEnd,
+        Self::AlignStart,
+    ];
+
+    /// The schema name of the layout.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Wide => "wide",
+            Self::FullWidth => "full-width",
+            Self::Center => "center",
+            Self::WrapRight => "wrap-right",
+            Self::WrapLeft => "wrap-left",
+            Self::AlignEnd => "align-end",
+            Self::AlignStart => "align-start",
+        }
+    }
+
+    /// Parses a schema name (lower case only).
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|l| l.as_str() == value)
+    }
+}
+
+/// The width of a `mediaSingle`: a percentage of the container (1 to 100, no `widthType`) or a
+/// pixel width (`widthType: "pixel"`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaSize {
+    Percent(u8),
+    Pixels(u32),
+}
+
+impl MediaSize {
+    /// Returns `None` outside `1..=100`.
+    pub fn percent(value: u32) -> Option<Self> {
+        u8::try_from(value)
+            .ok()
+            .filter(|v| (1..=100).contains(v))
+            .map(Self::Percent)
+    }
+
+    /// Returns `None` outside `1..=100000`.
+    pub fn pixels(value: u32) -> Option<Self> {
+        MediaDimension::new(value).map(|d| Self::Pixels(d.get()))
+    }
+}
+
+/// A file in Media Services, referenced by id. `adf` never uploads or looks anything up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileMedia {
+    pub id: MediaId,
+    pub collection: MediaCollection,
+    /// Original pixel size of the file.
+    pub width: Option<MediaDimension>,
+    pub height: Option<MediaDimension>,
+}
+
+/// Where a `mediaSingle` gets its picture from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MediaSource {
+    /// An image by URL (`--images external`); Jira rendering of external media is unverified.
+    External { url: String },
+    /// A file in Media Services (`adf:media`).
+    File(FileMedia),
+}
+
+/// A block-level image:
+/// `{"type":"mediaSingle","attrs":{"layout":…},"content":[{"type":"media","attrs":{…}}]}`.
+///
+/// External media always uses layout `center` and no size.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MediaSingle {
-    pub url: String,
+    pub source: MediaSource,
     pub alt: Option<NonEmptyString>,
+    pub layout: MediaLayout,
+    pub size: Option<MediaSize>,
+}
+
+impl MediaSingle {
+    /// An image by URL.
+    pub fn external(url: String, alt: Option<NonEmptyString>) -> Self {
+        Self {
+            source: MediaSource::External { url },
+            alt,
+            layout: MediaLayout::Center,
+            size: None,
+        }
+    }
 }
 
 impl Node for MediaSingle {
     const TYPE: &'static str = "mediaSingle";
     fn fields<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
-        attrs(map, &[("layout", AttrValue::Str("center"))])?;
-        map.serialize_entry("content", &[ExternalMedia(self)])
+        let mut entries = vec![("layout", AttrValue::Str(self.layout.as_str()))];
+        match self.size {
+            None => {}
+            Some(MediaSize::Percent(n)) => entries.push(("width", AttrValue::U32(n.into()))),
+            Some(MediaSize::Pixels(n)) => {
+                entries.push(("width", AttrValue::U32(n)));
+                entries.push(("widthType", AttrValue::Str("pixel")));
+            }
+        }
+        attrs(map, &entries)?;
+        map.serialize_entry("content", &[MediaNode(self)])
     }
 }
 
-struct ExternalMedia<'a>(&'a MediaSingle);
+/// The `media` child of a [`MediaSingle`].
+struct MediaNode<'a>(&'a MediaSingle);
 
-impl Serialize for ExternalMedia<'_> {
+impl Serialize for MediaNode<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(2))?;
         map.serialize_entry("type", "media")?;
-        let mut entries = vec![
-            ("type", AttrValue::Str("external")),
-            ("url", AttrValue::Str(&self.0.url)),
-        ];
+        let mut entries = Vec::new();
+        match &self.0.source {
+            MediaSource::External { url } => {
+                entries.push(("type", AttrValue::Str("external")));
+                entries.push(("url", AttrValue::Str(url)));
+            }
+            MediaSource::File(file) => {
+                entries.push(("type", AttrValue::Str("file")));
+                entries.push(("id", AttrValue::Str(file.id.as_str())));
+                entries.push(("collection", AttrValue::Str(file.collection.as_str())));
+            }
+        }
         if let Some(alt) = &self.0.alt {
             entries.push(("alt", AttrValue::Str(alt.as_str())));
+        }
+        if let MediaSource::File(file) = &self.0.source {
+            if let Some(width) = file.width {
+                entries.push(("width", AttrValue::U32(width.get())));
+            }
+            if let Some(height) = file.height {
+                entries.push(("height", AttrValue::U32(height.get())));
+            }
         }
         attrs(&mut map, &entries)?;
         map.end()
@@ -1313,6 +1510,128 @@ mod tests {
         }
     }
 
+    const ID: &str = "11111111-2222-3333-4444-555555555555";
+
+    fn file_image(
+        width: Option<MediaDimension>,
+        height: Option<MediaDimension>,
+        layout: MediaLayout,
+        size: Option<MediaSize>,
+    ) -> MediaSingle {
+        MediaSingle {
+            source: MediaSource::File(FileMedia {
+                id: MediaId::parse(ID).unwrap(),
+                collection: MediaCollection::parse("contentId-123456").unwrap(),
+                width,
+                height,
+            }),
+            alt: NonEmptyString::new("shot.png"),
+            layout,
+            size,
+        }
+    }
+
+    #[test]
+    fn media_id_is_a_uuid() {
+        for ok in [ID, "AAAAAAAA-bbbb-CCCC-dddd-0123456789aB"] {
+            assert_eq!(MediaId::parse(ok).unwrap().as_str(), ok);
+        }
+        for bad in [
+            "",
+            "abc",
+            "11111111222233334444555555555555",
+            "11111111-2222-3333-4444-55555555555",
+            "11111111-2222-3333-4444-5555555555555",
+            "11111111-2222-3333-4444-55555555555g",
+            "11111111-2222-3333-4444-555555555555-",
+            "11111111-2222-3333-4444-555555555555-1",
+            " 11111111-2222-3333-4444-555555555555",
+            "{11111111-2222-3333-4444-555555555555}",
+            "1111111-12222-3333-4444-555555555555",
+            "11111111-2222-3333-4444-5555555555é5",
+        ] {
+            assert!(MediaId::parse(bad).is_none(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn media_collection_charset_and_length() {
+        for ok in ["", "contentId-123456", "comment-container-1", "a_B-9"] {
+            assert_eq!(MediaCollection::parse(ok).unwrap().as_str(), ok);
+        }
+        assert!(MediaCollection::parse("").unwrap().is_empty());
+        assert!(MediaCollection::parse(&"a".repeat(64)).is_some());
+        for bad in [
+            &"a".repeat(65),
+            "a b",
+            "a/b",
+            "a.b",
+            "é",
+            "a\n",
+            "a=b",
+            "a&b",
+        ] {
+            assert!(MediaCollection::parse(bad).is_none(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn media_dimension_size_and_layout_bounds() {
+        assert!(MediaDimension::new(0).is_none());
+        assert_eq!(MediaDimension::new(1).unwrap().get(), 1);
+        assert_eq!(MediaDimension::new(100_000).unwrap().get(), 100_000);
+        assert!(MediaDimension::new(100_001).is_none());
+        assert!(MediaSize::percent(0).is_none());
+        assert_eq!(MediaSize::percent(1), Some(MediaSize::Percent(1)));
+        assert_eq!(MediaSize::percent(100), Some(MediaSize::Percent(100)));
+        assert!(MediaSize::percent(101).is_none());
+        assert!(MediaSize::percent(256 + 50).is_none());
+        assert!(MediaSize::pixels(0).is_none());
+        assert_eq!(MediaSize::pixels(100_000), Some(MediaSize::Pixels(100_000)));
+        assert!(MediaSize::pixels(100_001).is_none());
+        for layout in MediaLayout::ALL {
+            assert_eq!(MediaLayout::parse(layout.as_str()), Some(layout));
+        }
+        assert_eq!(MediaLayout::default(), MediaLayout::Center);
+        for bad in ["", "Wide", "left", "full_width", " center"] {
+            assert!(MediaLayout::parse(bad).is_none(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn media_single_serialization_is_exact() {
+        let external = MediaSingle::external("https://x/i.png".into(), NonEmptyString::new("a"));
+        assert_eq!(
+            serde_json::to_string(&external).unwrap(),
+            r#"{"type":"mediaSingle","attrs":{"layout":"center"},"content":[{"type":"media","attrs":{"type":"external","url":"https://x/i.png","alt":"a"}}]}"#
+        );
+        let full = file_image(
+            MediaDimension::new(1512),
+            MediaDimension::new(945),
+            MediaLayout::Wide,
+            MediaSize::pixels(720),
+        );
+        assert_eq!(
+            serde_json::to_string(&full).unwrap(),
+            r#"{"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[{"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"contentId-123456","alt":"shot.png","width":1512,"height":945}}]}"#
+        );
+        let minimal = MediaSingle {
+            source: MediaSource::File(FileMedia {
+                id: MediaId::parse(ID).unwrap(),
+                collection: MediaCollection::default(),
+                width: None,
+                height: MediaDimension::new(5),
+            }),
+            alt: None,
+            layout: MediaLayout::default(),
+            size: MediaSize::percent(50),
+        };
+        assert_eq!(
+            serde_json::to_string(&minimal).unwrap(),
+            r#"{"type":"mediaSingle","attrs":{"layout":"center","width":50},"content":[{"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"","height":5}}]}"#
+        );
+    }
+
     #[test]
     fn doc_key_order_and_shape() {
         let doc = Doc {
@@ -1503,10 +1822,29 @@ mod tests {
                     title: Some("T".into()),
                     content: NonEmpty::new(ExpandChild::Paragraph(para("e"))),
                 }),
-                DocBlock::MediaSingle(MediaSingle {
-                    url: "https://example.com/a.png".into(),
-                    alt: NonEmptyString::new("alt"),
-                }),
+                DocBlock::MediaSingle(MediaSingle::external(
+                    "https://example.com/a.png".into(),
+                    NonEmptyString::new("alt"),
+                )),
+                DocBlock::MediaSingle(file_image(None, None, MediaLayout::Center, None)),
+                DocBlock::MediaSingle(file_image(
+                    MediaDimension::new(1512),
+                    MediaDimension::new(945),
+                    MediaLayout::Wide,
+                    MediaSize::pixels(720),
+                )),
+                DocBlock::MediaSingle(file_image(
+                    MediaDimension::new(1),
+                    None,
+                    MediaLayout::WrapLeft,
+                    MediaSize::percent(100),
+                )),
+                DocBlock::MediaSingle(file_image(
+                    None,
+                    MediaDimension::new(MAX_MEDIA_PIXELS),
+                    MediaLayout::FullWidth,
+                    MediaSize::pixels(MAX_MEDIA_PIXELS),
+                )),
                 DocBlock::Paragraph(AlignedParagraph {
                     content: vec![
                         Inline::Text(Text {
