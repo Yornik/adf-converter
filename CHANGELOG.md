@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/Yornik/adf-converter/compare/v0.2.0...v0.3.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* csv and tsv code fences become tables ([#16](https://github.com/Yornik/adf-converter/issues/16))
+
+### Features
+
+* csv and tsv code fences become tables ([#16](https://github.com/Yornik/adf-converter/issues/16)) ([51dcaae](https://github.com/Yornik/adf-converter/commit/51dcaae05199d7622eeb5e2ee1402df6a01cd588))
+* include a CSV file in Markdown with adf:csv under --include-root ([#17](https://github.com/Yornik/adf-converter/issues/17)) ([b92e9ac](https://github.com/Yornik/adf-converter/commit/b92e9ac1a82f7ebbc5d5e41448160acedac8af15))
+* native CSV/TSV tables (--from csv, --to csv) ([#15](https://github.com/Yornik/adf-converter/issues/15)) ([8acbd75](https://github.com/Yornik/adf-converter/commit/8acbd75c9186c4985569fb6eee19673945932b91))
+
 ## [0.2.0](https://github.com/Yornik/adf-converter/compare/v0.1.0...v0.2.0) (2026-10-27)
 
 
