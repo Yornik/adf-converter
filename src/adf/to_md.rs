@@ -14,7 +14,7 @@
 //! what the ADF says.
 
 mod block;
-mod date;
+pub(crate) mod date;
 mod escape;
 mod inline;
 mod media;
