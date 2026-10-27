@@ -1701,10 +1701,10 @@ fn plain_drops_trailing_spaces_left_by_dropped_nodes() {
     let content = json!([p(&[
         t("inline ext: "),
         json!({"type": "inlineExtension", "attrs": {"extensionType": "t", "extensionKey": "k"}}),
-        t(" mediaInline: "),
-        json!({"type": "mediaInline", "attrs": {"id": "1", "collection": "c"}}),
+        t(" placeholder: "),
+        json!({"type": "placeholder", "attrs": {"text": "type here"}}),
     ])]);
-    assert_eq!(plain(content), "inline ext:  mediaInline:\n");
+    assert_eq!(plain(content), "inline ext:  placeholder:\n");
 }
 
 #[test]

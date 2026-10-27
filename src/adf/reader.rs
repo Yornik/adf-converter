@@ -118,6 +118,12 @@ impl<'a> Node<'a> {
             out.push_str(text);
         }
         match self.ty {
+            // Media Services files have no text; a marker shows that something was there.
+            "mediaInline" | "media" => push_marker(out, "attachment", self.attr_str("alt")),
+            "mediaSingle" | "mediaGroup" => {
+                self.collect_media_text(out);
+                return;
+            }
             "hardBreak" => out.push('\n'),
             "mention" | "emoji" | "status" | "placeholder" | "inlineExtension" => {
                 if let Some(text) = self.attr_str("text").or_else(|| self.attr_str("shortName")) {
@@ -135,6 +141,53 @@ impl<'a> Node<'a> {
             child.collect_text(out);
         }
     }
+
+    /// `mediaSingle` and `mediaGroup`: `[image: alt]` per file of a single, `[attachment: alt]`
+    /// per file of a group, separated by spaces, then the caption's text.
+    fn collect_media_text(&self, out: &mut String) {
+        let kind = if self.ty == "mediaSingle" {
+            "image"
+        } else {
+            "attachment"
+        };
+        let mut first = true;
+        for child in &self.content {
+            if !first {
+                out.push(' ');
+            }
+            if child.ty == "media" {
+                push_marker(out, kind, child.attr_str("alt"));
+                first = false;
+            } else {
+                let before = out.len();
+                child.collect_text(out);
+                first = out.len() == before;
+            }
+        }
+    }
+}
+
+/// The alt text of a plain-flavour media marker on one line: control characters removed,
+/// whitespace collapsed and trimmed. Empty when there is none.
+pub fn marker_alt(alt: Option<&str>) -> String {
+    let alt: String = alt
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_whitespace() || !c.is_control())
+        .collect();
+    alt.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Appends `[kind: alt]`, or `[kind]` without alt text.
+fn push_marker(out: &mut String, kind: &str, alt: Option<&str>) {
+    out.push('[');
+    out.push_str(kind);
+    let alt = marker_alt(alt);
+    if !alt.is_empty() {
+        out.push_str(": ");
+        out.push_str(&alt);
+    }
+    out.push(']');
 }
 
 /// Node types that are inline content (children of paragraphs, headings and task items).
@@ -453,6 +506,25 @@ mod tests {
         ]}]});
         let root = read_doc(&doc, &Limits::default()).unwrap();
         assert_eq!(root.content[0].text_content(), "a\n@B");
+    }
+
+    #[test]
+    fn text_content_marks_media_files() {
+        let file = |alt: &str| json!({"type": "media", "attrs": {"type": "file", "id": "1", "collection": "", "alt": alt}});
+        let doc = json!({"type": "doc", "content": [{"type": "panel", "content": [
+            {"type": "mediaSingle", "content": [file("s.png"), {"type": "caption", "content": [{"type": "text", "text": "Fig"}]}]},
+            {"type": "mediaGroup", "content": [file("a\n b"), file("")]},
+            {"type": "paragraph", "content": [
+                {"type": "text", "text": "x"},
+                {"type": "mediaInline", "attrs": {"id": "2", "collection": "", "alt": "i.zip"}},
+                {"type": "mediaInline", "attrs": {"id": "3", "collection": ""}}
+            ]}
+        ]}]});
+        let root = read_doc(&doc, &Limits::default()).unwrap();
+        assert_eq!(
+            root.content[0].text_content(),
+            "[image: s.png] Fig[attachment: a b] [attachment]x[attachment: i.zip][attachment]"
+        );
     }
 
     #[test]

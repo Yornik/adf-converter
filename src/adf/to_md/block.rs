@@ -12,6 +12,7 @@ use super::escape::{
     link_destination, longest_run, normalize_cr, replace_controls,
 };
 use super::inline::{InlineKind, is_blank, plain_autolink, render_inline};
+use super::media::{file_media_dest, group_markers, marker};
 use super::passthrough::raw_block;
 use super::table;
 use super::{Ctx, Fail};
@@ -583,11 +584,19 @@ pub(super) fn media_single(node: &Node<'_>, in_table: bool, cx: &mut Ctx) -> Res
         [media] if media.ty == "media" => Some(media),
         _ => None,
     };
+    if let Some((media, dest)) = media.and_then(|m| Some((m, file_media_dest(node, m)?))) {
+        return Ok(image_line(
+            media.attr_str("alt").unwrap_or(""),
+            &dest,
+            in_table,
+            true,
+        ));
+    }
     let external = media.filter(|m| is_external_image(m) && m.marks.is_empty());
     let Some(media) = external.filter(|_| node.marks.is_empty()) else {
         return Err(Fail::unrepresentable(
             &node.pointer(),
-            "only a single external image without caption or link maps to ![alt](url)",
+            "only a single external image or a plain file image maps to ![alt](url)",
         ));
     };
     if media.attr_str("alt").is_some_and(has_unsafe_control) {
@@ -612,9 +621,19 @@ fn is_external_image(media: &Node<'_>) -> bool {
 /// `![alt](url)` for an external `media` node.
 fn image(media: &Node<'_>, in_table: bool, roundtrip: bool) -> String {
     let url = media.attr_str("url").unwrap_or("");
+    image_line(
+        media.attr_str("alt").unwrap_or(""),
+        &link_destination(url, in_table),
+        in_table,
+        roundtrip,
+    )
+}
+
+/// `![alt](dest)`: `alt` is escaped, `dest` is written as given.
+fn image_line(alt: &str, dest: &str, in_table: bool, roundtrip: bool) -> String {
     let mut md = String::from("![");
     escape_text(
-        media.attr_str("alt").unwrap_or(""),
+        alt,
         TextEscape {
             context: if in_table {
                 TextContext::TableCell
@@ -630,7 +649,7 @@ fn image(media: &Node<'_>, in_table: bool, roundtrip: bool) -> String {
         &mut md,
     );
     md.push_str("](");
-    md.push_str(&link_destination(url, in_table));
+    md.push_str(dest);
     md.push(')');
     md
 }
@@ -640,7 +659,7 @@ fn image(media: &Node<'_>, in_table: bool, roundtrip: bool) -> String {
 fn plain_media_single(node: &Node<'_>, in_table: bool, cx: &mut Ctx) -> Result<String, Fail> {
     let mut md = match node.content.iter().find(|n| n.ty == "media") {
         Some(media) if is_external_image(media) => image(media, in_table, false),
-        Some(media) => file_marker("image", media.attr_str("alt")),
+        Some(media) => marker("image", media.attr_str("alt"), in_table),
         None => String::new(),
     };
     if let Some(caption) = node.content.iter().find(|n| n.ty == "caption") {
@@ -658,28 +677,6 @@ fn plain_media_single(node: &Node<'_>, in_table: bool, cx: &mut Ctx) -> Result<S
         }
     }
     Ok(md)
-}
-
-/// Plain: `[kind: alt]` (or `[kind]`) for a Media Services file, which has no URL in ADF.
-fn file_marker(kind: &str, alt: Option<&str>) -> String {
-    let mut md = format!("[{kind}");
-    if let Some(alt) = alt.map(str::trim).filter(|a| !a.is_empty()) {
-        md.push_str(": ");
-        escape_text(
-            alt,
-            TextEscape {
-                context: TextContext::Block,
-                roundtrip: false,
-                line_start: false,
-                block_start: false,
-                line_end: false,
-                in_link: true,
-            },
-            &mut md,
-        );
-    }
-    md.push(']');
-    md
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1175,14 +1172,10 @@ fn plain_fallback(node: &Node<'_>, container: Container, cx: &mut Ctx) -> Result
             None => String::new(),
         }),
         // Media Services files have no URL in ADF; a marker shows that something was there.
-        "mediaGroup" => Ok(node
-            .content
-            .iter()
-            .filter(|n| n.ty == "media")
-            .map(|media| file_marker("attachment", media.attr_str("alt")))
-            .collect::<Vec<_>>()
-            .join("\\\n")),
-        "extension" | "inlineExtension" | "media" | "placeholder" => Ok(String::new()),
+        "mediaGroup" => Ok(group_markers(node, false).join("\\\n")),
+        // A `media` node outside `mediaSingle` and `mediaGroup` is invalid ADF, but not nothing.
+        "media" => Ok(marker("attachment", node.attr_str("alt"), false)),
+        "extension" | "inlineExtension" | "placeholder" => Ok(String::new()),
         _ if !node.content.is_empty() && node.content.iter().all(Node::is_inline) => {
             render_inline(&node.content, InlineKind::Block, cx)
         }
