@@ -1,1 +1,1 @@
-{"schema_version":1,"severity":"warning","code":"W_CSV_TRUNCATED",[..]}
+{"schema_version":1,"severity":"warning","code":"W_CSV_TRUNCATED","message":"Kept 1 of 3 data rows","location":{"file":"-","line":3,"column":1},"hint":"Remove --max-rows to keep every row","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_csv_truncated"}

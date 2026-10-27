@@ -1,2 +1,2 @@
-{"schema_version":1,"severity":"warning","code":"W_CSV_MERGED_CELLS",[..]}
+{"schema_version":1,"severity":"warning","code":"W_CSV_MERGED_CELLS","message":"The table has merged cells; their text is repeated in every cell they cover","location":{"file":"-","pointer":"/content/0"},"docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_csv_merged_cells"}
 {"schema_version":1,"severity":"error","code":"E_LOSSY","message":"--strict: the conversion is lossy (W_CSV_MERGED_CELLS); nothing was written","location":{"file":"-"},"hint":"Fix the input so the warnings disappear, or drop --strict","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_lossy","exit_code":5}

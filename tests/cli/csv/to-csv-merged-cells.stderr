@@ -1,1 +1,1 @@
-{"schema_version":1,"severity":"warning","code":"W_CSV_MERGED_CELLS","message":"[..]","location":{"file":"-","pointer":"/body/content/0"},[..]}
+{"schema_version":1,"severity":"warning","code":"W_CSV_MERGED_CELLS","message":"The table has merged cells; their text is repeated in every cell they cover","location":{"file":"-","pointer":"/body/content/0"},"docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_csv_merged_cells"}

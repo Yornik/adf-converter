@@ -1,1 +1,1 @@
-{"schema_version":1,"severity":"error","code":"E_INPUT_NO_TABLE",[..]}
+{"schema_version":1,"severity":"error","code":"E_INPUT_NO_TABLE","message":"The document has no table","location":{"file":"-"},"hint":"Pass an ADF document that contains a table","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_no_table","exit_code":3}
