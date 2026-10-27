@@ -1,0 +1,58 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "With the media extension off, the alt text stays: dashboard.png and styled alt."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "An image without alt text leaves nothing: ."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Other images are not affected:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/a.png",
+            "alt": "ordinary"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

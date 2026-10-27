@@ -7,7 +7,8 @@
 use linkify::{LinkFinder, LinkKind};
 
 use crate::adf::model::{
-    ALLOWED_URL_FORMS, Formatting, HexColor, Href, Link, MediaSingle, NonEmptyString, SubSup,
+    ALLOWED_URL_FORMS, Formatting, HexColor, Href, Link, MediaSingle, MediaSource, NonEmptyString,
+    SubSup,
 };
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{HtmlPolicy, ImagePolicy, SoftBreak};
@@ -16,6 +17,7 @@ use super::cx::Cx;
 use super::extensions::{build_link_node, split_adf_url, truncate};
 use super::html::{HtmlMark, HtmlTag, Recognised, classify, closes_by_name, parse_tag};
 use super::ir::{Marks, Span, Tok};
+use super::media;
 
 /// What a frame adds to the mark set; used to undo it when the frame closes.
 #[derive(Debug, Clone, Copy, Default)]
@@ -37,6 +39,10 @@ enum ImageMode {
     Link,
     External,
     Drop,
+    /// `adf:media/<id>…`: media from Media Services.
+    File,
+    /// `adf:media/<id>…` while the `media` extension is disabled: only the alt text is kept.
+    FileDisabled,
 }
 
 #[derive(Debug)]
@@ -372,6 +378,33 @@ pub(crate) fn strip_controls(s: &str) -> String {
     s.chars()
         .filter(|&c| c == '\t' || c == '\n' || !c.is_control())
         .collect()
+}
+
+/// How an image is converted: by `--images`, or as `adf:media` unless that policy drops it.
+fn image_mode(dest: &str, cx: &Cx<'_>) -> ImageMode {
+    let policy = match cx.opts.images {
+        ImagePolicy::Link => ImageMode::Link,
+        ImagePolicy::External => ImageMode::External,
+        ImagePolicy::Drop => return ImageMode::Drop,
+    };
+    if split_adf_url(dest).is_none_or(|(kind, _)| kind != "media") {
+        return policy;
+    }
+    if cx.opts.extensions.media {
+        ImageMode::File
+    } else {
+        ImageMode::FileDisabled
+    }
+}
+
+/// The alt text of an image that is not shown as text: control characters removed, newlines
+/// turned into spaces, trimmed last so a removed control character or newline cannot leave the
+/// text starting or ending with a space.
+fn clean_alt(frame: &ImageFrame, cx: &mut Cx<'_>) -> String {
+    strip_controls_reported(&frame.alt, "an image's alt text", &frame.span, cx)
+        .replace('\n', " ")
+        .trim()
+        .to_owned()
 }
 
 /// [`strip_controls`] for text that goes into an attribute (a title, a language, a label):
@@ -864,11 +897,7 @@ impl InlineBuilder {
         let mode = if self.stack.capturing > 0 {
             ImageMode::External
         } else {
-            match cx.opts.images {
-                ImagePolicy::Link => ImageMode::Link,
-                ImagePolicy::External => ImageMode::External,
-                ImagePolicy::Drop => ImageMode::Drop,
-            }
+            image_mode(dest, cx)
         };
         let mut push_link = None;
         let mut link = None;
@@ -952,6 +981,16 @@ impl InlineBuilder {
                 }
             }
             ImageMode::External => self.end_external_image(frame, cx),
+            ImageMode::File => self.end_file_image(frame, cx),
+            ImageMode::FileDisabled => {
+                cx.warn(
+                    Code::ExtensionDisabled,
+                    "adf:media image found, but the 'media' extension is disabled; the alt text was kept",
+                    &frame.span,
+                );
+                let alt = clean_alt(&frame, cx);
+                self.push_alt_text(alt, frame.span);
+            }
             ImageMode::Drop => cx.warn(
                 Code::ImageDropped,
                 "Image dropped (--images drop)",
@@ -962,12 +1001,7 @@ impl InlineBuilder {
 
     /// An image with `--images external`: a media token, or its alt text for a bad URL.
     fn end_external_image(&mut self, frame: ImageFrame, cx: &mut Cx<'_>) {
-        // Trim last: a removed control character or newline must not leave the alt text
-        // starting or ending with a space.
-        let alt = strip_controls_reported(&frame.alt, "an image's alt text", &frame.span, cx)
-            .replace('\n', " ")
-            .trim()
-            .to_owned();
+        let alt = clean_alt(&frame, cx);
         if Href::parse(&frame.url).is_none() {
             cx.warn(
                 Code::UnsafeUrl,
@@ -977,17 +1011,47 @@ impl InlineBuilder {
                 ),
                 &frame.span,
             );
-            let marks = self.stack.marks();
-            if !alt.is_empty() {
-                self.toks.push(Tok::Text {
-                    text: alt,
-                    marks,
-                    span: frame.span,
-                    trim: false,
-                });
-            }
+            self.push_alt_text(alt, frame.span);
             return;
         }
+        self.warn_media_marks(&frame, cx);
+        self.toks.push(Tok::Media {
+            media: MediaSingle::external(frame.url.trim().to_owned(), NonEmptyString::new(alt)),
+            span: frame.span,
+        });
+    }
+
+    /// An `adf:media` image: a media token, or its alt text for an invalid argument.
+    fn end_file_image(&mut self, frame: ImageFrame, cx: &mut Cx<'_>) {
+        let alt = clean_alt(&frame, cx);
+        let arg = split_adf_url(&frame.url).and_then(|(_, arg)| arg);
+        match media::parse(arg) {
+            Ok(image) => {
+                self.warn_media_marks(&frame, cx);
+                self.toks.push(Tok::Media {
+                    media: MediaSingle {
+                        source: MediaSource::File(image.file),
+                        alt: NonEmptyString::new(alt),
+                        layout: image.layout,
+                        size: image.size,
+                    },
+                    span: frame.span,
+                });
+            }
+            Err(message) => {
+                cx.warn_hint(
+                    Code::InvalidExtensionArg,
+                    message,
+                    media::SYNTAX_HINT,
+                    &frame.span,
+                );
+                self.push_alt_text(alt, frame.span);
+            }
+        }
+    }
+
+    /// Reports the link and the title that ADF media cannot carry.
+    fn warn_media_marks(&self, frame: &ImageFrame, cx: &mut Cx<'_>) {
         // In an `adf:` link label, the image is moved after the node (see `end_adf_link`).
         if self.stack.in_link > self.stack.adf_links {
             cx.warn(
@@ -1003,12 +1067,18 @@ impl InlineBuilder {
                 &frame.span,
             );
         }
-        self.toks.push(Tok::Media {
-            media: MediaSingle {
-                url: frame.url.trim().to_owned(),
-                alt: NonEmptyString::new(alt),
-            },
-            span: frame.span,
+    }
+
+    /// The alt text of an image that did not become media, as plain text.
+    fn push_alt_text(&mut self, alt: String, span: Span) {
+        if alt.is_empty() {
+            return;
+        }
+        self.toks.push(Tok::Text {
+            text: alt,
+            marks: self.stack.marks(),
+            span,
+            trim: false,
         });
     }
 
