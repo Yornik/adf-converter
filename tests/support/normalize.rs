@@ -7,8 +7,11 @@
 //!   position (here: replaced by their ordinal in document order);
 //! - splits `\n` inside text nodes into `hardBreak`s (code blocks keep their newlines);
 //! - drops the attributes listed under `W_ATTR_DROPPED`: cell `colwidth` and `background`, table
-//!   `width`/`layout`/`displayMode`, a numbered column, media size, panel icons. Tables get the
+//!   `width`/`layout`/`displayMode`, a numbered column, the size of external media (file media
+//!   keeps `width`, `height` and `size`, which `adf:media` carries), panel icons. Tables get the
 //!   attributes Markdown → ADF always writes (`isNumberColumnEnabled: false`, `layout: "default"`).
+//! - gives a `mediaSingle` without `layout` the layout `center`, removes `widthType: "percentage"`
+//!   (the default, which `size=<n>%` leaves out) and an empty `alt` of a `media`.
 //!
 //! The function is idempotent, so the tests apply it to both sides of the comparison (the left side
 //! carries freshly generated task `localId`s).
@@ -90,6 +93,10 @@ fn normalize_attrs(object: &mut Map<String, Value>, node_type: &str, task_ordina
         object.insert("attrs".to_owned(), Value::Object(attrs));
         return;
     }
+    let is_file = is_file_media(object, node_type);
+    if node_type == "mediaSingle" && !object.contains_key("attrs") {
+        object.insert("attrs".to_owned(), Value::Object(Map::new()));
+    }
     let Some(Value::Object(attrs)) = object.get_mut("attrs") else {
         return;
     };
@@ -104,16 +111,53 @@ fn normalize_attrs(object: &mut Map<String, Value>, node_type: &str, task_ordina
         return;
     }
     attrs.remove("localId");
-    for (ty, names) in DROPPED_ATTRS {
-        if *ty == node_type {
-            for name in *names {
-                attrs.remove(*name);
+    // File media keeps its size (`adf:media` carries it); only external media drops it.
+    if !is_file {
+        for (ty, names) in DROPPED_ATTRS {
+            if *ty == node_type {
+                for name in *names {
+                    attrs.remove(*name);
+                }
             }
         }
+    }
+    if node_type == "media" && attrs.get("alt").and_then(Value::as_str) == Some("") {
+        attrs.remove("alt");
+    }
+    if node_type == "mediaSingle" {
+        // `size=<n>%` writes no `widthType`, and an absent layout reads back as `center`.
+        if attrs.get("widthType").and_then(Value::as_str) == Some("percentage") {
+            attrs.remove("widthType");
+        }
+        attrs
+            .entry("layout")
+            .or_insert_with(|| Value::String("center".to_owned()));
     }
     // Markdown → ADF never writes an empty `attrs` object, except on expands.
     if attrs.is_empty() && !ATTRS_ALWAYS_PRESENT.contains(&node_type) {
         object.remove("attrs");
+    }
+}
+
+/// Whether the node is a `media` of type `file`, or a `mediaSingle` whose first child is one.
+fn is_file_media(object: &Map<String, Value>, node_type: &str) -> bool {
+    let media_type = |node: &Map<String, Value>| {
+        node.get("attrs")
+            .and_then(|a| a.get("type"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    match node_type {
+        "media" => media_type(object).as_deref() == Some("file"),
+        "mediaSingle" => object
+            .get("content")
+            .and_then(|c| c.get(0))
+            .and_then(Value::as_object)
+            .is_some_and(|child| {
+                child.get("type").and_then(Value::as_str) == Some("media")
+                    && media_type(child).as_deref() == Some("file")
+            }),
+        _ => false,
     }
 }
 
