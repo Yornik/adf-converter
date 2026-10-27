@@ -1,0 +1,128 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A screenshot of the dashboard, uploaded to Jira beforehand:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555555",
+            "collection": "",
+            "alt": "dashboard.png"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "With only the pixel size of the file, as Jira writes it for a pasted image:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "AAAAAAAA-bbbb-2222-CCCC-333344445555",
+            "collection": "",
+            "width": 1512,
+            "height": 945
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "The scheme and the kind are case-insensitive, and the destination may be written in angle brackets:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555556",
+            "collection": "",
+            "alt": "Upper case"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555557",
+            "collection": "",
+            "alt": "Brackets"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A reference-style image with a multi-line alt text:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555558",
+            "collection": "",
+            "alt": "the error dialog"
+          }
+        }
+      ]
+    }
+  ]
+}

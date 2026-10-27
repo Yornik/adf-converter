@@ -1,0 +1,483 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Paragraph, with text on both sides"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555501",
+            "collection": "",
+            "alt": "paragraph",
+            "width": 800,
+            "height": 600
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "of the image."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Heading with an image"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555502",
+            "collection": "",
+            "alt": "heading"
+          }
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Item"
+                }
+              ]
+            },
+            {
+              "type": "mediaSingle",
+              "attrs": {
+                "layout": "center",
+                "width": 50
+              },
+              "content": [
+                {
+                  "type": "media",
+                  "attrs": {
+                    "type": "file",
+                    "id": "11111111-2222-3333-4444-555555555503",
+                    "collection": "",
+                    "alt": "item"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph"
+            },
+            {
+              "type": "mediaSingle",
+              "attrs": {
+                "layout": "center"
+              },
+              "content": [
+                {
+                  "type": "media",
+                  "attrs": {
+                    "type": "file",
+                    "id": "11111111-2222-3333-4444-555555555504",
+                    "collection": "",
+                    "alt": "image only"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "5f9ac38d-00f0-8788-aaec-90c75a3ba6e4"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "8a6999b6-3e68-8fd6-81b9-0976be24fdc9",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Task with an image"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555505",
+            "collection": "",
+            "alt": "task"
+          }
+        }
+      ]
+    },
+    {
+      "type": "blockquote",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Quote"
+            }
+          ]
+        },
+        {
+          "type": "mediaSingle",
+          "attrs": {
+            "layout": "center"
+          },
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "11111111-2222-3333-4444-555555555506",
+                "collection": "",
+                "alt": "quote"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "info"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Panel"
+            }
+          ]
+        },
+        {
+          "type": "mediaSingle",
+          "attrs": {
+            "layout": "center"
+          },
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "11111111-2222-3333-4444-555555555507",
+                "collection": "",
+                "alt": "panel"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Name"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Picture"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Cell"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph"
+                },
+                {
+                  "type": "mediaSingle",
+                  "attrs": {
+                    "layout": "center"
+                  },
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "11111111-2222-3333-4444-555555555508",
+                        "collection": "",
+                        "alt": "cell"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Details"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Inside"
+            }
+          ]
+        },
+        {
+          "type": "mediaSingle",
+          "attrs": {
+            "layout": "center"
+          },
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "11111111-2222-3333-4444-555555555509",
+                "collection": "",
+                "alt": "details"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Box"
+                    }
+                  ]
+                },
+                {
+                  "type": "mediaSingle",
+                  "attrs": {
+                    "layout": "center"
+                  },
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "11111111-2222-3333-4444-555555555510",
+                        "collection": "",
+                        "alt": "box"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5b10ac8d82e05b22cc7d4ef5",
+            "text": "@Jane Doe"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555511",
+            "collection": "",
+            "alt": "label"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "is mentioned."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Two in a row:"
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555512",
+            "collection": "",
+            "alt": "first"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "11111111-2222-3333-4444-555555555513",
+            "collection": "",
+            "alt": "second"
+          }
+        }
+      ]
+    }
+  ]
+}
