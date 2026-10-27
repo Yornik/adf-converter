@@ -95,6 +95,32 @@ const ADF_LINKS: &[&str] = &[
     "[javascript:x](adf:card)",
     "[label](adf:unknown/thing)",
 ];
+/// `adf:media` images: valid ones (every parameter, case variants, boundaries) and invalid ones
+/// (every failure family), with and without alt text, titles and links.
+const MEDIA_IMAGES: &[&str] = &[
+    "![shot.png](adf:media/11111111-2222-3333-4444-555555555555)",
+    "![](adf:media/11111111-2222-3333-4444-555555555555)",
+    "![a *b*](ADF:Media/AAAAAAAA-bbbb-2222-CCCC-333344445555)",
+    "![shot](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?size=50%&layout=wrap-left)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?width=1&height=100000&size=100%)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?size=100000px&collection=)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555 \"Title\")",
+    "[![s](adf:media/11111111-2222-3333-4444-555555555555)](https://example.com)",
+    "![s](adf:media)",
+    "![s](adf:media/)",
+    "![s](adf:media/not-a-uuid)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?width=0)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?width=1&width=2)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?layout=left)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?size=101%)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?size=5)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?colour=red)",
+    "![s](adf:media/11111111-2222-3333-4444-555555555555?collection=a%20b)",
+    "![s\u{7}](adf:media/11111111-2222-3333-4444-555555555555?width=99999999999999999999)",
+    "![s ![n](adf:media/11111111-2222-3333-4444-555555555555) t](https://example.com/i.png)",
+];
 const INLINE_HTML: &[(&str, &str)] = &[
     ("<u>", "</u>"),
     ("<ins>", "</ins>"),
@@ -165,6 +191,7 @@ fn inline_leaf() -> impl Strategy<Value = String> {
         1 => "``[a-z`]{1,4}``",
         2 => pick(INLINE_LEAVES),
         2 => pick(ADF_LINKS),
+        2 => pick(MEDIA_IMAGES),
     ]
 }
 
@@ -474,6 +501,9 @@ fn token_soup() -> impl Strategy<Value = String> {
         "-->",
         "```adf\n",
         "adf:mention/x",
+        "adf:media/11111111-2222-3333-4444-555555555555",
+        "?width=1&layout=wide",
+        "&size=50%",
         "adf:status/green",
         "adf:date",
         "https://",
@@ -1117,6 +1147,7 @@ fn generator_covers_the_grammar() {
         "~~",
         "](",
         "adf:",
+        "](adf:media/",
         "<u>",
         "&#",
         "\\",
