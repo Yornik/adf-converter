@@ -1,2 +1,6 @@
 # Deliberately invalid UTF-8: keep the bytes exactly as committed.
 input-invalid-utf8.stdin -text
+# Deliberately CRLF and a byte-order mark: keep the bytes exactly as committed.
+csv/convert-csv-crlf-bom.stdin -text
+# Deliberately invalid UTF-8.
+input-csv-invalid-utf8.stdin -text
