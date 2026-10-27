@@ -43,7 +43,8 @@ the installed version supports.
   more fails with `E_INPUT_TOO_LARGE`.
 - `<br>` makes a line break inside a cell. Put lists or several paragraphs in a box cell instead
   (below).
-- Building a table from CSV data, getting one out as CSV, big tables: see [tables.md](tables.md).
+- Building a table from CSV data (`adf convert data.csv --from csv`), getting one out as CSV
+  (`--from adf --to csv`), big tables: see [tables.md](tables.md).
 - Tables only work at the top level or inside `<details>`. Inside a list, quote, panel or box they
   are moved out (`W_BLOCK_HOISTED`).
 

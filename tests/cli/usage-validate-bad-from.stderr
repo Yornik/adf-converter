@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"invalid value 'tsv' for '--from <FROM>'","hint":"Possible values: auto, md, adf, csv. A similar value exists: 'csv'. For more information, try '--help'.","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

@@ -1,0 +1,14 @@
+Kind,Value
+plain,https://example.com/a?b=1&c=2
+sentence,See https://example.com/docs. Then stop.
+comma,"https://example.com/x, https://example.org/y"
+parens,(https://example.com/p)
+http,http://example.com
+upper,HTTPS://EXAMPLE.COM/UP
+www,www.example.com
+email,someone@example.com
+ftp,ftp://files.example.com/f
+mailto,mailto:someone@example.com
+no host,https://
+two lines,"https://a.example/1
+https://b.example/2"

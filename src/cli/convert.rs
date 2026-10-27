@@ -1,11 +1,14 @@
-//! `adf convert`: Markdown → ADF (with the self-check and the envelope) and ADF → Markdown.
+//! `adf convert`: Markdown or CSV → ADF (with the self-check and the envelope), and ADF →
+//! Markdown or CSV.
 
 use std::path::Path;
 
 use serde_json::Value;
 
 use super::Outcome;
-use super::args::{ConvertArgs, ConvertFrom, EnvelopeArg, MarkdownArgs, TargetArg};
+use super::args::{
+    ConvertArgs, ConvertFrom, ConvertTo, CsvArgs, EnvelopeArg, MarkdownArgs, TargetArg,
+};
 use super::input::{self, Input};
 use super::output;
 use crate::Conversion;
@@ -16,19 +19,87 @@ use crate::adf::model::{
 };
 use crate::diagnostics::{self, Code, Diagnostic, Diagnostics, omitted_count, reported_count};
 use crate::limits::Limits;
-use crate::options::{AdfToMdOptions, MdToAdfOptions, Target};
+use crate::options::{AdfToCsvOptions, AdfToMdOptions, CsvToAdfOptions, MdToAdfOptions, Target};
 
 const LOSSY_CONVERSION: &str = "--strict: the conversion is lossy ({codes}); nothing was written";
 
 /// Runs `adf convert`.
 pub(crate) fn run(args: &ConvertArgs) -> Outcome {
-    match args.from {
-        ConvertFrom::Md => markdown_to_adf(args),
-        ConvertFrom::Adf => adf_to_markdown(args),
+    if let Err(outcome) = check_flags(args) {
+        return *outcome;
+    }
+    match (args.from, args.to) {
+        (ConvertFrom::Md, _) => markdown_to_adf(args),
+        (ConvertFrom::Csv, _) => csv_to_adf(args),
+        (ConvertFrom::Adf, Some(ConvertTo::Csv)) => adf_to_csv(args),
+        (ConvertFrom::Adf, Some(ConvertTo::Md) | None) => adf_to_markdown(args),
     }
 }
 
+/// Refuses flags that have no meaning for the chosen conversion, before any input is read. The
+/// Markdown flags (`--softbreak`, `--md-flavor`, …) and `-t` are not checked: they are accepted
+/// and ignored where they do not apply.
+fn check_flags(args: &ConvertArgs) -> Result<(), Box<Outcome>> {
+    let output_csv = args.to == Some(ConvertTo::Csv);
+    if args.to.is_some() && args.from != ConvertFrom::Adf {
+        return Err(Box::new(usage(
+            "--to only applies with --from adf",
+            "Use --from adf --to csv to write a table of an ADF document as CSV",
+        )));
+    }
+    let csv_side = args.from == ConvertFrom::Csv || output_csv;
+    if args.csv.delimiter.is_some() && !csv_side {
+        return Err(Box::new(usage(
+            "--delimiter only applies with --from csv or --to csv",
+            "Add --from csv to read a CSV file, or --from adf --to csv to write one",
+        )));
+    }
+    if args.from != ConvertFrom::Csv {
+        check_no_csv_input_flags(&args.csv, "Add --from csv to read a CSV file")?;
+    }
+    if !output_csv && let Some(flag) = args.csv_out.first_output_only() {
+        return Err(Box::new(usage(
+            &format!("{flag} only applies with --to csv"),
+            "Add --from adf --to csv to write a table of an ADF document as CSV",
+        )));
+    }
+    Ok(())
+}
+
+/// A usage error for a CSV-only input flag (`--no-header`, `--max-rows`, `--align-numbers`) given
+/// where the input is not CSV.
+pub(crate) fn check_no_csv_input_flags(csv: &CsvArgs, hint: &str) -> Result<(), Box<Outcome>> {
+    match csv.first_input_only() {
+        Some(flag) => Err(Box::new(usage(
+            &format!("{flag} only applies with --from csv"),
+            hint,
+        ))),
+        None => Ok(()),
+    }
+}
+
+fn usage(message: &str, hint: &str) -> Outcome {
+    Outcome::usage(message, hint)
+}
+
 fn markdown_to_adf(args: &ConvertArgs) -> Outcome {
+    text_to_adf(args, |text, target| {
+        markdown_pipeline(text, &markdown_options(&args.markdown, target))
+    })
+}
+
+fn csv_to_adf(args: &ConvertArgs) -> Outcome {
+    text_to_adf(args, |text, target| {
+        csv_pipeline(text, &csv_options(&args.csv, target))
+    })
+}
+
+/// The Markdown and CSV pipelines: read, convert and self-check with `pipeline`, refuse warnings
+/// under `--strict`, wrap in the envelope and serialize.
+fn text_to_adf(
+    args: &ConvertArgs,
+    pipeline: impl FnOnce(&str, Target) -> Result<Converted, Vec<Diagnostic>>,
+) -> Outcome {
     let envelope = match parse_envelope(args.envelope.envelope, args.envelope.field.as_deref()) {
         Ok(envelope) => envelope,
         Err(outcome) => return *outcome,
@@ -38,8 +109,7 @@ fn markdown_to_adf(args: &ConvertArgs) -> Outcome {
         Ok(input) => input,
         Err(outcome) => return *outcome,
     };
-    let opts = markdown_options(&args.markdown, target);
-    let converted = match markdown_pipeline(&input.text, &opts) {
+    let converted = match pipeline(&input.text, target) {
         Ok(converted) => converted,
         Err(diagnostics) => return Outcome::failed(diagnostics, Some(input.label)),
     };
@@ -61,9 +131,46 @@ fn markdown_to_adf(args: &ConvertArgs) -> Outcome {
 }
 
 fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
+    let opts = AdfToMdOptions {
+        flavor: args.md_flavor.into(),
+        limits: Limits::default(),
+    };
+    adf_to_text(
+        args,
+        "-e/--envelope cannot be used with --from adf; the envelope is detected from the input",
+        |doc| crate::adf_to_md(doc, &opts),
+        single_trailing_newline,
+    )
+}
+
+fn adf_to_csv(args: &ConvertArgs) -> Outcome {
+    let opts = AdfToCsvOptions {
+        delimiter: args.csv.delimiter.unwrap_or_default(),
+        table: args.csv_out.table.unwrap_or(1),
+        csv_safe: args.csv_out.csv_safe,
+        limits: Limits::default(),
+    };
+    adf_to_text(
+        args,
+        "-e/--envelope cannot be used with --to csv; the envelope is detected from the input",
+        |doc| crate::adf_to_csv(doc, &opts),
+        // The CSV ends with the line break of its last record; that is part of the data.
+        |csv| csv,
+    )
+}
+
+/// The ADF → text pipelines: read, unwrap the envelope, convert with `convert`, refuse warnings
+/// under `--strict`. `finish` shapes the text (its trailing newline); `envelope_message` is the
+/// usage error for `-e`, which would not do anything.
+fn adf_to_text(
+    args: &ConvertArgs,
+    envelope_message: &str,
+    convert: impl FnOnce(&Value) -> Result<Conversion<String>, Diagnostics>,
+    finish: impl FnOnce(String) -> String,
+) -> Outcome {
     if args.envelope.envelope.is_some() {
         return Outcome::usage(
-            "-e/--envelope cannot be used with --from adf; the envelope is detected from the input",
+            envelope_message,
             "Drop -e; use --field NAME to pick a Jira field",
         );
     }
@@ -82,11 +189,7 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
     if let Err(outcome) = check_field_used(field, &unwrapped) {
         return *outcome;
     }
-    let opts = AdfToMdOptions {
-        flavor: args.md_flavor.into(),
-        limits: Limits::default(),
-    };
-    let conversion = match crate::adf_to_md(&unwrapped.doc, &opts) {
+    let conversion = match convert(&unwrapped.doc) {
         Ok(conversion) => conversion,
         Err(diagnostics) => {
             return Outcome::failed(
@@ -103,7 +206,7 @@ fn adf_to_markdown(args: &ConvertArgs) -> Outcome {
         );
     }
     Outcome {
-        stdout: single_trailing_newline(conversion.output).into_bytes(),
+        stdout: finish(conversion.output).into_bytes(),
         output_file: args.output.clone(),
         diagnostics: warnings,
         label: Some(input.label),
@@ -153,7 +256,7 @@ pub(crate) fn parse_envelope(
     if envelope.is_none() && field.is_some() {
         // Without -e the envelope is the bare document; don't blame an -e the user never typed.
         return Err(Box::new(Outcome::usage(
-            "--field needs -e jira-field when the input is Markdown",
+            "--field needs -e jira-field when the input is Markdown or CSV",
             "Add -e jira-field to wrap the document in that field, or use --from adf to read a field of a Jira issue",
         )));
     }
@@ -181,6 +284,18 @@ pub(crate) fn markdown_options(markdown: &MarkdownArgs, target: Target) -> MdToA
         html: markdown.html.into(),
         images: markdown.images.into(),
         extensions: markdown.extensions,
+        limits: Limits::default(),
+    }
+}
+
+/// CSV → ADF options from the flags.
+pub(crate) fn csv_options(csv: &CsvArgs, target: Target) -> CsvToAdfOptions {
+    CsvToAdfOptions {
+        target,
+        delimiter: csv.delimiter.unwrap_or_default(),
+        header: !csv.no_header,
+        max_rows: csv.max_rows,
+        align_numbers: csv.align_numbers,
         limits: Limits::default(),
     }
 }
@@ -297,6 +412,23 @@ fn self_checked(
         }
     }
     Ok(Converted { doc, warnings })
+}
+
+/// CSV → ADF → self-check, like [`markdown_pipeline`]. The converter builds the table from the typed
+/// model, so a self-check failure is always `E_INTERNAL`.
+pub(crate) fn csv_pipeline(
+    text: &str,
+    opts: &CsvToAdfOptions,
+) -> Result<Converted, Vec<Diagnostic>> {
+    let mut converted = self_checked(crate::csv_to_adf(text, opts), opts.target)?;
+    for warning in &mut converted.warnings {
+        if warning.code == Code::SizeLimit {
+            warning.hint = Some(
+                "Use --max-rows N to keep a preview, and attach the full file instead".to_owned(),
+            );
+        }
+    }
+    Ok(converted)
 }
 
 /// Turns self-check errors into `E_INTERNAL` (our bug) and `E_RAW_ADF` (inside raw blocks).
@@ -849,6 +981,421 @@ mod tests {
         ]));
         let errors = self_checked(failed, Target::Jira).unwrap_err();
         assert_eq!(codes(&errors), [Code::ImageAsLink, Code::Lossy]);
+    }
+
+    // --- CSV: argument validation and plumbing --------------------------------------------
+
+    use crate::cli::args::{Cli, Command};
+    use clap::Parser as _;
+
+    fn convert_args(argv: &[&str]) -> ConvertArgs {
+        let mut full = vec!["adf", "convert"];
+        full.extend_from_slice(argv);
+        let Command::Convert(parsed) = Cli::try_parse_from(full).unwrap().command else {
+            panic!("expected convert");
+        };
+        parsed
+    }
+
+    /// The usage error `check_flags` gives for `argv`.
+    fn refused(argv: &[&str]) -> Diagnostic {
+        let outcome = *check_flags(&convert_args(argv)).unwrap_err();
+        assert_eq!(outcome.exit, 2, "{argv:?}");
+        assert_eq!(outcome.stdout, b"");
+        let [diagnostic] = <[Diagnostic; 1]>::try_from(outcome.diagnostics).unwrap();
+        assert_eq!(diagnostic.code, Code::Usage);
+        assert!(diagnostic.hint.is_some(), "{argv:?}");
+        diagnostic
+    }
+
+    #[test]
+    fn csv_flags_are_refused_where_they_do_nothing() {
+        let cases: &[(&[&str], &str)] = &[
+            (&["--to", "csv"], "--to only applies with --from adf"),
+            (&["--to", "md"], "--to only applies with --from adf"),
+            (
+                &["--from", "csv", "--to", "csv"],
+                "--to only applies with --from adf",
+            ),
+            (
+                &["--from", "csv", "--to", "md"],
+                "--to only applies with --from adf",
+            ),
+            (&["--delimiter", "tab"], "--delimiter only applies"),
+            (
+                &["--from", "adf", "--delimiter", "tab"],
+                "--delimiter only applies",
+            ),
+            (
+                &["--from", "adf", "--to", "md", "--delimiter", ";"],
+                "--delimiter only applies",
+            ),
+            (&["--no-header"], "--no-header only applies with --from csv"),
+            (
+                &["--max-rows", "3"],
+                "--max-rows only applies with --from csv",
+            ),
+            (
+                &["--align-numbers"],
+                "--align-numbers only applies with --from csv",
+            ),
+            (
+                &["--from", "adf", "--no-header"],
+                "--no-header only applies with --from csv",
+            ),
+            (
+                &["--from", "adf", "--to", "csv", "--no-header"],
+                "--no-header only applies with --from csv",
+            ),
+            (
+                &["--from", "adf", "--to", "csv", "--max-rows", "2"],
+                "--max-rows only applies with --from csv",
+            ),
+            (
+                &["--from", "adf", "--to", "csv", "--align-numbers"],
+                "--align-numbers only applies with --from csv",
+            ),
+            (&["--table", "2"], "--table only applies with --to csv"),
+            (&["--csv-safe"], "--csv-safe only applies with --to csv"),
+            (
+                &["--from", "csv", "--table", "2"],
+                "--table only applies with --to csv",
+            ),
+            (
+                &["--from", "csv", "--csv-safe"],
+                "--csv-safe only applies with --to csv",
+            ),
+            (
+                &["--from", "adf", "--to", "md", "--csv-safe"],
+                "--csv-safe only applies with --to csv",
+            ),
+            (
+                &["--from", "adf", "--table", "1"],
+                "--table only applies with --to csv",
+            ),
+        ];
+        for (argv, expected) in cases {
+            let diagnostic = refused(argv);
+            assert!(
+                diagnostic.message.starts_with(expected),
+                "{argv:?}: {}",
+                diagnostic.message
+            );
+            assert!(!diagnostic.message.contains('\n'));
+        }
+    }
+
+    #[test]
+    fn csv_flags_are_accepted_where_they_apply() {
+        let accepted: &[&[&str]] = &[
+            &[],
+            &["--from", "md"],
+            &["--from", "adf"],
+            &["--from", "adf", "--to", "md"],
+            &["--from", "csv"],
+            &["--from", "csv", "--delimiter", "tab"],
+            &[
+                "--from",
+                "csv",
+                "--no-header",
+                "--max-rows",
+                "5",
+                "--align-numbers",
+                "--delimiter",
+                "pipe",
+                "-e",
+                "jira-comment",
+                "--strict",
+            ],
+            // Markdown flags are ignored for CSV input, not refused.
+            &[
+                "--from",
+                "csv",
+                "--md-flavor",
+                "plain",
+                "--images",
+                "drop",
+                "--html",
+                "error",
+            ],
+            &[
+                "--from",
+                "csv",
+                "--softbreak",
+                "hardbreak",
+                "--extensions",
+                "none",
+            ],
+            &["--from", "adf", "--to", "csv"],
+            &[
+                "--from",
+                "adf",
+                "--to",
+                "csv",
+                "--table",
+                "3",
+                "--csv-safe",
+                "--delimiter",
+                ";",
+            ],
+            &[
+                "--from",
+                "adf",
+                "--to",
+                "csv",
+                "--field",
+                "customfield_1",
+                "-o",
+                "t.csv",
+            ],
+        ];
+        for argv in accepted {
+            assert!(check_flags(&convert_args(argv)).is_ok(), "{argv:?}");
+        }
+    }
+
+    #[test]
+    fn envelope_is_refused_for_csv_output() {
+        let args = convert_args(&["--from", "adf", "--to", "csv", "-e", "jira-comment"]);
+        // The check comes before the input is read, so nothing waits on stdin.
+        let outcome = adf_to_csv(&args);
+        assert_eq!(outcome.exit, 2);
+        let message = &outcome.diagnostics[0].message;
+        assert!(
+            message.starts_with("-e/--envelope cannot be used with --to csv"),
+            "{message}"
+        );
+        assert_eq!(outcome.stdout, b"");
+    }
+
+    #[test]
+    fn csv_options_follow_the_flags() {
+        let defaults = csv_options(&convert_args(&["--from", "csv"]).csv, Target::Jira);
+        assert_eq!(defaults, CsvToAdfOptions::default());
+        let args = convert_args(&[
+            "--from",
+            "csv",
+            "--delimiter",
+            "semicolon",
+            "--no-header",
+            "--max-rows",
+            "7",
+            "--align-numbers",
+        ]);
+        let opts = csv_options(&args.csv, Target::Confluence);
+        assert_eq!(opts.target, Target::Confluence);
+        assert_eq!(opts.delimiter.as_char(), ';');
+        assert!(!opts.header && opts.align_numbers);
+        assert_eq!(opts.max_rows, Some(7));
+    }
+
+    /// A scratch directory with one input file in it.
+    struct Scratch(std::path::PathBuf);
+
+    impl Scratch {
+        fn new(name: &str, content: &str) -> Self {
+            let dir = std::env::temp_dir()
+                .join(format!("adf-convert-test-{}-{name}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("in.txt"), content).unwrap();
+            Self(dir)
+        }
+
+        fn input(&self) -> String {
+            self.0.join("in.txt").display().to_string()
+        }
+    }
+
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn fake_table(warnings: Vec<Diagnostic>) -> Result<Converted, Vec<Diagnostic>> {
+        Ok(Converted {
+            doc: json!({"type": "doc", "version": 1, "content": [{"type": "paragraph"}]}),
+            warnings,
+        })
+    }
+
+    #[test]
+    fn text_input_is_converted_wrapped_and_labelled() {
+        let scratch = Scratch::new("wrap", "a,b\n1,2\n");
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "csv", "-e", "jira-comment", "--compact"]);
+        let mut seen = None;
+        let outcome = text_to_adf(&args, |text, target| {
+            seen = Some((text.to_owned(), target));
+            fake_table(vec![Diagnostic::new(Code::CsvTruncated, "kept 1 of 2")])
+        });
+        assert_eq!(seen, Some(("a,b\n1,2\n".to_owned(), Target::Jira)));
+        assert_eq!(outcome.exit, 0);
+        assert_eq!(outcome.label.as_deref(), Some(input.as_str()));
+        assert_eq!(codes(&outcome.diagnostics), [Code::CsvTruncated]);
+        let written: Value = serde_json::from_slice(&outcome.stdout).unwrap();
+        assert_eq!(written["body"]["type"], "doc");
+        assert!(outcome.stdout.ends_with(b"\n"));
+        // -e confluence implies the Confluence target for the converter.
+        let args = convert_args(&[&input, "--from", "csv", "-e", "confluence"]);
+        let mut target = None;
+        let _ = text_to_adf(&args, |_, t| {
+            target = Some(t);
+            fake_table(Vec::new())
+        });
+        assert_eq!(target, Some(Target::Confluence));
+    }
+
+    #[test]
+    fn text_input_under_strict_fails_without_output() {
+        let scratch = Scratch::new("strict", "a\n1\n");
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "csv", "--strict", "-o", "never.json"]);
+        let outcome = text_to_adf(&args, |_, _| {
+            fake_table(vec![Diagnostic::new(Code::CsvTruncated, "kept 1 of 2")])
+        });
+        assert_eq!(outcome.exit, 5);
+        assert_eq!(outcome.stdout, b"");
+        assert_eq!(
+            codes(&outcome.diagnostics),
+            [Code::CsvTruncated, Code::Lossy]
+        );
+        let lossy = &outcome.diagnostics[1].message;
+        assert!(lossy.contains("W_CSV_TRUNCATED") && lossy.contains("nothing was written"));
+        // Without warnings, --strict passes and the output file is requested.
+        let args = convert_args(&[&input, "--from", "csv", "--strict", "-o", "out.json"]);
+        let outcome = text_to_adf(&args, |_, _| fake_table(Vec::new()));
+        assert_eq!(outcome.exit, 0);
+        assert_eq!(outcome.output_file.as_deref(), Some(Path::new("out.json")));
+    }
+
+    #[test]
+    fn text_input_errors_keep_the_label_and_exit_code() {
+        let scratch = Scratch::new("error", "\"open\n");
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "csv"]);
+        let outcome = text_to_adf(&args, |_, _| {
+            Err(vec![Diagnostic::new(Code::InputCsv, "unterminated quote")])
+        });
+        assert_eq!(outcome.exit, 3);
+        assert_eq!(outcome.stdout, b"");
+        assert_eq!(outcome.label.as_deref(), Some(input.as_str()));
+    }
+
+    #[test]
+    fn csv_pipeline_never_passes_an_error_off_as_success() {
+        match csv_pipeline("a,b\n1,2\n", &CsvToAdfOptions::default()) {
+            Ok(converted) => assert_eq!(converted.doc["content"][0]["type"], "table"),
+            Err(diagnostics) => assert!(diagnostics.iter().any(Diagnostic::is_error)),
+        }
+    }
+
+    fn comment_with_table() -> String {
+        json!({"body": {"type": "doc", "version": 1, "content": [{"type": "paragraph"}]}})
+            .to_string()
+    }
+
+    #[allow(clippy::unnecessary_wraps)]
+    fn fake_text(warnings: Vec<Diagnostic>) -> Result<Conversion<String>, Diagnostics> {
+        Ok(Conversion {
+            output: "a,b\n1,2\n".to_owned(),
+            warnings,
+        })
+    }
+
+    #[test]
+    fn adf_input_is_unwrapped_and_warnings_get_the_envelope_pointer() {
+        let scratch = Scratch::new("adf", &comment_with_table());
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "adf", "--to", "csv", "-o", "t.csv"]);
+        let outcome = adf_to_text(
+            &args,
+            "unused",
+            |doc| {
+                assert_eq!(doc["type"], "doc");
+                fake_text(vec![
+                    Diagnostic::new(Code::CsvMergedCells, "merged")
+                        .at(Location::pointer("/content/0")),
+                ])
+            },
+            |csv| csv,
+        );
+        assert_eq!(outcome.exit, 0);
+        assert_eq!(outcome.stdout, b"a,b\n1,2\n");
+        assert_eq!(outcome.output_file.as_deref(), Some(Path::new("t.csv")));
+        let pointer = outcome.diagnostics[0]
+            .location
+            .as_ref()
+            .unwrap()
+            .pointer
+            .as_deref();
+        assert_eq!(pointer, Some("/body/content/0"));
+        // --strict applies to W_CSV_MERGED_CELLS too: nothing is written.
+        let args = convert_args(&[&input, "--from", "adf", "--to", "csv", "--strict"]);
+        let outcome = adf_to_text(
+            &args,
+            "unused",
+            |_| fake_text(vec![Diagnostic::new(Code::CsvMergedCells, "merged")]),
+            |csv| csv,
+        );
+        assert_eq!(outcome.exit, 5);
+        assert_eq!(outcome.stdout, b"");
+        assert_eq!(
+            codes(&outcome.diagnostics),
+            [Code::CsvMergedCells, Code::Lossy]
+        );
+    }
+
+    #[test]
+    fn adf_input_errors_are_prefixed_and_exit_3() {
+        let scratch = Scratch::new("notable", &comment_with_table());
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "adf", "--to", "csv"]);
+        let outcome = adf_to_text(
+            &args,
+            "unused",
+            |_| {
+                Err(Diagnostics::single(
+                    Diagnostic::new(Code::InputNoTable, "the document has no tables")
+                        .at(Location::pointer("")),
+                ))
+            },
+            |csv| csv,
+        );
+        assert_eq!(outcome.exit, 3);
+        assert_eq!(outcome.stdout, b"");
+        let pointer = outcome.diagnostics[0]
+            .location
+            .as_ref()
+            .unwrap()
+            .pointer
+            .as_deref();
+        assert_eq!(pointer, Some("/body"));
+        // A field that the input does not use is still a usage error.
+        let args = convert_args(&[&input, "--from", "adf", "--to", "csv", "--field", "x"]);
+        let outcome = adf_to_text(&args, "unused", |_| fake_text(Vec::new()), |csv| csv);
+        assert_eq!(outcome.exit, 2);
+    }
+
+    #[test]
+    fn csv_text_keeps_its_last_line_break() {
+        // Unlike Markdown, CSV is not trimmed: the text goes out as the converter made it.
+        let scratch = Scratch::new("tail", &comment_with_table());
+        let input = scratch.input();
+        let args = convert_args(&[&input, "--from", "adf", "--to", "csv"]);
+        let outcome = adf_to_text(
+            &args,
+            "unused",
+            |_| {
+                Ok(Conversion {
+                    output: "a\n\"\"\n\n".to_owned(),
+                    warnings: Vec::new(),
+                })
+            },
+            |csv| csv,
+        );
+        assert_eq!(outcome.stdout, b"a\n\"\"\n\n");
     }
 
     #[test]

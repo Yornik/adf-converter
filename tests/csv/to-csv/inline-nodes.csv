@@ -1,0 +1,9 @@
+Kind,Value
+mention,@Ann Example
+mention without text,@def456
+status,IN PROGRESS
+date,2025-10-27
+emoji,😄 :wave:
+card,https://example.com/issue/1
+block card,https://example.com/page
+mixed,"Hi @Bob, status DONE"

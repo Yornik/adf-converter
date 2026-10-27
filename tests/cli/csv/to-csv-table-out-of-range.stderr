@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_NO_TABLE","message":"The document has 2 tables, so table 3 does not exist","location":{"file":"-"},"hint":"Use --table with a number from 1 to 2","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_no_table","exit_code":3}

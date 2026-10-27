@@ -14,13 +14,16 @@ The JSON diagnostics and the documents of `validate --json`, `capabilities --jso
 ## Commands
 
 ```
-adf convert [INPUT|-] [-o PATH] [--from md|adf] [-e ENVELOPE] [--field NAME]
+adf convert [INPUT|-] [-o PATH] [--from md|adf|csv] [--to md|csv] [-e ENVELOPE] [--field NAME]
             [-t auto|jira|confluence] [--pretty|--compact] [--strict]
             [--softbreak space|hardbreak] [--html text|drop|error]
             [--images link|external|drop] [--extensions all|none|LIST]
             [--md-flavor roundtrip|plain] [--error-format auto|text|json] [-q] [--no-color]
-adf validate [INPUT|-] [--from auto|md|adf] [-e ENVELOPE] [--field NAME] [-t …] [--strict]
+            [--delimiter DELIM] [--no-header] [--max-rows N] [--align-numbers]   (--from csv)
+            [--table N] [--csv-safe]                                              (--to csv)
+adf validate [INPUT|-] [--from auto|md|adf|csv] [-e ENVELOPE] [--field NAME] [-t …] [--strict]
              [--json] [--softbreak …] [--html …] [--images …] [--extensions …]
+             [--delimiter DELIM] [--no-header] [--max-rows N] [--align-numbers]   (--from csv)
 adf capabilities [--json]
 adf examples [FEATURE] [--json]
 adf schema adf|diagnostic|capabilities|validate-report
@@ -38,8 +41,13 @@ adf version [--json]            (also: adf --version)
 - **Input.** `INPUT` is a path, or `-` / omitted for stdin. If stdin is a terminal and no input
   is given, a short usage message is printed to stderr and the exit code is 2.
 - **`--from md`** (default): Markdown → ADF.
-- **`--from adf`**: ADF → Markdown. The input may be a bare document or any
-  [envelope](#envelopes). `-e` is not allowed with `--from adf` (exit 2).
+- **`--from adf`**: ADF → Markdown, or with `--to csv` ADF → CSV. The input may be a bare document
+  or any [envelope](#envelopes). `-e` is not allowed with `--from adf` (exit 2).
+- **`--from csv`**: CSV or TSV → an ADF document that holds one table; see
+  [CSV input](#csv-input---from-csv). The text is read as UTF-8 (a BOM is ignored).
+- **`--to md|csv`** (default `md`): the output of `--from adf`. `--to csv` writes one table of the
+  document as CSV text; see [CSV output](#csv-output---from-adf---to-csv). `--to csv` is only
+  valid with `--from adf`; with `--from md` or `--from csv` it is a usage error (exit 2).
 - **`-o PATH`**: write to a file, atomically (temporary file in the same directory, then rename),
   so the directory must be writable. Nothing is written if the conversion fails.
   - Replacing an existing file keeps its permission bits (not its owner or ACLs). A symbolic link
@@ -50,7 +58,7 @@ adf version [--json]            (also: adf --version)
     `/dev/fd/N` of a process substitution `>(…)`.
 - **Output format.** Pretty JSON when stdout is a terminal, compact otherwise. Files are compact
   unless `--pretty` is given. `--pretty` and `--compact` override. Markdown output always ends with
-  exactly one newline.
+  exactly one newline, and CSV output with exactly one line feed.
 - **`--strict`**: any warning fails the conversion with `E_LOSSY` (exit 5), and nothing is
   written.
 - **`-t/--target`**: which product's rules to validate against. `auto` (default) is `confluence`
@@ -59,8 +67,70 @@ adf version [--json]            (also: adf --version)
   `adf`'s own output fails that check, it reports `E_INTERNAL` (exit 1), because that is a bug.
 - **Options of the other direction** are accepted and have no effect. With `--from adf`: `-t`,
   `--pretty`, `--compact` and the Markdown options (`--softbreak`, `--html`, `--images`,
-  `--extensions`). With Markdown input: `--md-flavor`. Likewise `validate` ignores the Markdown
-  options when it checks ADF.
+  `--extensions`). With Markdown input: `--md-flavor`. With CSV input: `--md-flavor` and the
+  Markdown options. Likewise `validate` ignores the Markdown options when it checks ADF or CSV.
+- **CSV flags** are only valid where they mean something; anywhere else they are a usage error
+  (`E_USAGE`, exit 2) whose message names the flag:
+
+  | Flag | Valid with | Value |
+  |---|---|---|
+  | `--delimiter DELIM` | `--from csv`, `--to csv` | `comma` (default), `tab`, `semicolon`, `pipe`, or one printable ASCII character other than `"` (a literal tab, or the two characters `\t`, is fine; other control characters are refused) |
+  | `--no-header`, `--align-numbers` | `--from csv` | |
+  | `--max-rows N` | `--from csv` | an integer ≥ 1 |
+  | `--table N` | `--to csv` | an integer ≥ 1 (default 1) |
+  | `--csv-safe` | `--to csv` | |
+  | `--to csv` | `--from adf` | |
+
+  `-e/--envelope` is not allowed with `--to csv` (exit 2): the output is plain CSV, not JSON.
+
+### CSV input (`--from csv`)
+
+```sh
+adf convert data.csv --from csv -e jira-comment -o body.json
+adf convert data.tsv --from csv --delimiter tab --max-rows 50 --align-numbers -o table.json
+```
+
+Converts the CSV (or TSV) text into an ADF document that holds exactly one table. The rules (line
+breaks, quotes, header, links, numeric columns, truncation) are in
+[syntax.md](syntax.md#csv-to-a-table-reading-rules).
+
+- The pipeline is the one of Markdown input: read the input (UTF-8 check, size limit), convert,
+  check the result against the schema and the target rules (an invalid result is `E_INTERNAL`),
+  wrap it in the envelope (`-e` is allowed), write it. `-t` selects the validation target, as for
+  Markdown.
+- Warnings go to stderr: `W_CSV_TRUNCATED` (`--max-rows`) and `W_CONTROL_CHAR`. With `--strict` any warning fails the conversion
+  with `E_LOSSY` (exit 5), and nothing is written.
+- Errors: `E_INPUT_ENCODING` (not UTF-8), `E_INPUT_TOO_LARGE` (more than 1 MiB of text, or a table
+  of more than 100,000 cells), `E_INPUT_CSV` (a quote that is never closed, or no rows), all
+  exit 3. See [Limits](#limits).
+- `--md-flavor`, `--images`, `--html`, `--softbreak` and `--extensions` are accepted and have no
+  effect: cell text is never read as Markdown.
+
+### CSV output (`--from adf --to csv`)
+
+```sh
+adf convert issue.json --from adf --to csv -o table.csv
+adf convert page.json --from adf --to csv --table 2 --delimiter semicolon --csv-safe
+```
+
+Writes one table of the ADF document as CSV text, to stdout or to `-o PATH` (atomically, like any
+other output). The rules (which table, merged cells, cell text, quoting, `--csv-safe`) are in
+[syntax.md](syntax.md#a-table-to-csv-writing-rules).
+
+- **Input.** A bare document or any [envelope](#envelopes), detected exactly as for `--from adf`
+  (`--field NAME` selects the field of a Jira issue response). The output is plain CSV text,
+  never wrapped in an envelope. Warning pointers are prefixed with
+  the envelope's pointer, as for ADF → Markdown.
+- **Which table.** All `table` nodes in document order, nested ones included; `--table N` picks
+  the Nth (default 1). A document without tables, or `N` larger than the number of tables, fails
+  with `E_INPUT_NO_TABLE` (exit 3); the message says how many tables the document has.
+- **Output.** UTF-8 without a BOM, records separated by LF, the text always ends with LF. Stdout
+  carries only the CSV.
+- **Warnings.** `W_CSV_MERGED_CELLS` (one per table, pointing at the table) and `W_CONTROL_CHAR`.
+  With `--strict`, a warning fails the conversion with `E_LOSSY` (exit 5) and nothing is written.
+- Errors: `E_INPUT_JSON`, `E_INPUT_NOT_ADF`, `E_INPUT_TOO_DEEP` as for `--from adf`;
+  `E_INPUT_TOO_LARGE` when the table would have more than 100,000 cells or the CSV more than
+  64 MiB.
 
 ### `validate`
 
@@ -73,6 +143,9 @@ adf version [--json]            (also: adf --version)
   at most 100 of each code (see [Diagnostics](#diagnostics)). Exit code 4 if anything fails.
 - **`--from md`**: a dry run of `convert`. It reports the warnings the conversion would produce,
   at most 100 of each code. Exit code 0, or 5 with `--strict` if there are warnings.
+- **`--from csv`**: a dry run of `convert --from csv`, with the same CSV flags (`--delimiter`,
+  `--no-header`, `--max-rows`, `--align-numbers`) and the same exit codes as `--from md`.
+  `--from auto` never chooses CSV: pass `--from csv`.
 - **`--json`**: writes a report to stdout:
 
   ```json
@@ -80,9 +153,9 @@ adf version [--json]            (also: adf --version)
    "adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[<diagnostic>…],"warnings":[<diagnostic>…]}
   ```
 
-  `envelope` is the detected (adf) or requested (md) envelope, or `null` when the input could
+  `envelope` is the detected (adf) or requested (md, csv) envelope, or `null` when the input could
   not be read or holds no ADF document. When the input cannot be read, `from` is `adf` unless
-  `--from md` was given.
+  `--from md` or `--from csv` was given (`from` is then `md` or `csv`).
 - Without `--json`, diagnostics go to stderr. With the text format (`--error-format text`, or
   `auto` on a terminal), a one-line summary follows them, for example
   `comment.json: valid ADF for jira, envelope doc: 0 errors, 0 warnings`. Its error and warning
@@ -97,7 +170,7 @@ full shape):
 
 ```json
 {"schema_version":1,"version":"0.1.0","adf_schema":"@atlaskit/adf-schema@57.7.18",
- "directions":["md->adf","adf->md"],
+ "directions":["md->adf","adf->md","csv->adf","adf->csv"],
  "envelopes":[{"name":"jira-comment","shape":"{\"body\":DOC}","endpoint":"POST /rest/api/3/issue/{key}/comment, …","default_target":"jira","requires_field":false}…],
  "targets":["jira","confluence"],
  "features":[{"name":"tables","kind":"gfm","syntax":"| a | b |","adf":["table","tableRow","tableHeader","tableCell","paragraph","alignment"]}…],
@@ -118,6 +191,10 @@ Prints curated Markdown → ADF examples, one per feature. The Markdown of each 
 into the binary, and the ADF is produced by converting it when the command runs, so it is what
 this version outputs. With `FEATURE`, prints only that feature; the full list is long, so agents
 should ask for one feature at a time.
+
+With `--json`, each entry has `name`, `kind`, `syntax`, `adf`, `warnings` and, for an extension,
+`extension`. The source of the example is `markdown` for every feature except the CSV feature
+(`kind` `csv`), which has `csv` instead; read `markdown` or `csv`, whichever is present.
 
 ### `schema NAME`
 
@@ -229,7 +306,7 @@ included in `adf capabilities --json`.
 | <a id="e_usage"></a>`E_USAGE` | 2 | Invalid command-line usage. |
 | <a id="e_input_read"></a>`E_INPUT_READ` | 3 | The input file or stdin could not be read. |
 | <a id="e_input_encoding"></a>`E_INPUT_ENCODING` | 3 | The input is not valid UTF-8 (location has `byte_offset`). |
-| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (1 MiB of Markdown, 4 MiB of ADF), or its Markdown tables would expand to more than 100,000 cells, or (ADF → Markdown) the Markdown would be larger than 64 MiB or its plain-flavour tables would need more than 100,000 empty cells (see [Limits](#limits)). |
+| <a id="e_input_too_large"></a>`E_INPUT_TOO_LARGE` | 3 | The input is larger than the size limit (1 MiB of Markdown, 4 MiB of ADF), or its Markdown tables would expand to more than 100,000 cells, or a CSV file (1 MiB of text) would make a table of more than 100,000 cells, or (ADF → Markdown) the Markdown would be larger than 64 MiB or its plain-flavour tables would need more than 100,000 empty cells, or (ADF → CSV) the table would have more than 100,000 cells or the CSV would be larger than 64 MiB (see [Limits](#limits)). |
 | <a id="e_input_too_deep"></a>`E_INPUT_TOO_DEEP` | 3 | The input nests deeper than the nesting limit (64 container levels; 512 JSON levels for ADF input). |
 | <a id="e_input_json"></a>`E_INPUT_JSON` | 3 | The input is not valid JSON. |
 | <a id="e_input_not_adf"></a>`E_INPUT_NOT_ADF` | 3 | The JSON input is not an ADF document or a known envelope around one. |
@@ -239,6 +316,8 @@ included in `adf capabilities --json`.
 | <a id="e_target"></a>`E_TARGET` | 4 | The ADF document uses a node, mark or attribute the target product does not accept. |
 | <a id="e_invariant"></a>`E_INVARIANT` | 4 | The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema. |
 | <a id="e_lossy"></a>`E_LOSSY` | 5 | The conversion would lose information and `--strict` (or `--html error`) is set. |
+| <a id="e_input_csv"></a>`E_INPUT_CSV` | 3 | The CSV input is malformed or has no rows: a quoted field is never closed (located at its opening quote, by line and column), or every line is blank. |
+| <a id="e_input_no_table"></a>`E_INPUT_NO_TABLE` | 3 | `--to csv`: the ADF document has no table, or fewer tables than the number given with `--table`; the message says how many it has. |
 
 ### Warnings: Markdown → ADF
 
@@ -265,7 +344,7 @@ included in `adf capabilities --json`.
 
 ### Warnings: document checks
 
-`convert` (Markdown → ADF) checks the document it writes, and `validate` checks every document,
+`convert` (Markdown or CSV → ADF) checks the document it writes, and `validate` checks every document,
 from Markdown or ADF input alike:
 
 | Code | Meaning |
@@ -280,6 +359,18 @@ from Markdown or ADF input alike:
 | <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead. |
 | <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
+
+### Warnings: CSV
+
+| Code | Meaning |
+|---|---|
+| <a id="w_csv_truncated"></a>`W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table. Located at the first row that was left out; the message says `Kept N of M data rows`. |
+| <a id="w_csv_merged_cells"></a>`W_CSV_MERGED_CELLS` | `--to csv`: a table with merged cells (`colspan` or `rowspan`) was written by repeating the text of a merged cell in every cell it covers. One warning per table, pointing at the table. |
+
+CSV conversions also report `W_CONTROL_CHAR` (control characters other than tab and line feed were
+removed from a cell; once per cell, located at the cell: its line when reading CSV) and, like
+Markdown input, the document checks below (`W_SIZE_LIMIT` for a table whose JSON is larger than
+Jira's field limit).
 
 ADF → Markdown lists at most 20 `W_INPUT_SCHEMA` warnings and at most 100 of each other code. One
 more warning of the same code, without a location, counts the rest.
@@ -298,14 +389,28 @@ requests.
 
 | Limit | Value | Error |
 |---|---|---|
-| Input size | Markdown: 1 MiB; ADF (JSON): 4 MiB | `E_INPUT_TOO_LARGE` |
+| Input size | Markdown and CSV (text): 1 MiB; ADF (JSON): 4 MiB | `E_INPUT_TOO_LARGE` |
 | `*` and `_` characters in one paragraph of Markdown (a block between blank lines, code included) | 20,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
+| Table cells in CSV input: the columns of the widest row × (the data rows + the header row), checked while the file is read, located at the record that crosses the limit | 100,000 | `E_INPUT_TOO_LARGE` |
+| Table cells in ADF → CSV: the grid of the selected table after merged cells are expanded | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
-| Output size: the Markdown written by ADF → Markdown, and the estimated compact JSON written by Markdown → ADF | 64 MiB | `E_INPUT_TOO_LARGE` |
+| Output size: the Markdown written by ADF → Markdown, the CSV written by ADF → CSV, and the estimated compact JSON written by Markdown → ADF and CSV → ADF | 64 MiB | `E_INPUT_TOO_LARGE` |
 | Empty cells that `--md-flavor plain` adds to keep table columns aligned (merged cells): all tables of the document together | 100,000 | `E_INPUT_TOO_LARGE` |
 | Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
+
+A CSV file is bounded the same way, but exactly: `adf` counts `width × (rows + 1)` while it reads
+the records, where the width is the largest field count seen so far, so the memory it uses never
+exceeds the limit. `E_INPUT_TOO_LARGE` is located at the record that crosses it.
+
+The CSV limits are on the CSV, not on the ADF it becomes: a table of 100,000 cells is about 12 MB
+of JSON, more than Jira accepts (`W_SIZE_LIMIT`) and more than the 4 MiB ADF input limit, so
+`adf` cannot read it back. About 33,000 cells is the practical bound for a CSV → ADF → CSV round
+trip. A CSV above 1 MiB is refused before `--max-rows` applies, and input above 4 MiB is refused
+by the general read limit first; cut such a file (for example with `head -n 100`) before
+converting. Peak memory is a multiple of the input: a 1 MiB cell of line breaks needs about
+500 MB.
 
 GFM pads every table row to the header width, so a few kilobytes of Markdown can describe
 millions of cells. `adf` estimates the padded size with a linear scan before parsing, and fails

@@ -1,4 +1,4 @@
-Check ADF (or a Markdown conversion) without writing output
+Check ADF (or a Markdown or CSV conversion) without writing output
 
 Usage: adf validate [OPTIONS] [INPUT]
 
@@ -8,17 +8,18 @@ Arguments:
 
 Options:
       --from <FROM>
-          Input format; auto: ADF when the input starts with `{`, else Markdown
+          Input format; auto: ADF when the input starts with `{`, else Markdown (never CSV)
 
           Possible values:
           - auto: ADF when the input starts with `{`, Markdown otherwise
           - md:   A dry run of `adf convert`
           - adf:  Check an ADF document or envelope
+          - csv:  A dry run of `adf convert --from csv`
           
           [default: auto]
 
   -e, --envelope <ENVELOPE>
-          Wrap the document for an API (Markdown input only; ADF input is detected)
+          Wrap the document for an API (Markdown and CSV input only; ADF input is detected)
 
           Possible values:
           - doc:              The bare document
@@ -86,6 +87,20 @@ Markdown options:
           (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
           
           [default: all]
+
+CSV options:
+      --delimiter <DELIM>
+          Field separator: comma (default), tab, semicolon, pipe, or one printable ASCII character
+          such as '|' (--from csv, --to csv)
+
+      --no-header
+          The first CSV row is data: the header becomes "Column 1", "Column 2", … (--from csv)
+
+      --max-rows <N>
+          Keep only the first N data rows, with W_CSV_TRUNCATED when more existed (--from csv)
+
+      --align-numbers
+          Right-align columns whose cells are all numbers (--from csv)
 
 Global options:
       --error-format <FORMAT>

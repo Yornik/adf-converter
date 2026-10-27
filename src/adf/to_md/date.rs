@@ -5,7 +5,7 @@ use serde_json::Value;
 const MS_PER_DAY: i64 = 86_400_000;
 
 /// The timestamp in milliseconds: a decimal string (the schema form) or an integer.
-pub(super) fn timestamp_millis(value: &Value) -> Option<i64> {
+pub(crate) fn timestamp_millis(value: &Value) -> Option<i64> {
     match value {
         Value::String(s) => {
             let s = s.trim();
@@ -21,7 +21,7 @@ pub(super) fn timestamp_millis(value: &Value) -> Option<i64> {
 }
 
 /// `(YYYY-MM-DD, is_midnight_utc)` for a timestamp, or `None` outside years 0000–9999.
-pub(super) fn civil_date(millis: i64) -> Option<(String, bool)> {
+pub(crate) fn civil_date(millis: i64) -> Option<(String, bool)> {
     let days = millis.div_euclid(MS_PER_DAY);
     let midnight = millis.rem_euclid(MS_PER_DAY) == 0;
     let (y, m, d) = civil_from_days(days);

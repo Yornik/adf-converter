@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--delimiter only applies with --from csv or --to csv","hint":"Add --from csv to read a CSV file, or --from adf --to csv to write one","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

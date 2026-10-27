@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--to only applies with --from adf","hint":"Use --from adf --to csv to write a table of an ADF document as CSV","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

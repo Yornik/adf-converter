@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Turn a CSV (or TSV) file into a GitHub-flavoured Markdown table that `adf convert` understands.
 
-adf has no CSV input of its own. This helper uses only the Python standard library:
+FALLBACK for adf before 0.3.0. From 0.3.0 on, `adf convert data.csv --from csv` reads CSV and TSV
+natively (and `--from adf --to csv` writes it), with the same rules as this script; use that and
+see references/tables.md. Check with `adf --version`. This helper only exists for older versions
+and for putting a CSV table between other Markdown in one comment. It uses only the Python
+standard library:
 
     python3 csv2md.py data.csv > table.md
     python3 csv2md.py --delimiter tab --max-rows 50 --align-numbers data.tsv > table.md

@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--max-rows", "0"]
+status.code = 2
+binary = true

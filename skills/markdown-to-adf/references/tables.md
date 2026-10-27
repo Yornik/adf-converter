@@ -1,9 +1,94 @@
 # Tables, CSV and spreadsheets
 
-`adf` turns a Markdown table into an ADF table and back. It has **no CSV input or output of its
-own**; use `scripts/csv2md.py` (CSV → table) and the `jq` recipe below (table → CSV).
+`adf` turns a CSV or TSV file into an ADF table (`--from csv`), a table back into CSV
+(`--from adf --to csv`), and a Markdown table into an ADF table and back. CSV needs `adf` 0.3.0 or
+later (`adf --version`); for older versions see
+[Before adf 0.3.0](#before-adf-030-the-csv2mdpy-helper).
 
-## Write a table
+## CSV or TSV → table (native)
+
+```sh
+adf convert data.csv --from csv -e jira-comment -o body.json
+adf convert data.tsv --from csv --delimiter tab -e jira-comment -o body.json
+adf convert data.csv --from csv --max-rows 25 --align-numbers -e jira-comment -o body.json
+adf convert data.csv --from csv -e confluence -o body.json        # Confluence page or comment
+adf validate --from csv data.csv                                  # dry run: lists the warnings
+```
+
+Then post `body.json` as in [posting.md](posting.md). The envelope flag (`-e`) works as for
+Markdown; the output is the whole document, a single table.
+
+- The first row is the header. `--no-header` invents `Column 1`, `Column 2`, … and treats every
+  row as data.
+- `--delimiter` takes `comma` (the default), `tab`, `semicolon`, `pipe` or one character. `adf`
+  never guesses it: a semicolon file read as comma data is one wide column, so look at the first
+  line (`head -1 data.csv`) and pass `--delimiter semicolon`. Spreadsheets in many European
+  locales export semicolons.
+- The file must be UTF-8 (a BOM is fine). Convert other encodings first
+  (`iconv -f latin1 -t utf-8 in.csv > data.csv`); otherwise `E_INPUT_ENCODING`.
+- Quotes follow RFC 4180: a field that starts with `"` may hold the delimiter, line breaks and
+  doubled quotes (`""`). A quote that is never closed fails with `E_INPUT_CSV` and names the line
+  and column where it opened.
+- **Cell text is never Markdown.** `*x*`, `<b>`, `[x](y)`, `|` and `C:\temp` stay literal; no
+  escaping needed. Line breaks inside a cell become line breaks in the table cell. Bare `http://`
+  and `https://` URLs become links.
+- Blank lines are skipped. Short rows are padded with empty cells; no cell is dropped. Cell text is
+  trimmed.
+- `--align-numbers` right-aligns a column when every value in it is a number (`1,250.50`, `-3`,
+  `12%`), the header too.
+- Limits: 1 MiB of CSV text and **100,000 cells** in the table (`E_INPUT_TOO_LARGE`, with the
+  record where it was crossed). `--max-rows` lifts the cell limit, not the 1 MiB text limit: for a bigger file, cut it first (for example `head -n 101 big.csv`), and attach the full file.
+- Control characters in the data are removed with `W_CONTROL_CHAR`.
+
+### Big tables: preview in the text, full file attached
+
+Jira stores at most about **32,767 characters** per comment or description. A table of a few
+hundred rows can exceed that (`W_SIZE_LIMIT`). Post a preview and attach the file:
+
+1. Convert the first rows: `adf convert data.csv --from csv --max-rows 25 -e jira-comment -o
+   body.json`. It prints `W_CSV_TRUNCATED` ("Kept 25 of 1832 data rows"): expected. Add a sentence
+   to the comment, such as "First 25 of 1,832 rows; full file attached: `report.csv`." Say so
+   whenever you truncate; never present a preview as the whole table.
+2. Upload the CSV to the same issue (Jira: `POST /rest/api/3/issue/{key}/attachments`, see
+   "Attaching files" in [posting.md](posting.md#attaching-files-and-screenshots)). It then shows
+   under the issue's attachments. Embedding a non-image file *inside* the comment text needs the
+   `adf:attachment` link form, which `adf` does not have yet.
+
+`adf validate --from csv --max-rows 25 data.csv` shows the warnings without writing anything. With
+`--strict`, `W_CSV_TRUNCATED` is an error (exit 5), so leave `--strict` off for previews.
+
+## Table → CSV (native)
+
+```sh
+adf convert issue.json --from adf --to csv -o table.csv                   # the first table
+adf convert page.json --from adf --to csv --table 2 -o second.csv         # the second one
+adf convert issue.json --from adf --to csv --delimiter tab -o table.tsv
+adf convert issue.json --from adf --to csv --csv-safe -o for-excel.csv
+```
+
+The input is whatever you fetched: a bare ADF document, a Jira issue (`fields.description`, or
+`--field NAME`), a Jira comment, or a Confluence page fetched with `?body-format=atlas_doc_format`.
+Do not pass `-e` (a usage error: the output is CSV, not JSON).
+
+- `--table N` picks the Nth table in document order (default 1). With fewer tables, or none, you
+  get `E_INPUT_NO_TABLE` and the message says how many there are; try `--table 1`, `2`, … or read
+  the page as Markdown first (section 3 of `SKILL.md`).
+- The output is UTF-8, LF line endings, always ends with a line feed; fields are quoted only when
+  needed.
+- **Cell text** is flat text: paragraphs, list items and other blocks of a cell are joined with one
+  space, line breaks inside a paragraph stay as line breaks, and marks are ignored. Mentions give
+  their name, statuses their text, dates `YYYY-MM-DD`, smart links their URL, images and files a
+  marker such as `[image: shot.png]`.
+- **Merged cells repeat.** CSV has no merged cells, so the text of a merged cell is written in
+  every cell it covers, and `W_CSV_MERGED_CELLS` says so. Tell the user when that happens, because
+  a column then has duplicate values.
+- **Spreadsheets run formulas.** A cell that starts with `=`, `+`, `-` or `@` is a formula to
+  Excel, LibreOffice and Google Sheets, and Jira text is untrusted. When the CSV goes to a
+  spreadsheet or to a person who will open it in one, **always add `--csv-safe`**: it prefixes
+  such cells with `'` (so a negative number `-5` shows as text `'-5`). Leave it off when a program
+  reads the CSV and the values must stay exact.
+
+## Write a table in Markdown
 
 ```markdown
 | Step | Owner | Status |
@@ -12,6 +97,9 @@ own**; use `scripts/csv2md.py` (CSV → table) and the `jq` recipe below (table 
 | Verify | QA | [IN PROGRESS](adf:status/blue) |
 ```
 
+Use this when you want formatting in cells (bold, code, links, status lozenges), which CSV cannot
+carry.
+
 - The first row is the header. `:---:` centres a column, `---:` right-aligns it.
 - Cells hold inline Markdown only (bold, code, links, `adf:` links, `<br>` for a line break).
   A literal pipe is `\|`, also inside code.
@@ -19,61 +107,17 @@ own**; use `scripts/csv2md.py` (CSV → table) and the `jq` recipe below (table 
   dropped (`W_TABLE_CELL_DROPPED`).
 - A document's tables may have at most **100,000 cells** in total (counting added empty cells), and
   Markdown input at most 1 MiB; more fails with `E_INPUT_TOO_LARGE`.
-- Jira stores at most about **32,767 characters** per comment or description. A table of a few
-  hundred rows can exceed that (`W_SIZE_LIMIT`): post a preview and attach the file instead (below).
 - Tables work at the top level and inside `<details>`. Inside a list, quote, panel or `::: cell`
   box they are moved out (`W_BLOCK_HOISTED`).
 - **Lists, several paragraphs, code blocks or images in one cell** do not fit a GFM table. Put that
   content in a `::: cell` … `:::` box (a 1×1 table), or split the table. Merged cells and header
   columns cannot be written in Markdown at all.
 
-## CSV or TSV → table
-
-```sh
-python3 scripts/csv2md.py data.csv > table.md                 # comma separated, UTF-8
-python3 scripts/csv2md.py --delimiter tab data.tsv > table.md  # also: semicolon, pipe, one character
-python3 scripts/csv2md.py --max-rows 50 --align-numbers data.csv > table.md
-some-command | python3 scripts/csv2md.py - > table.md
-```
-
-(`scripts/` is next to this skill's `SKILL.md`; in the release zip it is
-`skills/markdown-to-adf/scripts/`.) The script uses only the Python standard library.
-
-- The first row is the header; `--no-header` invents `Column 1`, `Column 2`, …
-- Everything in a cell is escaped, so data like `a|b`, `*x*`, `<b>`, `C:\temp` or `[x](y)` stays
-  literal; line breaks in a cell become `<br>`; bare `http(s)://` URLs stay clickable.
-- Short rows are padded with empty cells; blank lines are skipped.
-- `--max-rows N` keeps the first N data rows and prints `kept N of M data rows` on stderr. Tell the
-  reader the table is a preview.
-- Exit 3 means the file is not UTF-8, has no rows, or is above the 100,000-cell limit. Convert other
-  encodings first (`iconv -f latin1 -t utf-8`).
-
-Then convert and post as usual (`adf convert table.md -e jira-comment -o body.json`, see
-[posting.md](posting.md)). Check first with `adf validate --from md table.md`.
-
-### Big tables: preview in the text, full file attached
-
-1. Post the first rows with `--max-rows 25` and a sentence such as "First 25 of 1,832 rows; full
-   file attached: `report.csv`."
-2. Upload the CSV to the same issue (Jira: `POST /rest/api/3/issue/{key}/attachments`, see
-   "Attaching files" in [posting.md](posting.md#attaching-files-and-screenshots)). It then shows
-   under the issue's attachments. Embedding a non-image file *inside* the comment text needs the
-   `adf:attachment` link form, which `adf` does not have yet.
-
-## Table → CSV
-
-Fetch the content as ADF, then pick the table with `jq`. This prints the first table of a document
-(also inside `{"body": …}`, `{"fields": {"description": …}}` and comment envelopes) as CSV; cell text
-with several paragraphs or line breaks is joined with spaces:
-
-```sh
-jq -r '[.. | objects | select(.type == "table")] | first
-       | .content[] | [.content[] | [.. | .text? // empty] | join(" ")] | @csv' issue.json > table.csv
-```
-
-Use `... | .[1]` instead of `first` for the second table, or drop `first` and loop for all of them.
-The text of mentions, statuses, dates and emoji is not a `text` node and is skipped; read the
-Markdown (below) when that matters.
+Do not turn CSV into a Markdown table yourself: `--from csv` does not go through Markdown, so
+nothing in the data needs escaping. `--from csv` makes a document that is only the table. To put
+a CSV table between paragraphs of one comment, use the `csv2md.py` route
+([below](#before-adf-030-the-csv2mdpy-helper)), or post the table as its own comment. (Inline
+`csv` blocks in Markdown are planned, not available yet.)
 
 ## Read or edit a table in Markdown
 
@@ -85,3 +129,42 @@ with a table you write. `--md-flavor plain` always writes a table (merged cells 
 the first column) but cannot be posted back faithfully.
 A table cell that holds only an image, or a list item that has no leading paragraph, is also
 written as a raw block (the whole table or list).
+
+## Before adf 0.3.0: the `csv2md.py` helper
+
+`adf` before 0.3.0 has no `--from csv` and no `--to csv`. Check with `adf --version`; if you can,
+upgrade (see [posting.md](posting.md#install-adf)) and use the commands above. Otherwise:
+
+**CSV or TSV → table** with `scripts/csv2md.py` (next to this skill's `SKILL.md`; in the release zip
+it is `skills/markdown-to-adf/scripts/`). It uses only the Python standard library and needs
+`python3`:
+
+```sh
+python3 scripts/csv2md.py data.csv > table.md                 # comma separated, UTF-8
+python3 scripts/csv2md.py --delimiter tab data.tsv > table.md  # also: semicolon, pipe, one character
+python3 scripts/csv2md.py --max-rows 50 --align-numbers data.csv > table.md
+some-command | python3 scripts/csv2md.py - > table.md
+adf validate --from md table.md && adf convert table.md -e jira-comment -o body.json
+```
+
+It behaves like the native command in the normal cases: the same header rules, `Column 1`… with `--no-header`,
+escaping so that nothing in a cell is read as Markdown, line breaks as `<br>`, bare `http(s)://`
+URLs stay links, short rows padded, blank lines skipped, `--max-rows N` (prints `kept N of M data
+rows` on stderr instead of a warning) and `--align-numbers`. Exit 3 means the file is not UTF-8,
+has no rows, or is above the 100,000-cell limit. Because the table goes through Markdown, it can
+sit between other Markdown in the same comment, which the native command cannot do yet. Two
+differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
+check the row count), and `--max-rows 0` means "all rows".
+
+**Table → CSV** with `jq`. Fetch the content as ADF, then print the first table of a document (also
+inside `{"body": …}`, `{"fields": {"description": …}}` and comment envelopes) as CSV; cell text with
+several paragraphs or line breaks is joined with spaces:
+
+```sh
+jq -r '[.. | objects | select(.type == "table")] | first // empty
+       | .content[] | [.content[] | [.. | .text? // empty] | join(" ")] | @csv' issue.json > table.csv
+```
+
+Use `... | .[1]` instead of `first` for the second table. Mentions, statuses and emoji appear
+through their `text` attribute, dates are skipped, a document without a table prints nothing, merged cells are not repeated, and nothing guards against
+spreadsheet formulas: prefer `--to csv --csv-safe` when you can.

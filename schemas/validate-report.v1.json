@@ -24,15 +24,15 @@
       "type": "boolean"
     },
     "from": {
-      "description": "What was checked: an ADF document, or a Markdown conversion (dry run).",
-      "enum": ["adf", "md"]
+      "description": "What was checked: an ADF document, or a Markdown or CSV conversion (dry run).",
+      "enum": ["adf", "md", "csv"]
     },
     "target": {
       "description": "The product whose rules were applied.",
       "enum": ["jira", "confluence"]
     },
     "envelope": {
-      "description": "The detected (adf) or requested (md) envelope; null when the input holds no ADF document.",
+      "description": "The detected (adf) or requested (md, csv) envelope; null when the input holds no ADF document.",
       "enum": ["doc", "jira-comment", "jira-description", "jira-field", "confluence", null]
     },
     "adf_schema": {

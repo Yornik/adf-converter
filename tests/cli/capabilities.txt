@@ -1,5 +1,5 @@
 adf [VERSION] (@atlaskit/adf-schema@57.7.18)
-Directions: md->adf, adf->md
+Directions: md->adf, adf->md, csv->adf, adf->csv
 Targets: jira, confluence (-t)
 
 Envelopes (-e):
@@ -47,6 +47,9 @@ ADF extensions (--extensions; all on by default):
   card            [https://…](adf:card)
   media           ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
 
+CSV tables (--from csv, --from adf --to csv):
+  csv-tables      adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back
+
 Exit codes:
   0  ok (warnings may have been printed)
   1  internal error (a bug in adf)
@@ -55,6 +58,6 @@ Exit codes:
   4  validation failed
   5  lossy conversion refused (--strict or --html error)
 
-Limits: Markdown input 1 MiB, ADF input 4 MiB, nesting depth 64, Jira field 32767 characters
+Limits: Markdown and CSV input 1 MiB, ADF input 4 MiB, nesting depth 64, Jira field 32767 characters
 
 `adf capabilities --json` prints this as JSON; `adf explain codes` lists the diagnostic codes; `adf examples NAME` shows a feature.

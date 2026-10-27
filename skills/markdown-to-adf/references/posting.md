@@ -71,6 +71,9 @@ adf convert "$work/x.md" -e ENVELOPE -o "$work/x.json" &&
 - `-o` writes atomically and only on success; `&&` stops curl when `adf` fails.
 - Never `adf … | curl --data-binary @-`: a failed conversion still sends an (empty) request.
 - `--fail-with-body` makes HTTP errors fail the command and still shows Jira's message.
+- The content can also be a CSV or TSV file: `adf convert data.csv --from csv -e ENVELOPE -o
+  "$work/x.json"` replaces step 1, and everything after it is the same. See
+  [tables.md](tables.md) (needs adf 0.3.0 or later).
 
 ## Jira
 

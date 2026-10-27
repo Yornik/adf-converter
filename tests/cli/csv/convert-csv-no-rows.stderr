@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_CSV","message":"The CSV has no rows","location":{"file":"-"},"hint":"Pass at least one row that is not blank","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_csv","exit_code":3}

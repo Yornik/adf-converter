@@ -1,0 +1,5 @@
+# --strict: any warning is E_LOSSY (exit 5) and nothing is written.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--max-rows", "1", "--strict"]
+status.code = 5
+binary = true

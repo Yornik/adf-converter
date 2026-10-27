@@ -15,6 +15,11 @@
 # 3. Validates adf's own JSON outputs (`capabilities --json`, `validate --json`, JSON-lines
 #    diagnostics) against the schemas printed by `adf schema …`.
 #
+# 4. The Agent Skill's CSV helper (skills/markdown-to-adf/scripts/csv2md.py) against its stored
+#    sample, and, when the binary supports it (adf 0.3.0 or later), native CSV: `--from csv`
+#    must give a schema-valid table equal to the one the helper's Markdown gives, and
+#    `--from adf --to csv` must give back the normalised sample.
+#
 # The ADF goldens are byte-compared by tests/golden.rs; this script only checks validity, so it
 # also catches a golden that was blessed while the schema check was broken.
 set -euo pipefail
@@ -134,6 +139,44 @@ if command -v python3 >/dev/null 2>&1; then
     die "adf reports warnings for the table csv2md.py wrote"
 else
   printf 'contract.sh: warning: python3 not found; skipped the csv2md.py check\n' >&2
+fi
+
+# Native CSV (`--from csv`, `--to csv`). A binary without it rejects `--from csv` as a usage error,
+# so probe first: this script must still pass against an older adf.
+step "Checking native CSV (adf convert --from csv / --to csv)"
+if printf 'a,b\n1,2\n' | "$adf" convert - --from csv >/dev/null 2>&1; then
+  csv=tests/skill/csv2md-sample.csv
+  native="$work/self/native.adf.json"
+  "$adf" convert "$csv" --from csv --align-numbers --strict -o "$native" ||
+    die "adf convert --from csv failed on $csv"
+  check_jsonschema --schemafile schemas/adf/full.json "$native"
+  "$adf" validate --from adf --strict "$native" >/dev/null ||
+    die "adf reports problems for the table adf convert --from csv wrote"
+  "$adf" validate --from csv --align-numbers --strict "$csv" >/dev/null ||
+    die "adf validate --from csv reports warnings for $csv"
+
+  # The same data through the Markdown path (the stored csv2md.py output) gives the same document.
+  "$adf" convert tests/skill/csv2md-sample.md --strict -o "$work/self/via-markdown.adf.json" ||
+    die "adf convert failed on tests/skill/csv2md-sample.md"
+  diff -u <(jq -S . "$work/self/via-markdown.adf.json") <(jq -S . "$native") ||
+    die "native --from csv differs from the table csv2md.py + adf convert give"
+
+  "$adf" convert "$native" --from adf --to csv -o "$work/self/native.csv" ||
+    die "adf convert --from adf --to csv failed"
+  diff -u tests/skill/csv2md-sample.normalized.csv "$work/self/native.csv" ||
+    die "--to csv of the converted sample differs from tests/skill/csv2md-sample.normalized.csv"
+
+  # An envelope is read like --from adf; the delimiter applies to both directions.
+  "$adf" convert "$csv" --from csv -e jira-comment -o "$work/self/native-comment.json" ||
+    die "adf convert --from csv -e jira-comment failed"
+  "$adf" convert "$work/self/native-comment.json" --from adf --to csv --delimiter tab \
+    -o "$work/self/native.tsv" || die "adf convert --to csv --delimiter tab failed"
+  "$adf" convert "$work/self/native.tsv" --from csv --delimiter tab -o "$work/self/native-tsv.adf.json" ||
+    die "the TSV written by --to csv cannot be read back with --from csv --delimiter tab"
+  diff -u <(jq -S '.body' "$work/self/native-comment.json") <(jq -S . "$work/self/native-tsv.adf.json") ||
+    die "CSV -> table -> TSV -> table changed the table"
+else
+  printf 'contract.sh: note: this adf has no --from csv; skipped the native CSV checks\n' >&2
 fi
 
 printf '\nContract checks passed (%d fixtures, %d ADF documents).\n' "$count" "${#docs[@]}" >&2

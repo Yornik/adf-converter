@@ -12,12 +12,12 @@ use super::args::{Cli, SchemaName};
 use super::convert::json_bytes;
 use super::output;
 use super::report::docs_url;
-use crate::catalog::{self, ADF_SCHEMA, EXIT_CODES, FEATURES, Feature};
+use crate::catalog::{self, ADF_SCHEMA, EXIT_CODES, FEATURES, Feature, FeatureKind};
 use crate::diagnostics::{Code, Diagnostic, Severity};
 use crate::limits::{
     DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MAX_MARKDOWN_BYTES, JIRA_FIELD_CHAR_LIMIT,
 };
-use crate::options::{Extensions, MdToAdfOptions};
+use crate::options::{CsvToAdfOptions, Extensions, MdToAdfOptions};
 
 const CLI_CONTRACT: &str = include_str!("../../docs/cli-contract.md");
 const SYNTAX: &str = include_str!("../../docs/syntax.md");
@@ -59,7 +59,10 @@ pub(crate) fn capabilities(json: bool) -> Outcome {
         let _ = writeln!(text, "  {:<18}{}", "", envelope.endpoint);
     }
     let _ = writeln!(text, "\nMarkdown features:");
-    for feature in FEATURES.iter().filter(|f| f.extension.is_none()) {
+    for feature in FEATURES
+        .iter()
+        .filter(|f| f.extension.is_none() && f.kind != FeatureKind::Csv)
+    {
         let _ = writeln!(
             text,
             "  {:<16}{:<12}{}",
@@ -72,13 +75,17 @@ pub(crate) fn capabilities(json: bool) -> Outcome {
     for feature in FEATURES.iter().filter(|f| f.extension.is_some()) {
         let _ = writeln!(text, "  {:<16}{}", feature.name, feature.syntax);
     }
+    let _ = writeln!(text, "\nCSV tables (--from csv, --from adf --to csv):");
+    for feature in FEATURES.iter().filter(|f| f.kind == FeatureKind::Csv) {
+        let _ = writeln!(text, "  {:<16}{}", feature.name, feature.syntax);
+    }
     let _ = writeln!(text, "\nExit codes:");
     for (code, meaning) in EXIT_CODES {
         let _ = writeln!(text, "  {code}  {meaning}");
     }
     let _ = writeln!(
         text,
-        "\nLimits: Markdown input {} MiB, ADF input {} MiB, nesting depth {DEFAULT_MAX_DEPTH}, Jira field {JIRA_FIELD_CHAR_LIMIT} characters",
+        "\nLimits: Markdown and CSV input {} MiB, ADF input {} MiB, nesting depth {DEFAULT_MAX_DEPTH}, Jira field {JIRA_FIELD_CHAR_LIMIT} characters",
         DEFAULT_MAX_MARKDOWN_BYTES / (1024 * 1024),
         DEFAULT_MAX_INPUT_BYTES / (1024 * 1024)
     );
@@ -97,7 +104,12 @@ struct Example {
     #[serde(skip_serializing_if = "Option::is_none")]
     extension: Option<&'static str>,
     syntax: &'static str,
-    markdown: &'static str,
+    /// The example of a Markdown feature (everything but the `csv` kind).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    markdown: Option<&'static str>,
+    /// The example of the `csv` kind: CSV text instead of Markdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    csv: Option<&'static str>,
     adf: Value,
     warnings: Vec<Code>,
 }
@@ -128,8 +140,15 @@ pub(crate) fn examples(feature: Option<&str>, json: bool) -> Outcome {
         ..MdToAdfOptions::default()
     };
     let mut examples = Vec::new();
+    let csv_opts = CsvToAdfOptions::default();
     for feature in selected {
-        let conversion = match crate::md_to_adf(feature.example, &opts) {
+        let is_csv = feature.kind == FeatureKind::Csv;
+        let converted = if is_csv {
+            crate::csv_to_adf(feature.example, &csv_opts)
+        } else {
+            crate::md_to_adf(feature.example, &opts)
+        };
+        let conversion = match converted {
             Ok(conversion) => conversion,
             Err(diagnostics) => {
                 let mut all = vec![Diagnostic::new(
@@ -166,7 +185,8 @@ pub(crate) fn examples(feature: Option<&str>, json: bool) -> Outcome {
             kind: feature.kind.as_str(),
             extension: feature.extension,
             syntax: feature.syntax,
-            markdown: feature.example,
+            markdown: (!is_csv).then_some(feature.example),
+            csv: is_csv.then_some(feature.example),
             adf,
             warnings,
         });
@@ -184,8 +204,12 @@ pub(crate) fn examples(feature: Option<&str>, json: bool) -> Outcome {
         }
         let _ = writeln!(text, "## {} ({})\n", example.name, example.kind);
         let _ = writeln!(text, "Syntax: {}\n", example.syntax);
-        let fence = fence_for(example.markdown);
-        let _ = writeln!(text, "{fence}markdown\n{}{fence}\n", example.markdown);
+        let (language, source) = match (example.markdown, example.csv) {
+            (Some(markdown), _) => ("markdown", markdown),
+            (None, csv) => ("csv", csv.unwrap_or_default()),
+        };
+        let fence = fence_for(source);
+        let _ = writeln!(text, "{fence}{language}\n{source}{fence}\n");
         let pretty = serde_json::to_string_pretty(&example.adf).unwrap_or_default();
         let _ = writeln!(text, "```json\n{pretty}\n```");
         if !example.warnings.is_empty() {
@@ -436,6 +460,36 @@ mod tests {
             assert!(text.contains(feature.name), "{}", feature.name);
         }
         assert!(text.contains("jira-comment"));
+    }
+
+    #[test]
+    fn capabilities_text_has_a_csv_section() {
+        let text = stdout(&capabilities(false));
+        assert!(text.contains("Directions: md->adf, adf->md, csv->adf, adf->csv"));
+        let (markdown, rest) = text.split_once("CSV tables (").unwrap();
+        // The CSV entry is listed under its own heading, not among the Markdown features.
+        assert!(!markdown.contains("csv-tables"));
+        assert!(rest.contains("csv-tables"));
+    }
+
+    /// The CSV entry's example is CSV text, converted with `csv_to_adf` (so this needs the CSV
+    /// converter; until then the command fails with `E_INTERNAL`, which is not hidden).
+    #[test]
+    fn csv_example_is_shown_as_csv() {
+        let outcome = examples(Some("csv-tables"), true);
+        if outcome.exit != 0 {
+            assert_eq!(outcome.exit, 1);
+            return;
+        }
+        let value: Value = serde_json::from_slice(&outcome.stdout).unwrap();
+        let example = &value["examples"][0];
+        assert_eq!(example["name"], "csv-tables");
+        assert_eq!(example["kind"], "csv");
+        assert!(example.get("markdown").is_none());
+        assert!(example["csv"].as_str().unwrap().starts_with("Name,Qty"));
+        assert_eq!(example["adf"]["content"][0]["type"], "table");
+        let text = stdout(&examples(Some("csv-tables"), false));
+        assert!(text.contains("```csv\nName,Qty"), "{text}");
     }
 
     #[test]

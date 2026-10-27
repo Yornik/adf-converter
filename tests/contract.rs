@@ -200,7 +200,10 @@ fn capabilities_json_matches_its_schema_and_the_code() {
     assert_eq!(caps["schema_version"], json!(1));
     assert_eq!(caps["version"], json!(env!("CARGO_PKG_VERSION")));
     assert_eq!(caps["adf_schema"], json!(ADF_SCHEMA_VERSION));
-    assert_eq!(caps["directions"], json!(["md->adf", "adf->md"]));
+    assert_eq!(
+        caps["directions"],
+        json!(["md->adf", "adf->md", "csv->adf", "adf->csv"])
+    );
     assert_eq!(caps["targets"], json!(["jira", "confluence"]));
 
     let envelopes: BTreeSet<&str> = caps["envelopes"]

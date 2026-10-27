@@ -1,0 +1,185 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Kind"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Value"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "image"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "mediaSingle",
+                  "attrs": {
+                    "layout": "center"
+                  },
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "11111111-2222-3333-4444-555555555555",
+                        "collection": "contentId-1",
+                        "alt": "shot.png"
+                      }
+                    },
+                    {
+                      "type": "caption",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Figure 1"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "files"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "mediaGroup",
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "11111111-2222-3333-4444-555555555556",
+                        "collection": "contentId-1",
+                        "alt": "report.pdf"
+                      }
+                    },
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "11111111-2222-3333-4444-555555555557",
+                        "collection": "contentId-1"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "inline"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "see "
+                    },
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "id": "11111111-2222-3333-4444-555555555558",
+                        "collection": "contentId-1",
+                        "alt": "log.txt"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

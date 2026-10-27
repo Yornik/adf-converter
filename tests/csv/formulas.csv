@@ -1,0 +1,7 @@
+Cell,Meaning
+=SUM(A1:A9),equals
++1+1,plus
+-2+3,minus
+@SUM(A1),at
+=cmd|' /C calc'!A0,dde
+"	tabbed",tab

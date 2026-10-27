@@ -25,6 +25,8 @@ pub enum FeatureKind {
     Gfm,
     /// An ADF extension of this tool (`--extensions`).
     Extension,
+    /// CSV or TSV input (`--from csv`); the example is CSV text, not Markdown.
+    Csv,
 }
 
 impl FeatureKind {
@@ -33,6 +35,7 @@ impl FeatureKind {
             Self::CommonMark => "commonmark",
             Self::Gfm => "gfm",
             Self::Extension => "extension",
+            Self::Csv => "csv",
         }
     }
 }
@@ -47,7 +50,7 @@ pub struct Feature {
     pub extension: Option<&'static str>,
     /// Short syntax summary.
     pub syntax: &'static str,
-    /// A small, complete Markdown example.
+    /// A small, complete example: Markdown, or CSV text for [`FeatureKind::Csv`].
     pub example: &'static str,
     /// ADF node and mark types the construct produces.
     pub adf: &'static [&'static str],
@@ -95,7 +98,7 @@ const fn with_note(mut feature: Feature, note: &'static str) -> Feature {
     feature
 }
 
-use FeatureKind::{CommonMark, Gfm};
+use FeatureKind::{CommonMark, Csv, Gfm};
 
 /// Every construct of `docs/syntax.md`, in documentation order.
 pub const FEATURES: &[Feature] = &[
@@ -320,6 +323,25 @@ pub const FEATURES: &[Feature] = &[
         ),
         "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
     ),
+    with_note(
+        feature(
+            "csv-tables",
+            Csv,
+            "adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back",
+            "Name,Qty,Notes\nWidget,3,\"Blue, small\"\nGadget,12,https://example.com/gadget\n",
+            &[
+                "table",
+                "tableRow",
+                "tableHeader",
+                "tableCell",
+                "paragraph",
+                "hardBreak",
+                "link",
+                "alignment",
+            ],
+        ),
+        "cell text is never parsed as Markdown; bare http(s) URLs become links; --max-rows leaves rows out (W_CSV_TRUNCATED); --to csv repeats merged cells (W_CSV_MERGED_CELLS) and --csv-safe guards against spreadsheet formulas",
+    ),
 ];
 
 /// Looks a feature up by name (case-insensitive).
@@ -416,6 +438,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
 }
 
 /// What to do about a diagnostic, for `adf explain CODE`.
+#[allow(clippy::too_many_lines)] // one flat arm per diagnostic code
 pub fn advice(code: Code) -> &'static str {
     match code {
         Code::Internal => {
@@ -431,7 +454,7 @@ pub fn advice(code: Code) -> &'static str {
             "Convert the input to UTF-8 (for example `iconv -f latin1 -t utf-8`); the location gives the first invalid byte."
         }
         Code::InputTooLarge => {
-            "Split the input into smaller documents (the limits are 1 MiB of Markdown and 4 MiB of ADF), split very large tables or paragraphs, or shorten long link URLs."
+            "Split the input into smaller documents (the limits are 1 MiB of Markdown or CSV and 4 MiB of ADF), split very large tables (at most 100,000 cells) or paragraphs, or shorten long link URLs."
         }
         Code::InputTooDeep => {
             "Flatten the nesting: Markdown may nest 64 containers (lists, quotes, cells, expands), ADF input 512 levels of JSON arrays and objects."
@@ -505,6 +528,18 @@ pub fn advice(code: Code) -> &'static str {
         Code::InputSchema => {
             "The input ADF is not schema-valid; `adf validate` on the input shows the details."
         }
+        Code::InputCsv => {
+            "Close the quote that was opened at the reported line and column, and check that --delimiter matches the file; a CSV with only empty rows has nothing to convert."
+        }
+        Code::InputNoTable => {
+            "The message says how many tables the document has; pass --table N with N in that range, or convert a document that holds a table."
+        }
+        Code::CsvTruncated => {
+            "Raise or drop --max-rows, or attach the full file and say the table is a preview."
+        }
+        Code::CsvMergedCells => {
+            "Expected for tables with merged cells; each covered cell repeats the merged cell's text."
+        }
     }
 }
 
@@ -558,7 +593,7 @@ pub struct ExtensionInfo {
 pub struct LimitsInfo {
     /// Input size, for ADF (JSON) input.
     pub max_input_bytes: usize,
-    /// Markdown input size.
+    /// Markdown and CSV input size.
     pub max_markdown_bytes: usize,
     /// `*` and `_` characters per paragraph of Markdown input.
     pub max_emphasis_delimiters: usize,
@@ -566,7 +601,7 @@ pub struct LimitsInfo {
     pub max_nesting_depth: usize,
     /// Levels of JSON arrays/objects in ADF input.
     pub max_json_depth: usize,
-    /// Table cells in Markdown input, counting the cells GFM pads short rows with.
+    /// Table cells in Markdown and CSV input, counting the cells short rows are padded with.
     pub max_table_cells: usize,
     /// Output size in either direction.
     pub max_output_bytes: usize,
@@ -600,7 +635,7 @@ pub fn capabilities() -> Capabilities {
         schema_version: 1,
         version: env!("CARGO_PKG_VERSION"),
         adf_schema: ADF_SCHEMA,
-        directions: &["md->adf", "adf->md"],
+        directions: &["md->adf", "adf->md", "csv->adf", "adf->csv"],
         envelopes: envelopes(),
         targets: &["jira", "confluence"],
         features: FEATURES
@@ -688,6 +723,21 @@ mod tests {
                 assert!(Extensions::NAMES.contains(&name), "{name}");
             }
         }
+    }
+
+    #[test]
+    fn capabilities_list_all_four_directions() {
+        assert_eq!(
+            capabilities().directions,
+            ["md->adf", "adf->md", "csv->adf", "adf->csv"]
+        );
+        let csv: Vec<&str> = FEATURES
+            .iter()
+            .filter(|feature| feature.kind == FeatureKind::Csv)
+            .map(|feature| feature.name)
+            .collect();
+        assert_eq!(csv, ["csv-tables"]);
+        assert_eq!(FeatureKind::Csv.as_str(), "csv");
     }
 
     #[test]

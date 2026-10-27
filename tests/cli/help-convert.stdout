@@ -1,4 +1,4 @@
-Convert Markdown to ADF JSON, or ADF JSON to Markdown
+Convert Markdown or CSV to ADF JSON, or ADF JSON to Markdown or CSV
 
 Usage: adf convert [OPTIONS] [INPUT]
 
@@ -7,9 +7,11 @@ Arguments:
 
 Options:
   -o, --output <PATH>        Write the result to PATH (atomically; nothing is written on failure)
-      --from <FROM>          Input format: Markdown, or ADF JSON (a document or any envelope)
-                             [default: md] [possible values: md, adf]
-  -e, --envelope <ENVELOPE>  Wrap the document for an API (Markdown input only; ADF input is
+      --from <FROM>          Input format: Markdown, ADF JSON (a document or any envelope), or
+                             CSV/TSV (becomes a table) [default: md] [possible values: md, adf, csv]
+      --to <FORMAT>          Output format when the input is ADF; md is the default (only with
+                             --from adf) [possible values: md, csv]
+  -e, --envelope <ENVELOPE>  Wrap the document for an API (Markdown and CSV input only; ADF input is
                              detected) [possible values: doc, jira-comment, jira-description,
                              jira-field, confluence]
       --field <NAME>         Field name: for -e jira-field, or which `fields` entry to read from ADF
@@ -33,6 +35,19 @@ Markdown options:
       --extensions <LIST>  ADF extensions to recognise: all, none, or a comma-separated list
                            (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
                            [default: all]
+
+CSV options:
+      --delimiter <DELIM>  Field separator: comma (default), tab, semicolon, pipe, or one printable
+                           ASCII character such as '|' (--from csv, --to csv)
+      --no-header          The first CSV row is data: the header becomes "Column 1", "Column 2", …
+                           (--from csv)
+      --max-rows <N>       Keep only the first N data rows, with W_CSV_TRUNCATED when more existed
+                           (--from csv)
+      --align-numbers      Right-align columns whose cells are all numbers (--from csv)
+      --table <N>          Which table of the document to write, counting from 1 in document order
+                           (--to csv)
+      --csv-safe           Prefix cells that start with = + - @ (a spreadsheet formula) with ' (--to
+                           csv)
 
 ADF → Markdown options:
       --md-flavor <FLAVOR>  Markdown flavour of ADF → Markdown output [default: roundtrip] [possible
