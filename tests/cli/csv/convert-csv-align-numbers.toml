@@ -1,0 +1,4 @@
+# --align-numbers right-aligns a column of numbers, header included.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--align-numbers"]
+binary = true

@@ -1,0 +1,4 @@
+# --table N picks the Nth table in document order; quotes are doubled.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv", "--table", "2"]
+binary = true

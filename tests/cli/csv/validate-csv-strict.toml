@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--from", "csv", "--max-rows", "1", "--strict"]
+status.code = 5
+binary = true

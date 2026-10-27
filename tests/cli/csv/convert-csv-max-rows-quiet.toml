@@ -1,0 +1,4 @@
+# -q hides the warning; the exit code is unchanged.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--max-rows", "1", "-q"]
+binary = true

@@ -2,7 +2,7 @@
 //!
 //! - `tests/cli/*.toml`: trycmd cases that only need validation, envelopes and the CLI itself.
 //! - `tests/cli/md/*.toml`: cases that need Markdown → ADF; `tests/cli/to-md/*.toml`: cases that
-//!   need ADF → Markdown.
+//!   need ADF → Markdown; `tests/cli/csv/*.toml`: cases that need CSV → ADF or ADF → CSV.
 //! - Plain tests below for what trycmd cannot express: atomic `-o`, a closed stdout, inputs of
 //!   several MiB, environment variables, and that JSON outputs match `schemas/*.v1.json`.
 //!
@@ -43,6 +43,11 @@ fn cli_markdown_to_adf_cases() {
 #[test]
 fn cli_adf_to_markdown_cases() {
     cases("tests/cli/to-md/*.toml");
+}
+
+#[test]
+fn cli_csv_cases() {
+    cases("tests/cli/csv/*.toml");
 }
 
 /// Runs `adf` with `args`, `stdin` and a clean environment.
@@ -500,6 +505,254 @@ fn json_outputs_match_their_schemas() {
         check(&diagnostic, &line);
         assert_eq!(line["location"]["byte_offset"], 3);
     }
+}
+
+// --- CSV (issue #13): usage errors, schemas, files -----------------------------------------------
+
+/// Every CSV flag in a place where it does nothing is an `E_USAGE` (exit 2) that names the flag,
+/// before any input is read (stdin is empty and closed, so a wait would show as a different error).
+#[test]
+fn csv_flags_in_the_wrong_place_are_usage_errors() {
+    let diagnostic = |text: &str| {
+        let value: Value = serde_json::from_str(&fs::read_to_string(text).unwrap()).unwrap();
+        jsonschema::validator_for(&value).unwrap()
+    };
+    let validator = diagnostic("schemas/diagnostic.v1.json");
+    let cases: &[(&[&str], &str)] = &[
+        (&["convert", "--to", "csv"], "--to"),
+        (&["convert", "--from", "csv", "--to", "csv"], "--to"),
+        (&["convert", "--delimiter", "tab"], "--delimiter"),
+        (
+            &["convert", "--from", "adf", "--delimiter", "tab"],
+            "--delimiter",
+        ),
+        (&["convert", "--no-header"], "--no-header"),
+        (&["convert", "--max-rows", "2"], "--max-rows"),
+        (&["convert", "--align-numbers"], "--align-numbers"),
+        (
+            &["convert", "--from", "adf", "--to", "csv", "--no-header"],
+            "--no-header",
+        ),
+        (&["convert", "--table", "2"], "--table"),
+        (&["convert", "--csv-safe"], "--csv-safe"),
+        (&["convert", "--from", "csv", "--table", "2"], "--table"),
+        (&["convert", "--from", "csv", "--csv-safe"], "--csv-safe"),
+        (
+            &["convert", "--from", "adf", "--to", "csv", "-e", "doc"],
+            "--to csv",
+        ),
+        (&["validate", "--delimiter", "tab"], "--delimiter"),
+        (
+            &["validate", "--from", "md", "--max-rows", "1"],
+            "--max-rows",
+        ),
+        (&["validate", "--from", "adf", "--no-header"], "--no-header"),
+        (&["validate", "--align-numbers"], "--align-numbers"),
+        // clap's own value checks are usage errors too.
+        (
+            &["convert", "--from", "csv", "--max-rows", "0"],
+            "--max-rows",
+        ),
+        (
+            &["convert", "--from", "adf", "--to", "csv", "--table", "0"],
+            "--table",
+        ),
+        (
+            &["convert", "--from", "csv", "--delimiter", "ab"],
+            "--delimiter",
+        ),
+        (&["convert", "--from", "tsv"], "--from"),
+    ];
+    for (args, flag) in cases {
+        let output = adf(args, b"", None);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert_eq!(output.stdout, b"", "{args:?}");
+        let lines = stderr_lines(&output);
+        assert_eq!(lines.len(), 1, "{args:?}: {lines:?}");
+        assert_eq!(lines[0]["code"], "E_USAGE", "{args:?}");
+        assert!(
+            lines[0]["message"].as_str().unwrap().contains(flag),
+            "{args:?}: {}",
+            lines[0]["message"]
+        );
+        assert!(validator.is_valid(&lines[0]), "{args:?}: {}", lines[0]);
+    }
+}
+
+#[test]
+fn validate_report_for_csv_input_matches_the_schema() {
+    let text = fs::read_to_string("schemas/validate-report.v1.json").unwrap();
+    let schema: Value = serde_json::from_str(&text).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let output = adf(
+        &["validate", "--from", "csv", "--json", "missing-file.csv"],
+        b"",
+        None,
+    );
+    assert_eq!(output.status.code(), Some(3));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["from"], "csv");
+    assert_eq!(report["valid"], false);
+    assert_eq!(report["errors"][0]["code"], "E_INPUT_READ");
+    assert!(validator.is_valid(&report), "{report}");
+}
+
+#[test]
+fn csv_capabilities_declare_the_new_directions() {
+    let output = adf(&["capabilities", "--json"], b"", None);
+    let caps: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        caps["directions"],
+        json!(["md->adf", "adf->md", "csv->adf", "adf->csv"])
+    );
+    let csv: Vec<&Value> = caps["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|feature| feature["kind"] == "csv")
+        .collect();
+    assert_eq!(csv.len(), 1);
+    assert_eq!(csv[0]["name"], "csv-tables");
+    let codes: Vec<&str> = caps["diagnostic_codes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|code| code["code"].as_str().unwrap())
+        .collect();
+    for code in [
+        "E_INPUT_CSV",
+        "E_INPUT_NO_TABLE",
+        "W_CSV_TRUNCATED",
+        "W_CSV_MERGED_CELLS",
+    ] {
+        assert!(codes.contains(&code), "{code}");
+    }
+}
+
+/// A CSV that cannot be read creates no output file and leaves an existing one alone. Needs the CSV
+/// converter.
+#[test]
+fn failed_csv_conversion_writes_nothing() {
+    let dir = scratch("csv-no-output");
+    let output = adf(
+        &["convert", "--from", "csv", "-o", "out.json"],
+        b"a,b\n\"open\n",
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(codes(&output), ["E_INPUT_CSV"]);
+    assert_eq!(entries(&dir), Vec::<String>::new());
+    fs::write(dir.join("out.json"), "previous\n").unwrap();
+    let output = adf(
+        &["convert", "--from", "csv", "-o", "out.json"],
+        b"a,b\n\"open\n",
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        fs::read_to_string(dir.join("out.json")).unwrap(),
+        "previous\n"
+    );
+    assert_eq!(entries(&dir), ["out.json"]);
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// `--strict` refuses a truncated table and writes nothing (CSV → ADF), and refuses merged cells
+/// (ADF → CSV). Needs both converters.
+#[test]
+fn strict_csv_failures_write_nothing() {
+    let dir = scratch("csv-strict");
+    let output = adf(
+        &[
+            "convert",
+            "--from",
+            "csv",
+            "--max-rows",
+            "1",
+            "--strict",
+            "-o",
+            "out.json",
+        ],
+        b"a\n1\n2\n",
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(codes(&output), ["W_CSV_TRUNCATED", "E_LOSSY"]);
+    assert_eq!(entries(&dir), Vec::<String>::new());
+
+    let merged = r#"{"type":"doc","version":1,"content":[{"type":"table","content":[
+        {"type":"tableRow","content":[
+            {"type":"tableHeader","attrs":{"colspan":2},"content":[{"type":"paragraph","content":[{"type":"text","text":"Both"}]}]}]},
+        {"type":"tableRow","content":[
+            {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]}]},
+            {"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"b"}]}]}]}]}]}"#;
+    let output = adf(
+        &["convert", "--from", "adf", "--to", "csv", "-o", "t.csv"],
+        merged.as_bytes(),
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(codes(&output), ["W_CSV_MERGED_CELLS"]);
+    assert_eq!(
+        fs::read_to_string(dir.join("t.csv")).unwrap(),
+        "Both,Both\na,b\n"
+    );
+    fs::remove_file(dir.join("t.csv")).unwrap();
+    let output = adf(
+        &[
+            "convert", "--from", "adf", "--to", "csv", "--strict", "-o", "t.csv",
+        ],
+        merged.as_bytes(),
+        Some(&dir),
+    );
+    assert_eq!(output.status.code(), Some(5));
+    assert_eq!(codes(&output), ["W_CSV_MERGED_CELLS", "E_LOSSY"]);
+    assert_eq!(entries(&dir), Vec::<String>::new());
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Line endings and a byte-order mark do not change the result. Needs the CSV converter.
+#[test]
+fn csv_output_does_not_depend_on_line_endings_or_bom() {
+    let lf = adf(&["convert", "--from", "csv"], b"a,b\n1,\"x\ny\"\n", None);
+    assert_eq!(lf.status.code(), Some(0), "{lf:?}");
+    let crlf = adf(
+        &["convert", "--from", "csv"],
+        b"\xEF\xBB\xBFa,b\r\n1,\"x\r\ny\"\r\n",
+        None,
+    );
+    let cr = adf(&["convert", "--from", "csv"], b"a,b\r1,\"x\ry\"\r", None);
+    assert_eq!(lf.stdout, crlf.stdout);
+    assert_eq!(lf.stdout, cr.stdout);
+    let again = adf(&["convert", "--from", "csv"], b"a,b\n1,\"x\ny\"\n", None);
+    assert_eq!(lf.stdout, again.stdout);
+}
+
+/// CSV → ADF → CSV keeps the data. Needs both converters.
+#[test]
+fn csv_round_trips_through_adf() {
+    let source = "Name,Note\nWidget,\"Blue, small\"\nGadget,\"Say \"\"hi\"\"\"\n";
+    let adf_json = adf(&["convert", "--from", "csv"], source.as_bytes(), None);
+    assert_eq!(adf_json.status.code(), Some(0), "{adf_json:?}");
+    let back = adf(
+        &["convert", "--from", "adf", "--to", "csv"],
+        &adf_json.stdout,
+        None,
+    );
+    assert_eq!(back.status.code(), Some(0), "{back:?}");
+    assert_eq!(String::from_utf8(back.stdout).unwrap(), source);
+    // Inside an envelope the table is found as well.
+    let wrapped = adf(
+        &["convert", "--from", "csv", "-e", "jira-comment"],
+        source.as_bytes(),
+        None,
+    );
+    let back = adf(
+        &["convert", "--from", "adf", "--to", "csv"],
+        &wrapped.stdout,
+        None,
+    );
+    assert_eq!(String::from_utf8(back.stdout).unwrap(), source);
 }
 
 /// Compares `actual` with the snapshot `tests/cli/<name>`; `TRYCMD=overwrite` rewrites it. The

@@ -1,0 +1,4 @@
+# A byte-order mark and CRLF line endings give the same result.
+bin.name = "adf"
+args = ["convert", "--from", "csv"]
+binary = true

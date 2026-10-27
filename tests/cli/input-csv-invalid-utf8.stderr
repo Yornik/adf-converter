@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_INPUT_ENCODING","message":"the input is not valid UTF-8 (first invalid byte at offset 6)","location":{"file":"-","line":2,"column":3,"byte_offset":6},"hint":"Convert the input to UTF-8","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_input_encoding","exit_code":3}

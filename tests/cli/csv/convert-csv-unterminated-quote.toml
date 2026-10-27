@@ -1,0 +1,5 @@
+# A quote that is never closed is E_INPUT_CSV.
+bin.name = "adf"
+args = ["convert", "--from", "csv"]
+status.code = 3
+binary = true

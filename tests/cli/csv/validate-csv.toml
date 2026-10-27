@@ -1,0 +1,4 @@
+# A dry run: exit 0 and no output.
+bin.name = "adf"
+args = ["validate", "--from", "csv"]
+binary = true

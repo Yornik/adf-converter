@@ -4,7 +4,9 @@
   "adf_schema": "@atlaskit/adf-schema@57.7.18",
   "directions": [
     "md->adf",
-    "adf->md"
+    "adf->md",
+    "csv->adf",
+    "adf->csv"
   ],
   "envelopes": [
     {
@@ -314,6 +316,22 @@
         "media"
       ],
       "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
+    },
+    {
+      "name": "csv-tables",
+      "kind": "csv",
+      "syntax": "adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "hardBreak",
+        "link",
+        "alignment"
+      ],
+      "note": "cell text is never parsed as Markdown; bare http(s) URLs become links; --max-rows leaves rows out (W_CSV_TRUNCATED); --to csv repeats merged cells (W_CSV_MERGED_CELLS) and --csv-safe guards against spreadsheet formulas"
     }
   ],
   "extensions": [

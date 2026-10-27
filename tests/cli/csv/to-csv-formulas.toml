@@ -1,0 +1,4 @@
+# By default cells are written as they are.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--to", "csv"]
+binary = true

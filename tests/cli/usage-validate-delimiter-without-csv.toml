@@ -1,0 +1,4 @@
+bin.name = "adf"
+args = ["validate", "--delimiter", "tab"]
+status.code = 2
+binary = true

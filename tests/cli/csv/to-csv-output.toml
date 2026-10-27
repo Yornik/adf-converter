@@ -1,0 +1,3 @@
+bin.name = "adf"
+args = ["convert", "page.json", "--from", "adf", "--to", "csv", "-o", "t.csv"]
+binary = true

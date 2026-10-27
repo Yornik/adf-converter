@@ -1,0 +1,4 @@
+# --max-rows keeps the first rows and warns.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--max-rows", "1"]
+binary = true

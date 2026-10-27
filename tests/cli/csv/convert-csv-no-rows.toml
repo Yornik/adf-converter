@@ -1,0 +1,5 @@
+# Blank rows are skipped; nothing left is E_INPUT_CSV.
+bin.name = "adf"
+args = ["convert", "--from", "csv"]
+status.code = 3
+binary = true

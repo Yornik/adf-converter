@@ -1,0 +1,5 @@
+# An unreadable CSV input is a report with from "csv".
+bin.name = "adf"
+args = ["validate", "--from", "csv", "--json", "missing.csv"]
+status.code = 3
+binary = true

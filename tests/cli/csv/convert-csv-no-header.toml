@@ -1,0 +1,4 @@
+# --no-header: every row is data and the header is generated.
+bin.name = "adf"
+args = ["convert", "--from", "csv", "--no-header"]
+binary = true
