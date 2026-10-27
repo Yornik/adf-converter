@@ -76,7 +76,7 @@ listed problems and run again.
 
 | Code | Meaning | Fix |
 |---|---|---|
-| `W_ADF_PASSTHROUGH` | A node without a Markdown equivalent was written as a ```` ```adf ```` block. | Expected in `roundtrip` mode (a file image that `adf` can express is written as an `adf:media` line instead). Keep the block unchanged when you edit and post the Markdown back. Use `--md-flavor plain` for reading. |
+| `W_ADF_PASSTHROUGH` | A node without a Markdown equivalent was written as a ```` ```adf ```` block. | Expected in `roundtrip` mode (a file image that `adf` can express is written as an `adf:media` line instead). A Jira code block whose language is `csv` or `tsv` is also written as a ```` ```adf ```` block, so that it is not read back as a table. Keep the block unchanged when you edit and post the Markdown back. Use `--md-flavor plain` for reading. |
 | `W_ATTR_DROPPED` | Attributes or marks without a Markdown form were dropped, such as column widths, cell colours, table layout, panel icons, text alignment and indentation, or Confluence `annotation` marks (the anchors of inline comments). | Fine for reading. If you post the Markdown back, those details are lost (for inline comments, their anchors): tell the user first. |
 | `W_INPUT_SCHEMA` | The input ADF doesn't match the vendored schema (often newer Jira features); it was converted anyway. | Check the output for missing content. If it keeps happening with ordinary Jira content, the `adf` version may be outdated. |
 

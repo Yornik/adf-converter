@@ -6,7 +6,7 @@
 use std::io::{self, Write};
 
 use crate::adf::model::Table;
-use crate::csv::params::{CsvParams, embedded_table, shift_lines};
+use crate::csv::params::{CsvParams, embedded_hint, embedded_table, shift_lines};
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::CsvDelimiter;
 
@@ -97,6 +97,7 @@ fn params(info: &str) -> Result<CsvParams, String> {
 /// Moves a diagnostic of the CSV conversion to Markdown lines; one without a location goes to the
 /// opening fence.
 fn anchor(diagnostic: &mut Diagnostic, first_line: u32, cx: &Cx<'_>, fence: &Span) {
+    diagnostic.hint = diagnostic.hint.take().map(|hint| embedded_hint(&hint));
     if diagnostic.location.is_some() {
         shift_lines(diagnostic, first_line);
     } else {

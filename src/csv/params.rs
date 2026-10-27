@@ -121,6 +121,13 @@ pub(crate) fn embedded_table(
     }
 }
 
+/// A hint of the CSV engine, reworded for a table inside Markdown: the option is `max-rows=N`, not
+/// the flag.
+pub(crate) fn embedded_hint(hint: &str) -> String {
+    hint.replace("Remove --max-rows", "Remove max-rows")
+        .replace("--max-rows", "max-rows=N")
+}
+
 /// Moves a diagnostic from CSV-relative lines to the lines of the Markdown that holds the CSV:
 /// `first_line` is the Markdown line of the CSV's first line.
 pub(crate) fn shift_lines(diagnostic: &mut Diagnostic, first_line: u32) {

@@ -539,7 +539,7 @@ pub fn advice(code: Code) -> &'static str {
         Code::SizeLimit => "Split the content into several comments, or shorten it.",
         Code::EmptyDocument => "Add content; Jira rejects empty comment bodies.",
         Code::AdfPassthrough => {
-            "Nothing to do for round trips; converting the Markdown back restores the node. Use --md-flavor plain for readable text instead."
+            "Nothing to do for round trips; converting the Markdown back restores the node (this includes code blocks whose language is csv or tsv, which a csv fence would turn into a table). Use --md-flavor plain for readable text instead."
         }
         Code::AttrDropped => {
             "Nothing to do unless the attribute matters; Markdown cannot express it."
