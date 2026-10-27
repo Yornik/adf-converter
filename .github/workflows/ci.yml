@@ -29,7 +29,7 @@ env:
 jobs:
   lint:
     name: lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -89,7 +89,7 @@ jobs:
     # Every other job uses rust-toolchain.toml, which Renovate moves forward. This one keeps
     # checking the oldest Rust that `rust-version` in Cargo.toml (and the README's
     # `cargo install --locked` instructions) promise, including the MSRV of locked dependencies.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -114,7 +114,7 @@ jobs:
 
   supply-chain:
     name: supply-chain
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -131,7 +131,7 @@ jobs:
   dependency-review:
     name: dependency-review
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -141,7 +141,7 @@ jobs:
 
   contract:
     name: contract
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -169,7 +169,7 @@ jobs:
 
   workflows:
     name: workflows
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -207,7 +207,7 @@ jobs:
     # A new @atlaskit/adf-schema release is reported as a warning; the job fails only when a
     # golden is no longer valid under it. Re-vendor with the steps in schemas/adf/PROVENANCE.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -245,7 +245,7 @@ jobs:
     name: ci-ok
     if: always()
     needs: [lint, test, msrv, supply-chain, dependency-review, contract, workflows, schema-drift]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions: {}
     steps:
       - name: Every job succeeded or was skipped
