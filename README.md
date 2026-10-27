@@ -109,6 +109,11 @@ pbpaste | adf convert - -e jira-comment | pbcopy
 adf convert --from adf issue.json
 adf convert --from adf issue.json --md-flavor plain    # compact, for reading and LLMs
 
+# CSV or TSV → a table, and a table → CSV (adf 0.3.0 or later).
+adf convert data.csv --from csv -e jira-comment -o comment.json
+adf convert data.tsv --from csv --delimiter tab --max-rows 25 --align-numbers -o table.json
+adf convert --from adf issue.json --to csv --csv-safe -o table.csv   # --csv-safe: for spreadsheets
+
 # Check before posting.
 adf validate --from md notes.md     # lists the lossy steps as warnings (up to 100 per code)
 adf validate comment.json           # ADF: schema + Jira rules, exit 4 if invalid
@@ -195,7 +200,8 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `- [ ]` / `- [x]` | `taskList`, `taskItem` with deterministic `localId`s |
 | Fenced and indented code | `codeBlock` with `language` |
 | `>` quotes, `---` rules | `blockquote`, `rule` |
-| GFM tables, with column alignment (CSV: see [tables.md](skills/markdown-to-adf/references/tables.md)) | `table` with `tableHeader` cells and `alignment` marks |
+| GFM tables, with column alignment | `table` with `tableHeader` cells and `alignment` marks |
+| A CSV or TSV file (`--from csv`, [rules](docs/syntax.md#csv-and-tsv-tables)); the other way, `--from adf --to csv` | `table`; cell text is never read as Markdown |
 | `<u>`, `<sub>`, `<sup>`, `<br>` | `underline`, `subsup`, `hardBreak` |
 | `<span style="color: #rrggbb">`, `<span style="background-color: #rrggbb">` | `textColor`, `backgroundColor` |
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | `panel` (info, success, note, warning, error) |
@@ -217,6 +223,11 @@ them. ADF → Markdown writes the same syntax, so for these constructs, converti
 images become links; `adf:media` images need no flag). Nodes Markdown cannot express become
 ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
+
+CSV is read and written by the commands above; there is no `csv` block inside Markdown yet (planned
+in [#13](https://github.com/Yornik/adf-converter/issues/13)). The Agent Skill's
+[tables.md](skills/markdown-to-adf/references/tables.md) has recipes for previews of big tables
+and for spreadsheets.
 
 ## Exit codes
 
