@@ -201,7 +201,7 @@ The label is the alt text. The path after `adf:media/` is the id, optionally fol
 | Part | Rules | ADF |
 |---|---|---|
 | id | A UUID: 8-4-4-4-12 hexadecimal digits, case-insensitive. Written to ADF exactly as given. | `media` `attrs.id` |
-| `collection` | 0 to 64 characters from `A-Za-z0-9_-`. Default: empty. Examples: `contentId-123456` (Confluence page attachment), `comment-container-123456` (Confluence comment attachment uploaded in the editor). | `media` `attrs.collection`, always present, `""` when not given |
+| `collection` | 0 to 64 characters from `A-Za-z0-9_-`. Default: empty; `collection=` (empty) is accepted and means the default, the value Jira itself writes. Examples: `contentId-123456` (Confluence page attachment), `comment-container-123456` (Confluence comment attachment uploaded in the editor). | `media` `attrs.collection`, always present, `""` when not given |
 | `width`, `height` | Integers 1 to 100000: the original size of the file in pixels. Either may be given alone. | `media` `attrs.width`, `attrs.height` |
 | `layout` | `wide`, `full-width`, `center` (default), `wrap-right`, `wrap-left`, `align-end` or `align-start`. | `mediaSingle` `attrs.layout` |
 | `size` | `N%` with N from 1 to 100, or `Npx` with N from 1 to 100000. The displayed width, not the size of the file. | `mediaSingle` `attrs.width` = N; for `px` also `attrs.widthType` = `pixel` |
@@ -223,8 +223,8 @@ and `height` when present.
   [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site)). Neither
   upload API returns a file's dimensions, so you have to read them from the file. `adf` does not
   warn when they are missing.
-- **Invalid input.** An unknown key, a duplicate key, an empty or invalid value, a bad id or a
-  bad collection keeps the label as plain text and reports `W_INVALID_EXTENSION_ARG`, located at
+- **Invalid input.** An unknown key, a duplicate key, an invalid value, an empty value (except
+  `collection=`), a bad id or a bad collection keeps the label as plain text and reports `W_INVALID_EXTENSION_ARG`, located at
   the image. The message names the argument that is wrong. The whole image falls back, not just
   the argument.
 - **`--extensions` without `media`.** The image is not recognised as media: the label is kept as
@@ -268,8 +268,9 @@ and `height` when present.
 - `- [ ] x` → `TODO`; `- [x] x` / `- [X] x` → `DONE`.
 - A task item holds inline content only. Several paragraphs are joined with `hardBreak`.
 - A nested task list stays nested (`taskList` inside `taskList`, after its item).
-- Other blocks under a task item (a plain sublist, code, a table) are hoisted after the task list,
-  with `W_BLOCK_HOISTED`. So are images: `adf:media` images, and external ones
+- Other blocks under a task item (a plain sublist, code, a table) are hoisted out of the task list,
+  with `W_BLOCK_HOISTED`: the list is closed after that item, the block follows it, and the items
+  after that start a new `taskList`. So are images: `adf:media` images, and external ones
   (`--images external`). The task list is closed after the item that held the image, the image
   follows it, and the items after that item start a new `taskList`. The spaces around a moved
   image collapse to one.

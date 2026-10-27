@@ -151,7 +151,7 @@ not the numeric attachment id). `adf` never uploads and never looks ids up; see
   and after text in a heading or GFM table cell it follows that text, without a warning. It stays
   inside list items, quotes, panels, expands and cells. Only in a task item (the task list is
   split around it) or an `adf:` label is it moved out, with `W_BLOCK_HOISTED`.
-- An unknown or repeated key, an empty or invalid value, or a bad id or collection keeps the alt
+- An unknown or repeated key, an invalid value, an empty value (except `collection=`), or a bad id or collection keeps the alt
   text as plain text (`W_INVALID_EXTENSION_ARG`). With `--extensions` lacking `media`, the alt text
   stays too (`W_EXTENSION_DISABLED`). `--images drop` removes the image (`W_IMAGE_DROPPED`);
   `--images link` and `--images external` do not affect it.

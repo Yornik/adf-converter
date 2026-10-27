@@ -1616,7 +1616,7 @@ fn alerts_in_containers_that_cannot_hold_panels() {
     assert_eq!(codes(&warnings), vec![Code::BlockHoisted]);
     assert_eq!(
         warnings[0].message,
-        "An alert is not allowed in a task item; it was moved after the task list"
+        "An alert is not allowed in a task item; it was moved out of the task list"
     );
     // ...also through several levels...
     let (mut value, warnings) = run("- - [ ] t\n\n    > [!NOTE]\n    > x");
