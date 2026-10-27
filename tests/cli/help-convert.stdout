@@ -31,8 +31,8 @@ Markdown options:
       --images <POLICY>    What happens to images [default: link] [possible values: link, external,
                            drop]
       --extensions <LIST>  ADF extensions to recognise: all, none, or a comma-separated list
-                           (alerts,details,cells,raw-adf,mention,status,date,emoji,card) [default:
-                           all]
+                           (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
+                           [default: all]
 
 ADF → Markdown options:
       --md-flavor <FLAVOR>  Markdown flavour of ADF → Markdown output [default: roundtrip] [possible

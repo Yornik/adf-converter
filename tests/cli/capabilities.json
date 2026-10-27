@@ -303,6 +303,17 @@
       "adf": [
         "inlineCard"
       ]
+    },
+    {
+      "name": "media",
+      "kind": "extension",
+      "extension": "media",
+      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+      "adf": [
+        "mediaSingle",
+        "media"
+      ],
+      "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
     }
   ],
   "extensions": [
@@ -376,6 +387,15 @@
       "syntax": "[https://…](adf:card)",
       "adf": [
         "inlineCard"
+      ],
+      "default": true
+    },
+    {
+      "name": "media",
+      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+      "adf": [
+        "mediaSingle",
+        "media"
       ],
       "default": true
     }
