@@ -132,8 +132,6 @@ struct Builder<'c, 'a> {
     /// Footnote label → number, assigned at the first reference.
     numbers: BTreeMap<String, u32>,
     definitions: Vec<(String, Vec<Block>, Span)>,
-    /// GFM table cells so far, padding included (the ADF cells the rows lower to).
-    table_cells: usize,
 }
 
 fn internal(message: &str) -> Diagnostic {
@@ -199,7 +197,6 @@ pub(crate) fn build(cx: &mut Cx<'_>, pre: &Prepass) -> Result<Parsed, Diagnostic
         depth: 0,
         numbers: BTreeMap::new(),
         definitions: Vec::new(),
-        table_cells: 0,
     };
     for (event, range) in Parser::new_ext(text, options).into_offset_iter() {
         builder.event(event, range)?;
@@ -493,8 +490,8 @@ impl Builder<'_, '_> {
         let Some(Frame::Table { aligns, span, .. }) = self.stack.last() else {
             return Err(internal("table row outside a table"));
         };
-        self.table_cells = self.table_cells.saturating_add(aligns.len().max(1));
-        if self.table_cells > MAX_TABLE_CELLS {
+        self.cx.table_cells = self.cx.table_cells.saturating_add(aligns.len().max(1));
+        if self.cx.table_cells > MAX_TABLE_CELLS {
             let at = span.start..span.start;
             return Err(self
                 .cx
@@ -727,7 +724,12 @@ impl Builder<'_, '_> {
             TagEnd::Strong => self.with_inline(&span, |inline, cx| inline.end_strong(cx)),
             TagEnd::Strikethrough => self.with_inline(&span, |inline, cx| inline.end_strike(cx)),
             TagEnd::Link => self.with_inline(&span, InlineBuilder::end_link),
-            TagEnd::Image => self.with_inline(&span, InlineBuilder::end_image),
+            TagEnd::Image => {
+                let cx = &mut *self.cx;
+                if let Some(inline) = inline_of(&mut self.stack, &span) {
+                    inline.end_image(cx)?;
+                }
+            }
             TagEnd::Superscript
             | TagEnd::Subscript
             | TagEnd::MetadataBlock(_)
@@ -814,8 +816,8 @@ impl Builder<'_, '_> {
         })
     }
 
-    /// A ```` ```csv ```` / ```` ```tsv ```` fence as a table block. Its cells count toward the
-    /// document-wide table cell limit, like those of GFM tables.
+    /// A ```` ```csv ```` / ```` ```tsv ```` fence as a table block, counted against the
+    /// document-wide limits like a GFM table.
     fn csv_block(
         &mut self,
         kind: Kind,
@@ -824,18 +826,10 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Block, Diagnostic> {
         let table = csv_fence::convert(self.cx, kind, info, body, &span)?;
-        let width = table.rows.iter().next().map_or(1, |row| row.cells.len());
-        self.table_cells = self
-            .table_cells
-            .saturating_add(table.rows.len().saturating_mul(width));
-        if self.table_cells > MAX_TABLE_CELLS {
-            let at = span.start..span.start;
-            return Err(self
-                .cx
-                .diag(Code::InputTooLarge, budget::message(MAX_TABLE_CELLS), &at)
-                .with_hint(budget::HINT));
-        }
-        Ok(Block::Csv { table, span })
+        Ok(Block::Csv {
+            table: Box::new(table),
+            span,
+        })
     }
 
     /// Adds a finished block to the innermost container.

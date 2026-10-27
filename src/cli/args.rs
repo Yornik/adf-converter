@@ -233,9 +233,16 @@ pub(crate) struct MarkdownArgs {
     pub images: ImagesArg,
 
     /// ADF extensions to recognise: all, none, or a comma-separated list
-    /// (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
+    /// (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media,csv)
     #[arg(long, default_value = "all", value_name = "LIST", value_parser = parse_extensions)]
     pub extensions: Extensions,
+
+    /// Let ![alt](adf:csv/PATH) read CSV files under DIR and include them as tables. Off by
+    /// default; no directory is ever read without this flag. The Markdown decides which files
+    /// are read: DIR must hold only data you are willing to publish (never a home directory,
+    /// a repository root or a directory with secrets). Markdown input only
+    #[arg(long, value_name = "DIR")]
+    pub include_root: Option<PathBuf>,
 }
 
 fn parse_extensions(spec: &str) -> Result<Extensions, String> {

@@ -90,6 +90,7 @@ an error.
 | `html` | `"text"`, `"drop"`, `"error"` | `--html` |
 | `images` | `"link"`, `"external"`, `"drop"` | `--images` |
 | `extensions` | `"all"`, `"none"`, a comma-separated list such as `"alerts,details"`, or an array such as `["alerts", "details"]` | `--extensions` |
+| `include-root` | none (default: includes off), or a directory relative to the repository root, such as `"tests/fixtures/include/data"` | `--include-root` |
 
 Extension names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`, `date`, `emoji`,
 `card`.
@@ -101,6 +102,7 @@ Extension names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`, `
 | `commonmark/` | Every CommonMark block and inline construct, entities, escapes, Unicode, CRLF and BOM input. |
 | `gfm/` | Tables (alignment, escaped pipes, ragged rows), task lists (mixed, nested), strikethrough, extended autolinks (including suppressed `https\://`), footnotes. |
 | `extensions/` | Alerts (all five kinds, in containers), `<details>`, `::: cell` boxes, raw ```` ```adf ````, `adf:` links (valid and invalid), extensions disabled through options, the extension nodes for target `confluence`. |
+| `include/` | `![alt](adf:csv/PATH)` includes of the CSV files in `include/data/` (the only files `include_root` points at); refusals are Rust tests in `tests/include.rs` and CLI cases. |
 | `html/` | Each HTML policy, each recognised inline tag, comments, unknown tags. |
 | `lossy/` | At least one fixture per Markdown → ADF `W_` warning code (`W_NODE_NOT_IN_TARGET` is reserved and never emitted). `W_SIZE_LIMIT` and `W_EMPTY_DOCUMENT` come from the CLI's self-check, so their fixtures have no `.diag.jsonl`; `tests/cli.rs` converts them with the CLI. |
 | `schema-gotchas/` | One fixture per Jira `400` cause and per hard ADF rule that Markdown can trigger. |

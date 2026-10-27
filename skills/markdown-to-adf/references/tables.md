@@ -116,7 +116,9 @@ carry.
 Do not turn CSV into a Markdown table yourself: `--from csv` does not go through Markdown, so
 nothing in the data needs escaping. `--from csv` makes a document that is only the table. To put
 a CSV table between paragraphs of one comment, use a `csv` fence
-([next section](#csv-in-the-middle-of-a-markdown-document)), or post the table as its own comment.
+([next section](#csv-in-the-middle-of-a-markdown-document)), include the file
+([after it](#a-csv-table-in-the-middle-of-a-document-include)), use the `csv2md.py` route
+([below](#before-adf-030-the-csv2mdpy-helper)), or post the table as its own comment.
 
 ## CSV in the middle of a Markdown document
 
@@ -151,6 +153,49 @@ All steps passed.
 - One way: converting the ADF back to Markdown writes a GFM table, not a fence. A Jira code block
   whose language is `csv` or `tsv` comes back as a ```` ```adf ```` block (`W_ADF_PASSTHROUGH`); leave it alone.
 
+## A CSV table in the middle of a document (include)
+
+Needs `adf` 0.3.0 or later.
+
+```markdown
+Results of the run:
+
+![Q1 numbers](adf:csv/q1.csv?delimiter=semicolon&max-rows=50&align=numbers)
+
+Details follow.
+```
+
+```sh
+work=$(mktemp -d) && mkdir "$work/data" && cp q1.csv "$work/data/"
+adf convert comment.md -e jira-comment --include-root "$work/data" -o "$work/comment.json"
+```
+
+The image is replaced by the table of `q1.csv`, with the options of `--from csv` as a query
+(`delimiter`, `header`, `max-rows`, `align`; percent-encode `&`, `=` and `%` in values). The path
+is relative to the root, uses `/`, and is `%`-decoded once (`my%20file.csv`, or
+`<adf:csv/my file.csv>`).
+
+**Security: the Markdown decides what is read.** Includes are off unless you pass
+`--include-root DIR`. Then every `![](adf:csv/PATH)` in the Markdown reads a file under `DIR`, and
+the table is part of what you post.
+
+- **Use a scratch directory that holds only a copy of the data to include**, as above. Never a
+  home directory, a repository, `/`, `~/Downloads`, or a directory with credentials, configuration
+  or anything you would not publish.
+- **Do not enable it for Markdown built from untrusted text** (an issue, a web page, an e-mail, a
+  tool's output): that text can contain an include line for any file under the root.
+- Do not add the flag unless the user asked for a CSV in the middle of a document, and tell them
+  which directory you used.
+- `adf validate --from md --include-root DIR --json doc.md` lists in `includes` which files would
+  be read, without writing ADF. Check it before you post.
+
+Paths with `..`, a leading `/`, a backslash, `:` or control characters, symbolic links that lead
+out of the directory, and anything that is not a regular file are refused with `E_INCLUDE` (exit
+3, nothing written); do not try to work around it. Limits: 16 files per document, 1 MiB per file,
+4 MiB in all; the table counts toward the 100,000-cell limit. Without the flag, the image becomes
+its alt text with `W_INCLUDE_DISABLED`. An included table is one-way: reading the posted content
+back (`--from adf`) gives an ordinary Markdown table.
+
 ## Read or edit a table in Markdown
 
 `adf convert --from adf page.json` writes a GFM table when the ADF table has a header row, exactly
@@ -184,8 +229,8 @@ escaping so that nothing in a cell is read as Markdown, line breaks as `<br>`, b
 URLs stay links, short rows padded, blank lines skipped, `--max-rows N` (prints `kept N of M data
 rows` on stderr instead of a warning) and `--align-numbers`. Exit 3 means the file is not UTF-8,
 has no rows, or is above the 100,000-cell limit. Because the table goes through Markdown, it can
-sit between other Markdown in the same comment; from adf 0.3.0 a `csv` fence does that natively, so
-this route is only for older versions. Two differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
+sit between other Markdown in the same comment; from adf 0.3.0 a `csv` fence or an `adf:csv` include
+does that natively, so this route is only for older versions. Two differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
 check the row count), and `--max-rows 0` means "all rows".
 
 **Table → CSV** with `jq`. Fetch the content as ADF, then print the first table of a document (also

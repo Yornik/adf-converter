@@ -89,6 +89,12 @@ pub(crate) fn build_link_node(
                 "adf:media is an image form, not a link kind; write ![alt](adf:media/<uuid>) instead",
             ));
         }
+        "csv" => {
+            return Err(Fallback::new(
+                Code::UnknownExtension,
+                "adf:csv is an image form, not a link kind; write ![alt](adf:csv/PATH) instead",
+            ));
+        }
         other => {
             return Err(Fallback::new(
                 Code::UnknownExtension,

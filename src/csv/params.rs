@@ -97,17 +97,27 @@ fn parse_bool(key: &str, value: &str) -> Result<bool, String> {
 
 /// Converts CSV text to the one table it makes, for embedding in a larger document. Same rules,
 /// limits and diagnostics as [`crate::csv::to_adf`]; the locations are relative to `csv`.
+/// `max_output` is what is left of the document's output budget: the table is not built beyond it.
 pub(crate) fn embedded_table(
     csv: &str,
     opts: &CsvToAdfOptions,
+    max_output: usize,
 ) -> Result<Conversion<Table>, Diagnostics> {
-    let Conversion { output, warnings } = super::to_adf(csv, opts)?;
-    let mut tables = output.content.into_iter().filter_map(|block| {
-        if let DocBlock::Table(table) = block {
-            Some(table)
-        } else {
-            None
-        }
+    let Conversion { output, warnings } = super::to_adf::convert_within(csv, opts, max_output)?;
+    let mut tables = output.content.into_iter().filter_map(|block| match block {
+        DocBlock::Table(table) => Some(table),
+        DocBlock::Paragraph(_)
+        | DocBlock::Heading(_)
+        | DocBlock::BulletList(_)
+        | DocBlock::OrderedList(_)
+        | DocBlock::TaskList(_)
+        | DocBlock::CodeBlock(_)
+        | DocBlock::Blockquote(_)
+        | DocBlock::Rule(_)
+        | DocBlock::Panel(_)
+        | DocBlock::Expand(_)
+        | DocBlock::MediaSingle(_)
+        | DocBlock::Raw(_) => None,
     });
     match (tables.next(), tables.next()) {
         (Some(table), None) => Ok(Conversion {
@@ -200,9 +210,9 @@ mod tests {
 
     #[test]
     fn an_embedded_table_is_one_table() {
-        let table = embedded_table("a,b\n1,2\n", &CsvToAdfOptions::default()).unwrap();
+        let table = embedded_table("a,b\n1,2\n", &CsvToAdfOptions::default(), usize::MAX).unwrap();
         assert_eq!(table.output.rows.len(), 2);
-        assert!(embedded_table("", &CsvToAdfOptions::default()).is_err());
+        assert!(embedded_table("", &CsvToAdfOptions::default(), usize::MAX).is_err());
     }
 
     #[test]

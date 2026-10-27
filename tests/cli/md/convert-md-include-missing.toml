@@ -1,0 +1,4 @@
+# A file that does not exist is E_INCLUDE (exit 3); the message never holds a resolved path.
+bin.name = "adf"
+args = ["convert", "--include-root", "tests/fixtures/include/data"]
+status.code = 3

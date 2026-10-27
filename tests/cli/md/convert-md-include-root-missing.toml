@@ -1,0 +1,4 @@
+# --include-root must name an existing directory (usage error, checked before the input is read).
+bin.name = "adf"
+args = ["convert", "--include-root", "tests/fixtures/include/no-such-dir"]
+status.code = 2

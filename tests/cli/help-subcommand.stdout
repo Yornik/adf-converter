@@ -84,9 +84,15 @@ Markdown options:
 
       --extensions <LIST>
           ADF extensions to recognise: all, none, or a comma-separated list
-          (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
+          (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media,csv)
           
           [default: all]
+
+      --include-root <DIR>
+          Let ![alt](adf:csv/PATH) read CSV files under DIR and include them as tables. Off by
+          default; no directory is ever read without this flag. The Markdown decides which files are
+          read: DIR must hold only data you are willing to publish (never a home directory, a
+          repository root or a directory with secrets). Markdown input only
 
 CSV options:
       --delimiter <DELIM>

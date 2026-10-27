@@ -3,8 +3,6 @@
 //! `key=value` options (`delimiter`, `header`, `max-rows`, `align`); the body is the CSV text.
 //! Contract: `docs/syntax.md#inline-csv-tables`.
 
-use std::io::{self, Write};
-
 use crate::adf::model::Table;
 use crate::csv::params::{CsvParams, embedded_hint, embedded_table, shift_lines};
 use crate::diagnostics::{Code, Diagnostic};
@@ -44,20 +42,6 @@ impl Kind {
             Self::Csv => None,
             Self::Tsv => Some(CsvDelimiter::TAB),
         }
-    }
-}
-
-/// Counts the bytes written to it and keeps none of them.
-struct Counter(usize);
-
-impl Write for Counter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0 = self.0.saturating_add(buf.len());
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
     }
 }
 
@@ -106,8 +90,8 @@ fn anchor(diagnostic: &mut Diagnostic, first_line: u32, cx: &Cx<'_>, fence: &Spa
 }
 
 /// Converts the body of a ```` ```csv ```` / ```` ```tsv ```` fence to a table. `span` covers the
-/// whole code block. Warnings of the CSV conversion are added to `cx`. The table's cells are the
-/// caller's to count against the document-wide limit.
+/// whole code block. Warnings of the CSV conversion are added to `cx`, and the table is counted
+/// against the document-wide cell and output limits.
 pub(super) fn convert(
     cx: &mut Cx<'_>,
     kind: Kind,
@@ -129,22 +113,13 @@ pub(super) fn convert(
     // The CSV's line 1 is the line after the opening fence.
     let first_line = cx.line_of(span.start).saturating_add(1);
     let fence = fence_line(cx, span);
-    match embedded_table(body, &opts) {
+    match embedded_table(body, &opts, cx.output_remaining()) {
         Ok(converted) => {
             for mut warning in converted.warnings {
                 anchor(&mut warning, first_line, cx, &fence);
                 cx.warnings.push(warning);
             }
-            // The share of the document's output budget; a table always serialises.
-            let mut counter = Counter(0);
-            let _ = serde_json::to_writer(&mut counter, &converted.output);
-            if !cx.charge(counter.0, span) {
-                return Err(cx.diag(
-                    Code::InputTooLarge,
-                    "The tables and text of this document would make the ADF output too large",
-                    &fence,
-                ));
-            }
+            cx.charge_table(&converted.output, span)?;
             Ok(converted.output)
         }
         Err(errors) => {

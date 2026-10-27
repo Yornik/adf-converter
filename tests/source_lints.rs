@@ -53,3 +53,52 @@ fn no_exponential_jsonschema_apis_outside_the_shallow_validator() {
         offenders.join("\n")
     );
 }
+
+/// The library reads files in exactly one place: `src/md/include.rs`, for `adf:csv` includes under
+/// an explicit root (`docs/syntax.md#including-a-csv-file`). Everything else in `src/` that touches
+/// the file system, a subprocess, the environment or the network belongs to the CLI (`src/cli/`,
+/// `src/cli.rs`, `src/main.rs`): reading the input, writing `-o`, the process exit.
+#[test]
+fn file_access_lives_in_the_include_module_and_the_cli() {
+    let mut files = Vec::new();
+    rust_files(Path::new("src"), &mut files);
+    let mut offenders = Vec::new();
+    for file in &files {
+        let path = file.to_string_lossy().replace('\\', "/");
+        if path == "src/md/include.rs"
+            || path == "src/cli.rs"
+            || path == "src/main.rs"
+            || path.starts_with("src/cli/")
+        {
+            continue;
+        }
+        let text = fs::read_to_string(file).unwrap();
+        // Unit tests may use the temp directory; only the part before `#[cfg(test)]` counts.
+        let code = text.split("#[cfg(test)]").next().unwrap_or("");
+        for (i, line) in code.lines().enumerate() {
+            let line = line.split("//").next().unwrap_or("");
+            if [
+                "std::fs",
+                "fs::",
+                "File::open",
+                "File::create",
+                "OpenOptions",
+                "std::process",
+                "std::net",
+                "std::env",
+                "TcpStream",
+                "UdpSocket",
+            ]
+            .iter()
+            .any(|api| line.contains(api))
+            {
+                offenders.push(format!("{}:{}: {}", file.display(), i + 1, line.trim()));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "file, process, environment or network access outside the include module and the CLI:\n{}",
+        offenders.join("\n")
+    );
+}

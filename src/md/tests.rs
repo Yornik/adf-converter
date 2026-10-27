@@ -2442,7 +2442,8 @@ fn link_label_runs_share_the_link() {
                 super::ir::Tok::Text { marks, .. } => marks.fmt.link.as_ref(),
                 super::ir::Tok::HardBreak
                 | super::ir::Tok::Node(_)
-                | super::ir::Tok::Media { .. } => None,
+                | super::ir::Tok::Media { .. }
+                | super::ir::Tok::Table { .. } => None,
             })
             .collect();
         assert_eq!(links.len(), 500);
@@ -2459,9 +2460,10 @@ fn link_label_runs_share_the_link() {
         .iter()
         .filter_map(|t| match t {
             super::ir::Tok::Text { marks, .. } => marks.fmt.link.as_ref(),
-            super::ir::Tok::HardBreak | super::ir::Tok::Node(_) | super::ir::Tok::Media { .. } => {
-                None
-            }
+            super::ir::Tok::HardBreak
+            | super::ir::Tok::Node(_)
+            | super::ir::Tok::Media { .. }
+            | super::ir::Tok::Table { .. } => None,
         })
         .collect();
     assert_eq!(links.len(), 500);

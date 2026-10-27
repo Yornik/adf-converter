@@ -42,8 +42,10 @@ ADF → Markdown: `src/adf/envelope.rs` (unwrap) → `src/adf/reader.rs` (lenien
 
 CSV: `src/csv/` holds the hand-written RFC 4180 reader (CSV → typed table model) and writer (one
 ADF table → CSV); both are reached through `csv_to_adf` / `adf_to_csv` in `src/lib.rs` and the
-`--from csv` / `--to csv` paths in `src/cli/convert.rs` (and `src/cli/validate.rs`). Rules: the "CSV and TSV tables" section of
-`docs/syntax.md`.
+`--from csv` / `--to csv` paths in `src/cli/convert.rs` (and `src/cli/validate.rs`). Rules: the
+"CSV and TSV tables" section of `docs/syntax.md`. Tables inside Markdown: `src/md/csv_fence.rs`
+(```` ```csv ```` fences) and `src/md/include.rs` (`adf:csv` includes, the only file access of the
+library; tests in `tests/include.rs`), both counted by `Cx::charge_table` in `src/md/cx.rs`.
 
 - `src/diagnostics.rs`: the `Code` enum, the single source of every `E_`/`W_` code.
 - `src/options.rs`, `src/limits.rs`: options mirroring the CLI flags; size and depth limits.
@@ -125,7 +127,12 @@ Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or
   `#anchor`). Everything else becomes plain text with `W_UNSAFE_URL`.
 - Strip control characters (`W_CONTROL_CHAR`). Never echo large chunks of input in messages.
 - No network calls, no subprocesses, no config files, and no environment variables beyond those in
-  `docs/cli-contract.md`. `unsafe` is forbidden. `deny.toml` bans network and TLS crates.
+  `docs/cli-contract.md`. File access: the CLI reads its input and writes `-o`; the library reads
+  files only in `src/md/include.rs`, only for `![alt](adf:csv/PATH)` includes under an explicit
+  `--include-root` (never a default root), and no other file access exists in the library
+  (`tests/source_lints.rs` checks it). Every include path is validated as text, resolved inside the
+  canonical root, a regular file, and read with a hard byte bound; messages never hold a resolved
+  path. `unsafe` is forbidden. `deny.toml` bans network and TLS crates.
 
 ## Git & PRs
 

@@ -439,9 +439,8 @@ to the `url` of external `media`.
 [cli-contract.md](cli-contract.md#csv-input---from-csv); this section defines the mapping.
 
 A ```` ```csv ```` fence inside Markdown becomes a table too, with the same rules; see
-[Inline CSV tables](#inline-csv-tables). Not available yet (planned, see
-[issue #13](https://github.com/Yornik/adf-converter/issues/13)): including a CSV file in the
-middle of a Markdown document.
+[Inline CSV tables](#inline-csv-tables). A CSV file can be [included in
+Markdown](#including-a-csv-file) when the caller allows it; otherwise the CSV is the whole input.
 
 ### CSV to a table (reading rules)
 
@@ -613,8 +612,120 @@ Fruit,Pear
   URLs, non-text nodes, column widths, and merged cells (they become repeated text).
 - Not supported: encodings other than UTF-8 (convert with `iconv`), delimiter detection, several
   tables in one file, formulas, number or date parsing (every cell is text), and merged cells or
-  header columns from CSV. Including a CSV file in the middle of a Markdown document is not yet
-  available (see above).
+  header columns from CSV.
+
+### Including a CSV file
+
+```markdown
+![Inventory](adf:csv/inventory.csv)
+![Quarterly](adf:csv/reports/quarterly.csv?delimiter=semicolon&header=true&max-rows=50&align=numbers)
+![](<adf:csv/my reports/q1 2026.csv>)
+```
+
+An image whose destination starts with `adf:csv/` is replaced by the table of a CSV file. It is
+**off unless the caller turns it on**: `adf convert --include-root DIR` (and `adf validate
+--include-root DIR`), or `MdToAdfOptions::include` in the library. There is no default root, not
+even the directory of the input file or the working directory, and no environment variable. The
+mapping of the file is the one of [CSV to a table](#csv-to-a-table-reading-rules); cell text is
+never Markdown. The scheme and the kind (`adf:csv`) are case-insensitive, like the other `adf:`
+links.
+
+#### Security model: the Markdown decides what is read
+
+Whoever writes the Markdown chooses which files under the root `adf` reads, and the table is
+published with the document. So:
+
+- Point `--include-root` only at a directory that holds **nothing but data you are willing to
+  publish**: a dedicated directory such as `exports/`. Never at a home directory, a repository
+  root, a directory with credentials or configuration, or `/`.
+- Do not give the flag to an agent or a pipeline that generates Markdown from untrusted text
+  (an issue, a web page, an e-mail, a model's reading of any of them) unless that text can only
+  cause the publication of the files under the root. Prompt injection can name any file there.
+- Without the flag nothing is read, whatever the Markdown says. `adf validate --include-root DIR
+  --json` lists what a document would read (the report's `includes`) without writing any ADF.
+
+#### Path rules
+
+The PATH is everything after `adf:csv/` up to a `?`. It uses `/` as the separator and is
+percent-decoded exactly once (`%20` is a space, `%2F` is `/`, `%252F` is the text `%2F`; `+` is a
+plus), then validated as text, before the file system is asked anything. The conversion fails with
+`E_INCLUDE` (exit 3, no output) when the PATH:
+
+- is empty, or begins with `/` (absolute);
+- contains a backslash, a `:` (drive letters, `C:x`, streams) or any control character
+  (including NUL and DEL, also after decoding: `%00`, `%0a`);
+- has a `.` or `..` component, or an empty component (`a//b`, a trailing `/`);
+- is not valid percent-encoding, or does not decode to UTF-8.
+
+Then `adf` resolves `ROOT/PATH` (following symbolic links) and refuses it when:
+
+- the resolved location is not inside the resolved root (a symbolic link leads out of it);
+- it is not a regular file (a directory, a device, a FIFO or a socket; this is decided from the
+  file's metadata before it is opened, because opening a FIFO blocks);
+- it does not exist or cannot be read (a symbolic link loop is "cannot be read"). A missing file and
+  a file outside the root give the same message, so the Markdown cannot probe which names exist
+  outside the root.
+
+Symbolic links that stay inside the root are fine. After opening, `adf` checks again that the
+handle is a regular file and still the file the path leads to; a link swapped in at that moment
+is refused before anything is read. Two things cannot be detected and are out of scope: a hard
+link inside the root to a file outside it, and someone who can write inside the root while the
+conversion runs. This is another reason for a dedicated root.
+
+Every `E_INCLUDE` message names the rule that failed and the PATH as written, never a resolved
+absolute path, and never a piece of the file.
+
+#### Options
+
+The query takes `key=value` pairs separated by `&`, the keys of the ```` ```csv ```` fence:
+
+| Key | Value | Default |
+|---|---|---|
+| `delimiter` | `comma`, `tab`, `semicolon`, `pipe`, or one printable ASCII character (percent-encode `;`, `&` and `=`: `delimiter=%3B`) | `comma` |
+| `header` | `true` or `false` (`false`: the header becomes "Column 1", "Column 2", …) | `true` |
+| `max-rows` | a whole number of at least 1 (`W_CSV_TRUNCATED` when rows are left out) | all rows |
+| `align` | `numbers` (right-align columns whose cells are all numbers) or `none` | `none` |
+
+Values are percent-decoded once. An unknown, repeated or invalid option, or a pair without `=`,
+is `E_CSV_OPTION` (exit 3), located at the image.
+
+#### Limits
+
+Checked while reading, so a huge or endless file never fills memory:
+
+| Limit | Value | Error |
+|---|---|---|
+| One file | 1 MiB (the Markdown limit); at most 1 MiB + 1 byte is read | `E_INPUT_TOO_LARGE` (the message names the PATH) |
+| Files per document | 16; the seventeenth fails. The same file included twice counts twice | `E_INCLUDE` |
+| Bytes read per document | 4 MiB, all includes together | `E_INCLUDE` |
+| Table cells, output size | the document-wide limits of GFM tables: 100,000 cells and 64 MiB of output, shared with the document's other tables | `E_INPUT_TOO_LARGE` |
+
+A file that is not UTF-8 is `E_INPUT_ENCODING`, naming the PATH. A problem inside the file
+(`E_INPUT_CSV`: a quote that never closes, or no rows) and the file's warnings (`W_CSV_TRUNCATED`,
+`W_CONTROL_CHAR`) are located at the image in the Markdown; the message starts with `In PATH:` and
+gives the file's own line and column.
+
+#### Placement and fallbacks
+
+- **Placement.** The table is a block, placed like a GFM table at the image's position. In the
+  middle of a paragraph it splits it (the text before, the table, the text after). In a list
+  item, quote, panel or `::: cell` box it is moved out with `W_BLOCK_HOISTED`, like a GFM table;
+  after a heading's text it follows the heading; in a GFM table cell it follows the table
+  (`W_BLOCK_HOISTED`); in a task item it follows the task list (`W_BLOCK_HOISTED`). The alt text
+  is not used when the include succeeds. An image title, or a link around the image, is dropped
+  with `W_MARK_DROPPED`.
+- **No root.** Nothing is read. The image becomes its alt text as plain text (the PATH as written
+  when the alt text is empty), with `W_INCLUDE_DISABLED`, located at the image. The PATH is not
+  looked at, so a hostile PATH is not even an error.
+- **`--extensions` without `csv`.** The image is not recognised: the alt text is kept, with
+  `W_EXTENSION_DISABLED`, and nothing is read.
+- **`--images drop`** removes the image (`W_IMAGE_DROPPED`) and reads nothing.
+- **The link form** `[text](adf:csv/PATH)` is not an include: the text stays plain, with
+  `W_UNKNOWN_EXTENSION` that points at the image form.
+- **One way.** The ADF does not remember the file. ADF → Markdown writes the table as a GFM
+  table, and a Markdown → ADF → Markdown → ADF round trip stays stable.
+- **Deterministic.** The same Markdown and the same file bytes give the same output. Reading the
+  listed files is the only file access Markdown can trigger.
 
 ## ADF → Markdown
 

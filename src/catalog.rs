@@ -341,6 +341,29 @@ pub const FEATURES: &[Feature] = &[
         ),
         "one-way: ADF to Markdown writes a GFM table. A table in a list item or quote is hoisted like a GFM table (W_BLOCK_HOISTED); a bad option is E_CSV_OPTION, a bad body E_INPUT_CSV; --extensions without csv keeps the fence a code block (W_EXTENSION_DISABLED); to show CSV as code use another language word such as text",
     ),
+    // The include form of the `csv` extension (issue #13, phase 3). Only this item belongs to it;
+    // the fence form of the same extension has its own entry, which comes first.
+    with_note(
+        Feature {
+            name: "csv-include",
+            kind: FeatureKind::Extension,
+            extension: Some("csv"),
+            syntax: "![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR",
+            example: "![Inventory](adf:csv/inventory.csv)\n",
+            adf: &[
+                "table",
+                "tableRow",
+                "tableHeader",
+                "tableCell",
+                "paragraph",
+                "hardBreak",
+                "link",
+                "alignment",
+            ],
+            note: None,
+        },
+        "off unless --include-root DIR is given (the example below shows the disabled form: nothing is read, W_INCLUDE_DISABLED); PATH is relative to DIR, uses / and is %-decoded once; absolute paths, .., backslashes, ':' and symlinks out of DIR are refused (E_INCLUDE); the Markdown decides what is read, so DIR must hold only data you are willing to publish; at most 16 files, 1 MiB each and 4 MiB in all per document",
+    ),
     with_note(
         feature(
             "csv-tables",
@@ -555,6 +578,12 @@ pub fn advice(code: Code) -> &'static str {
         }
         Code::CsvOption => {
             "Fix the option named in the message. Allowed: delimiter (comma, tab, semicolon, pipe or one character), header (true or false), max-rows (a whole number of at least 1) and align (numbers or none), each at most once."
+        }
+        Code::Include => {
+            "Use a relative path to a regular file inside the directory given with --include-root (no .., no absolute path, no symlink out of it), and keep within the file size, cell and per-document include budgets; the message says which rule failed."
+        }
+        Code::IncludeDisabled => {
+            "Includes are off by default, because the Markdown decides which files are read. Only if you chose the include yourself, pass --include-root DIR for a directory that holds nothing but data you are willing to publish; otherwise convert the CSV with --from csv and paste the table."
         }
         Code::CsvTruncated => {
             "Raise or drop --max-rows, or attach the full file and say the table is a preview."

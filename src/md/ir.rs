@@ -94,6 +94,9 @@ pub(crate) enum Tok {
     Node(Inline),
     /// An external image (`--images external`), placed at block level by the lowering pass.
     Media { media: MediaSingle, span: Span },
+    /// A table made from an included CSV file (`![alt](adf:csv/PATH)`), placed at block level by
+    /// the lowering pass like an external image.
+    Table { table: Box<Table>, span: Span },
 }
 
 /// A block, before ADF container rules are applied.
@@ -138,12 +141,6 @@ pub(crate) enum Block {
         rows: Vec<Row>,
         span: Span,
     },
-    /// A table made from a ```` ```csv ```` or ```` ```tsv ```` fence, already built from the
-    /// typed model; placed like a GFM table.
-    Csv {
-        table: Table,
-        span: Span,
-    },
     /// A `::: cell` box.
     Box {
         children: Vec<Block>,
@@ -165,6 +162,12 @@ pub(crate) enum Block {
         media: MediaSingle,
         span: Span,
     },
+    /// A table built from CSV text (a ```` ```csv ```` / ```` ```tsv ```` fence, or an included
+    /// file hoisted out of inline content), already in the typed model. Placed like a GFM table.
+    Csv {
+        table: Box<Table>,
+        span: Span,
+    },
 }
 
 impl Block {
@@ -179,11 +182,11 @@ impl Block {
             | Self::Quote { span, .. }
             | Self::Alert { span, .. }
             | Self::Table { span, .. }
-            | Self::Csv { span, .. }
             | Self::Box { span, .. }
             | Self::Details { span, .. }
             | Self::Raw { span, .. }
-            | Self::Media { span, .. } => span.clone(),
+            | Self::Media { span, .. }
+            | Self::Csv { span, .. } => span.clone(),
         }
     }
 
@@ -198,8 +201,7 @@ impl Block {
             Self::List { .. } => "list",
             Self::Quote { .. } => "quote",
             Self::Alert { .. } => "alert",
-            Self::Table { .. } => "table",
-            Self::Csv { .. } => "CSV table",
+            Self::Table { .. } | Self::Csv { .. } => "table",
             Self::Box { .. } => "::: cell box",
             Self::Details { .. } => "<details> block",
             Self::Raw { .. } => "```adf block",

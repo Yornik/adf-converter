@@ -23,8 +23,8 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use adf_converter::{
-    AdfToMdOptions, Diagnostic, Extensions, HtmlPolicy, ImagePolicy, MdFlavor, MdToAdfOptions,
-    SoftBreak, Target,
+    AdfToMdOptions, Diagnostic, Extensions, HtmlPolicy, ImagePolicy, IncludeOptions, MdFlavor,
+    MdToAdfOptions, SoftBreak, Target,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -333,6 +333,9 @@ struct OptionsFile {
     html: Option<String>,
     images: Option<String>,
     extensions: Option<ExtensionsSpec>,
+    /// A directory relative to the repository root: `adf:csv` includes may read under it.
+    #[serde(rename = "include-root")]
+    include_root: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -394,6 +397,9 @@ pub fn parse_options(json: &str) -> Result<MdToAdfOptions, String> {
         };
         options.extensions = Extensions::parse(&spec).map_err(|e| format!("extensions: {e}"))?;
     }
+    if let Some(root) = file.include_root {
+        options.include = Some(IncludeOptions::new(repo_path(&root)));
+    }
     Ok(options)
 }
 
@@ -435,6 +441,8 @@ pub fn read_back_options(options: &MdToAdfOptions) -> MdToAdfOptions {
     MdToAdfOptions {
         extensions: Extensions::all(),
         images: ImagePolicy::External,
+        // The Markdown written by ADF → Markdown has no includes.
+        include: None,
         ..options.clone()
     }
 }

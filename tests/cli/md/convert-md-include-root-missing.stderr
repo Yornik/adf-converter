@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--include-root: tests/fixtures/include/no-such-dir does not exist","hint":"Pass the directory that holds the CSV files, for example --include-root data","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

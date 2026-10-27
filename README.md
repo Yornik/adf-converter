@@ -15,7 +15,8 @@ agents.
 > [here](https://github.com/Yornik/adf-converter/issues).
 
 The command is `adf`. It is a single self-contained binary that works offline: it never makes
-network requests and never sees your credentials. You post its output with `curl`, acli or your
+network requests and never sees your credentials; it reads only its input and, if you pass
+`--include-root DIR`, the CSV files that the Markdown names under `DIR`. You post its output with `curl`, acli or your
 own code.
 
 ## Why
@@ -113,6 +114,10 @@ adf convert --from adf issue.json --md-flavor plain    # compact, for reading an
 adf convert data.csv --from csv -e jira-comment -o comment.json
 adf convert data.tsv --from csv --delimiter tab --max-rows 25 --align-numbers -o table.json
 adf convert --from adf issue.json --to csv --csv-safe -o table.csv   # --csv-safe: for spreadsheets
+
+# Include a CSV file in the Markdown (adf 0.3.0 or later). Off unless you give a root: the
+# Markdown decides what is read, so use a directory that holds only data you may publish.
+printf '![Q1](adf:csv/q1.csv?delimiter=semicolon)\n' | adf convert --include-root exports -e jira-comment
 
 # Check before posting.
 adf validate --from md notes.md     # lists the lossy steps as warnings (up to 100 per code)
@@ -215,6 +220,7 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[😄](adf:emoji/:smile:)` | `emoji` |
 | `[https://…](adf:card)` | `inlineCard` (smart link) |
 | `![alt](url)` | a link (`W_IMAGE_AS_LINK`); `--images external` embeds by URL |
+| `![alt](adf:csv/PATH?delimiter=…)` with `--include-root DIR` ([rules](docs/syntax.md#including-a-csv-file)) | `table` from a CSV file under `DIR`; off by default, one way |
 | `![alt](adf:media/<uuid>?width=…&height=…)` | `mediaSingle` with a `media` of type `file`: a screenshot or image you already uploaded ([how](docs/posting.md#attaching-files-and-screenshots)) |
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
@@ -225,11 +231,11 @@ images become links; `adf:media` images need no flag). Nodes Markdown cannot exp
 ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
-CSV is read and written by the commands above, and a ```` ```csv ```` or ```` ```tsv ```` fence inside
+CSV is read and written by the commands above. A ```` ```csv ```` or ```` ```tsv ```` fence inside
 Markdown becomes a table (extension `csv`). **A ```` ```csv ```` fence used to stay a code block**:
 to show CSV as code, use another language word such as ```` ```text ````, or turn the extension
-off. Including a CSV file in the middle of a Markdown document is planned in
-[#13](https://github.com/Yornik/adf-converter/issues/13). The Agent Skill's
+off. A CSV file can be included in the middle of a Markdown document with `--include-root`
+(see [Including a CSV file](docs/syntax.md#including-a-csv-file)). The Agent Skill's
 [tables.md](skills/markdown-to-adf/references/tables.md) has recipes for previews of big tables
 and for spreadsheets.
 
@@ -270,7 +276,9 @@ cargo-deny) locally.
 ## Security
 
 `adf` treats all input as untrusted, enforces size and nesting limits, and makes no network
-requests. To report a vulnerability, see [SECURITY.md](SECURITY.md); please don't open a public
+requests. It reads no file the Markdown names unless you pass `--include-root DIR`; then the
+Markdown decides which files under `DIR` are read, so `DIR` must hold only data you are willing to
+publish (see [Including a CSV file](docs/syntax.md#including-a-csv-file)). To report a vulnerability, see [SECURITY.md](SECURITY.md); please don't open a public
 issue.
 
 ## License

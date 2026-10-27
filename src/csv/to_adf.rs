@@ -19,6 +19,15 @@ const ALIGN_JSON_BYTES: usize = 80;
 
 /// Converts CSV text to an ADF document holding one table.
 pub(super) fn convert(csv: &str, opts: &CsvToAdfOptions) -> Result<Conversion<Doc>, Diagnostics> {
+    convert_within(csv, opts, MAX_OUTPUT_BYTES)
+}
+
+/// [`convert`] with a smaller output budget, for a table that shares the budget of a document.
+pub(super) fn convert_within(
+    csv: &str,
+    opts: &CsvToAdfOptions,
+    max_output: usize,
+) -> Result<Conversion<Doc>, Diagnostics> {
     let limit = opts
         .limits
         .max_markdown_bytes
@@ -39,7 +48,7 @@ pub(super) fn convert(csv: &str, opts: &CsvToAdfOptions) -> Result<Conversion<Do
     }
     let text = normalize(csv);
     let mut positions = Positions::new(&text);
-    let mut builder = Builder::new(opts);
+    let mut builder = Builder::new(opts, max_output);
     let mut reader = Reader::new(&text, opts.delimiter.as_char());
     loop {
         match reader.next_record() {
@@ -113,11 +122,13 @@ struct Builder<'o> {
     /// Data rows beyond `max_rows`: where the first one starts, and how many there were.
     dropped: Option<(usize, usize)>,
     estimated_bytes: usize,
+    /// The output budget: the estimate may not pass it.
+    max_output: usize,
     warnings: Vec<Diagnostic>,
 }
 
 impl<'o> Builder<'o> {
-    fn new(opts: &'o CsvToAdfOptions) -> Self {
+    fn new(opts: &'o CsvToAdfOptions, max_output: usize) -> Self {
         Self {
             opts,
             header: None,
@@ -126,6 +137,7 @@ impl<'o> Builder<'o> {
             columns: Vec::new(),
             dropped: None,
             estimated_bytes: 0,
+            max_output,
             warnings: Vec::new(),
         }
     }
@@ -151,7 +163,7 @@ impl<'o> Builder<'o> {
             return Ok(());
         }
         let cells = self.cells(record, is_header, positions);
-        if self.estimated_bytes > MAX_OUTPUT_BYTES {
+        if self.estimated_bytes > self.max_output {
             return Err(Diagnostic::new(
                 Code::InputTooLarge,
                 format!(

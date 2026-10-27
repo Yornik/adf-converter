@@ -19,7 +19,10 @@ use crate::adf::model::{
 };
 use crate::diagnostics::{self, Code, Diagnostic, Diagnostics, omitted_count, reported_count};
 use crate::limits::Limits;
-use crate::options::{AdfToCsvOptions, AdfToMdOptions, CsvToAdfOptions, MdToAdfOptions, Target};
+use crate::md::IncludedFile;
+use crate::options::{
+    AdfToCsvOptions, AdfToMdOptions, CsvToAdfOptions, IncludeOptions, MdToAdfOptions, Target,
+};
 
 const LOSSY_CONVERSION: &str = "--strict: the conversion is lossy ({codes}); nothing was written";
 
@@ -57,6 +60,10 @@ fn check_flags(args: &ConvertArgs) -> Result<(), Box<Outcome>> {
     if args.from != ConvertFrom::Csv {
         check_no_csv_input_flags(&args.csv, "Add --from csv to read a CSV file")?;
     }
+    check_include_root(
+        args.markdown.include_root.as_deref(),
+        args.from == ConvertFrom::Md,
+    )?;
     if !output_csv && let Some(flag) = args.csv_out.first_output_only() {
         return Err(Box::new(usage(
             &format!("{flag} only applies with --to csv"),
@@ -80,6 +87,37 @@ pub(crate) fn check_no_csv_input_flags(csv: &CsvArgs, hint: &str) -> Result<(), 
 
 fn usage(message: &str, hint: &str) -> Outcome {
     Outcome::usage(message, hint)
+}
+
+/// `--include-root DIR`: refused unless the input is Markdown, and DIR must be an existing
+/// directory. Checked before any input is read. `markdown` is false when the input is known not
+/// to be Markdown.
+pub(crate) fn check_include_root(root: Option<&Path>, markdown: bool) -> Result<(), Box<Outcome>> {
+    let Some(root) = root else {
+        return Ok(());
+    };
+    if !markdown {
+        return Err(Box::new(not_markdown_include_root()));
+    }
+    match std::fs::metadata(root) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(Box::new(usage(
+            &format!("--include-root: {} is not a directory", root.display()),
+            "Pass the directory that holds the CSV files, for example --include-root data",
+        ))),
+        Err(_) => Err(Box::new(usage(
+            &format!("--include-root: {} does not exist", root.display()),
+            "Pass the directory that holds the CSV files, for example --include-root data",
+        ))),
+    }
+}
+
+/// The usage error for `--include-root` with input that is not Markdown.
+pub(crate) fn not_markdown_include_root() -> Outcome {
+    usage(
+        "--include-root only applies to Markdown input",
+        "Drop --include-root; ![alt](adf:csv/PATH) includes are read only when converting Markdown (--from md)",
+    )
 }
 
 fn markdown_to_adf(args: &ConvertArgs) -> Outcome {
@@ -284,6 +322,7 @@ pub(crate) fn markdown_options(markdown: &MarkdownArgs, target: Target) -> MdToA
         html: markdown.html.into(),
         images: markdown.images.into(),
         extensions: markdown.extensions,
+        include: markdown.include_root.as_ref().map(IncludeOptions::new),
         limits: Limits::default(),
     }
 }
@@ -376,7 +415,16 @@ pub(crate) fn markdown_pipeline(
     text: &str,
     opts: &MdToAdfOptions,
 ) -> Result<Converted, Vec<Diagnostic>> {
-    self_checked(crate::md_to_adf(text, opts), opts.target)
+    markdown_pipeline_reporting(text, opts).0
+}
+
+/// [`markdown_pipeline`], and the files that `adf:csv` includes read (also on failure).
+pub(crate) fn markdown_pipeline_reporting(
+    text: &str,
+    opts: &MdToAdfOptions,
+) -> (Result<Converted, Vec<Diagnostic>>, Vec<IncludedFile>) {
+    let (converted, included) = crate::md_to_adf_with_includes(text, opts);
+    (self_checked(converted, opts.target), included)
 }
 
 /// The self-check half of [`markdown_pipeline`], given the converter's result.

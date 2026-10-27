@@ -2,7 +2,7 @@
 //! newlines into `hardBreak`s, trims block-edge whitespace, drops trailing hard breaks, merges
 //! adjacent text with equal marks and never emits an empty text node.
 
-use crate::adf::model::{Formatting, Inline, MediaSingle, NonEmptyString, Text};
+use crate::adf::model::{Formatting, Inline, MediaSingle, NonEmptyString, Table, Text};
 use crate::diagnostics::Code;
 
 use super::cx::Cx;
@@ -14,6 +14,8 @@ use super::ir::{Marks, Span, Tok};
 pub(crate) enum Segment {
     Inline(Vec<Tok>),
     Media(MediaSingle),
+    /// A table from an included CSV file.
+    Table(Box<Table>, Span),
 }
 
 /// Splits tokens at images that become blocks (`--images external`, `adf:media`).
@@ -28,11 +30,18 @@ pub(crate) fn split_media(toks: Vec<Tok>) -> Vec<Segment> {
                 }
                 out.push(Segment::Media(media));
             }
+            Tok::Table { table, span } => {
+                if !current.is_empty() {
+                    out.push(Segment::Inline(std::mem::take(&mut current)));
+                }
+                out.push(Segment::Table(table, span));
+            }
             // The line break that ended the image's line would start the next paragraph with an
             // empty line (`--softbreak hardbreak`); the break before the image is already
             // dropped as a trailing break.
             Tok::HardBreak
-                if current.is_empty() && matches!(out.last(), Some(Segment::Media(_))) => {}
+                if current.is_empty()
+                    && matches!(out.last(), Some(Segment::Media(_) | Segment::Table(..))) => {}
             Tok::Text { .. } | Tok::HardBreak | Tok::Node(_) => current.push(tok),
         }
     }
@@ -64,7 +73,11 @@ pub(crate) fn trim_leading_space(toks: &mut Vec<Tok>) {
                     break;
                 }
             }
-            Tok::Text { .. } | Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => break,
+            Tok::Text { .. }
+            | Tok::HardBreak
+            | Tok::Node(_)
+            | Tok::Media { .. }
+            | Tok::Table { .. } => break,
         }
     }
     toks.drain(..empty);
@@ -106,7 +119,7 @@ pub(crate) fn finalize(toks: Vec<Tok>, cx: &mut Cx<'_>) -> Vec<Inline> {
             } => push_text(&mut items, &text, &marks, trim, &span, cx),
             Tok::HardBreak => items.push(Item::Break),
             Tok::Node(node) => items.push(Item::Node(node)),
-            Tok::Media { .. } => {}
+            Tok::Media { .. } | Tok::Table { .. } => {}
         }
     }
     trim_edges(&mut items);
