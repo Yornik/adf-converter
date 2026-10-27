@@ -23,7 +23,7 @@ the installed version supports.
 | ```` ```python ```` … ```` ``` ```` | code block with language | Contents are never formatted. |
 | `> quote` | quote | Quotes hold paragraphs, lists and code only. |
 | `---` on its own line (blank line before it) | horizontal rule | Directly under a text line, `---` makes that line a heading instead. |
-| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL, without the image's title or a link around it (`W_MARK_DROPPED`). |
+| `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL, without the image's title or a link around it (`W_MARK_DROPPED`). For a file you uploaded, use `![alt](adf:media/<id>)` ([below](#file-media-media)). |
 | `[^1]` and `[^1]: note` | superscript number + numbered list at the end | `W_FOOTNOTE_FLATTENED`. |
 | `\*`, `&amp;` | literal `*`, `&` | Backslash escapes and entities work as usual. |
 
@@ -51,7 +51,7 @@ the installed version supports.
 All are on by default (`--extensions all`). `--extensions none` or a list such as
 `--extensions alerts,details` turns them off; their syntax is then plain Markdown
 (`W_EXTENSION_DISABLED`). Names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`,
-`date`, `emoji`, `card`.
+`date`, `emoji`, `card`, `media`.
 
 ### Panels (`alerts`)
 
@@ -128,6 +128,35 @@ argument keeps the label as text (`W_INVALID_EXTENSION_ARG`); an unknown kind su
 `adf:foo/x` too (`W_UNKNOWN_EXTENSION`). A line break inside a label becomes a space, so a label
 may wrap across lines even with `--softbreak hardbreak`.
 
+### File media (`media`)
+
+An image that is already uploaded to Jira or Confluence, referenced by its **media id** (a UUID;
+not the numeric attachment id). `adf` never uploads and never looks ids up; see
+[posting.md](posting.md#attaching-files-and-screenshots) for how to get the id.
+
+```markdown
+![shot.png](adf:media/11111111-2222-3333-4444-555555555555?width=1512&height=945)
+![arch.png](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1280&height=720&layout=wide&size=720px)
+```
+
+| Parameter | Values | Default |
+|---|---|---|
+| id (after `adf:media/`) | a UUID | required |
+| `collection` | up to 64 of `A-Za-z0-9_-` | empty (Jira); Confluence: from the upload, e.g. `contentId-123456` |
+| `width`, `height` | file size in pixels, 1 to 100000 | none; give both |
+| `layout` | `wide`, `full-width`, `center`, `wrap-right`, `wrap-left`, `align-end`, `align-start` | `center` |
+| `size` | displayed width: `N%` (1 to 100) or `Npx` (1 to 100000) | none |
+
+- Put it on its own line, outside lists, tables and quotes; media is a block and is moved out of
+  paragraphs, headings and cells (`W_BLOCK_HOISTED`).
+- An unknown or repeated key, an empty or invalid value, or a bad id or collection keeps the alt
+  text as plain text (`W_INVALID_EXTENSION_ARG`). With `--extensions` lacking `media`, the alt text
+  stays too (`W_EXTENSION_DISABLED`). `--images drop` removes the image (`W_IMAGE_DROPPED`);
+  `--images link` and `--images external` do not affect it.
+- An image title, or a link around the image, is dropped (`W_MARK_DROPPED`).
+- `adf` cannot tell whether the id exists. A wrong id fails when you post.
+- Only images: there is no `adf:` form for other files yet (PDFs, logs). Do not invent one.
+
 ## Inline HTML
 
 | Write | Result |
@@ -170,10 +199,14 @@ warning, so `adf validate --from md` shows what to restructure.
   Markdown form become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); keep them unchanged when
   editing. Attributes and marks without a Markdown form (column widths, cell colours, alignment,
   Confluence inline-comment anchors) are dropped with `W_ATTR_DROPPED`.
+- A file image that `adf` can express is written as an `![alt](adf:media/<id>?…)` line (leave it
+  unchanged when you edit); captions, marks, `mediaGroup` and `mediaInline` stay ```` ```adf ````
+  blocks.
 - `--md-flavor plain`: compact Markdown for reading. Mentions become `@Name`, statuses `[TEXT]`,
   dates `YYYY-MM-DD`, emoji their character, cards bare URLs, external images `![alt](url)`
   with their caption, uploaded files `[image: alt]` or `[attachment]`, and nodes without a
-  Markdown form are dropped. Merged table cells leave the columns they span empty, so every
+  Markdown form are dropped (media is never dropped silently: it leaves a marker, also in table
+  cells and inline). Merged table cells leave the columns they span empty, so every
   value stays under its header.
 
 Text, code or titles that Markdown cannot carry unchanged (control characters such as terminal

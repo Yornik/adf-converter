@@ -51,7 +51,7 @@ document disagree, that's a bug.
 | `[text](url "title")`, reference links | `link` `{href, title}` | `title` only if non-empty. `href` must pass the [URL allowlist](#url-allowlist); otherwise the text is kept without a link, `W_UNSAFE_URL`. Empty link text → the URL is used as text. Link text of only spaces (`[ ](url)`) is kept, even at the edge of a block. |
 | `<https://x>`, `<a@b.c>` | `link` | Email → `mailto:`. |
 | Bare `https://x`, `www.x.com` (GFM) | `link` | `www.` gets `http://`. Only URLs that appear literally in the source are linked, so `https\://x` stays text. |
-| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`, after the paragraph, heading or cell text (which keeps one space where the image was); external media has no title and cannot be linked, so an image title or a link around the image is dropped with `W_MARK_DROPPED`. `--images drop` → removed, `W_IMAGE_DROPPED`. Alt text is plain: line breaks (`<br>` too) become spaces. |
+| `![alt](url)` | text `alt` (or the URL) with a `link` mark | `W_IMAGE_AS_LINK`. `--images external` → block `mediaSingle` with external `media`, after the paragraph, heading or cell text (which keeps one space where the image was); external media has no title and cannot be linked, so an image title or a link around the image is dropped with `W_MARK_DROPPED`. `--images drop` → removed, `W_IMAGE_DROPPED`. Alt text is plain: line breaks (`<br>` too) become spaces. `![alt](adf:media/UUID)` is not a URL image: it references a file already uploaded to Jira or Confluence, see [File media](#file-media-adfmedia-images). |
 | `<u>` / `<ins>` | `underline` | |
 | `<s>` / `<del>` / `<strike>` | `strike` | |
 | `<strong>` / `<b>`, `<em>` / `<i>` | `strong`, `em` | Used by ADF → Markdown when `**`/`*` would not parse. |
@@ -71,8 +71,9 @@ link, em, strong, textColor, backgroundColor, strike, subsup, underline, code.
 
 All extensions are on by default. `--extensions none` turns them off;
 `--extensions alerts,details` keeps only the listed ones. Names: `alerts`, `details`, `cells`,
-`raw-adf`, `mention`, `status`, `date`, `emoji`, `card`. When an extension is off, its syntax is
-converted as plain Markdown, and `W_EXTENSION_DISABLED` is reported where the result differs.
+`raw-adf`, `mention`, `status`, `date`, `emoji`, `card`, `media`. When an extension is off, its
+syntax is converted as plain Markdown, and `W_EXTENSION_DISABLED` is reported where the result
+differs.
 
 #### Panels (GitHub alerts)
 
@@ -179,6 +180,68 @@ label.
 - The label is plain text: a line break in it (a hard break, `<br>`, or a soft break with
   `--softbreak hardbreak`) is a space. An external image in it (`--images external`) is moved
   after the node, with `W_BLOCK_HOISTED`.
+
+#### File media (`adf:media` images)
+
+Jira and Confluence store an uploaded screenshot or image as a reference to a Media Services file
+(a `media` node of type `file`), not as a URL. `adf` is offline: it never uploads a file and never
+looks an id up. You upload the file with `curl`, acli or your own code, learn its media id, and
+write that id here. [Attaching files and screenshots](posting.md#attaching-files-and-screenshots)
+shows the steps.
+
+```markdown
+![shot.png](adf:media/11111111-2222-3333-4444-555555555555)
+![shot.png](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)
+```
+
+The label is the alt text. The path after `adf:media/` is the id, optionally followed by `?` and
+`&`-separated `key=value` pairs. The scheme and the kind are case-insensitive, like the other
+`adf:` links. Values are used as written: there is no percent-decoding.
+
+| Part | Rules | ADF |
+|---|---|---|
+| id | A UUID: 8-4-4-4-12 hexadecimal digits, case-insensitive. Written to ADF exactly as given. | `media` `attrs.id` |
+| `collection` | 0 to 64 characters from `A-Za-z0-9_-`. Default: empty. Examples: `contentId-123456` (Confluence page attachment), `comment-container-123456` (Confluence comment attachment uploaded in the editor). | `media` `attrs.collection`, always present, `""` when not given |
+| `width`, `height` | Integers 1 to 100000: the original size of the file in pixels. Either may be given alone. | `media` `attrs.width`, `attrs.height` |
+| `layout` | `wide`, `full-width`, `center` (default), `wrap-right`, `wrap-left`, `align-end` or `align-start`. | `mediaSingle` `attrs.layout` |
+| `size` | `N%` with N from 1 to 100, or `Npx` with N from 1 to 100000. The displayed width, not the size of the file. | `mediaSingle` `attrs.width` = N; for `px` also `attrs.widthType` = `pixel` |
+| alt text | The label, as plain text (same rules as for external images; empty: no `alt`). | `media` `attrs.alt` |
+
+The example above gives:
+
+```json
+{"type":"mediaSingle","attrs":{"layout":"wide","width":720,"widthType":"pixel"},"content":[{"type":"media","attrs":{"type":"file","id":"11111111-2222-3333-4444-555555555555","collection":"contentId-123456","alt":"shot.png","width":1512,"height":945}}]}
+```
+
+Without parameters the result is `mediaSingle` `{layout: "center"}` holding `media` `{type: "file",
+id, collection: "", alt}`: `type`, `id` and `collection` always come first, then `alt`, `width`
+and `height` when present.
+
+- **Give `width` and `height`.** Atlassian's `media` documentation says that both must be set
+  inside a `mediaSingle`, or the media does not display (that page dates from 2020 and has not
+  been re-checked against the products; see
+  [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site)). Neither
+  upload API returns a file's dimensions, so you have to read them from the file. `adf` does not
+  warn when they are missing.
+- **Invalid input.** An unknown key, a duplicate key, an empty or invalid value, a bad id or a
+  bad collection keeps the label as plain text and reports `W_INVALID_EXTENSION_ARG`, located at
+  the image. The message names the argument that is wrong. The whole image falls back, not just
+  the argument.
+- **`--extensions` without `media`.** The image is not recognised as media: the label is kept as
+  plain text, with `W_EXTENSION_DISABLED`.
+- **`--images`.** `--images drop` removes the image with `W_IMAGE_DROPPED`. `--images link` (the
+  default) and `--images external` do not affect these images: they are not URLs, so they never
+  become links.
+- **Title and link.** Media nodes have neither a title nor a link. An image title, or a link
+  around the image, is dropped with `W_MARK_DROPPED`, as for external images.
+- **Placement.** `mediaSingle` is a block. It is placed and [hoisted](#container-rules) exactly
+  like an external image: after the paragraph, heading or table-cell text it was written in
+  (`W_BLOCK_HOISTED` where a container is split), after a task list, and out of an `adf:` label.
+- **Not checked.** `adf` cannot know whether the id exists, belongs to this site or issue, or
+  which collection the product expects. A made-up id converts without a warning; the product
+  rejects or fails to render it when you post.
+- Only the image form exists in this version. Links to files (`mediaGroup`, `mediaInline`) are
+  not written from Markdown; use [raw ADF](#raw-adf-adf) for them.
 
 ### Tables
 
@@ -305,7 +368,7 @@ to the `url` of external `media`.
 | Flavour | Purpose |
 |---|---|
 | `--md-flavor roundtrip` (default) | Uses the extension syntax above, so `md → adf` with `--images external` gives the same document back (see the [round-trip guarantee](#round-trip-guarantee)). Nodes Markdown cannot express become ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`). |
-| `--md-flavor plain` | Compact, readable Markdown for people and LLMs. Drops what Markdown cannot express, with no `adf` blocks. Mentions become `@Name`, statuses `[TEXT]`, dates `YYYY-MM-DD`, emoji their character, panels alerts, expands `<details>`, cards bare URLs (only allowed URLs, escaped like text), external images `![alt](url)` with their caption on the next line, uploaded images `[image: alt]`, attachments `[attachment]`. Merged table cells keep their text in their first column and leave the columns they span empty. Rows shorter than the header are not padded (GFM readers pad them). Control characters in code become U+FFFD (CR LF and a lone CR in code blocks become a line break). Trailing spaces are dropped. Plain mode is lossy by design and reports no warnings for it. |
+| `--md-flavor plain` | Compact, readable Markdown for people and LLMs. Drops what Markdown cannot express, with no `adf` blocks. Mentions become `@Name`, statuses `[TEXT]`, dates `YYYY-MM-DD`, emoji their character, panels alerts, expands `<details>`, cards bare URLs (only allowed URLs, escaped like text), external images `![alt](url)` with their caption on the next line, uploaded images `[image: alt]`, attachments `[attachment: name]` or `[attachment]` (see [Plain flavour: media](#plain-flavour-media)). Merged table cells keep their text in their first column and leave the columns they span empty. Rows shorter than the header are not padded (GFM readers pad them). Control characters in code become U+FFFD (CR LF and a lone CR in code blocks become a line break). Trailing spaces are dropped. Plain mode is lossy by design and reports no warnings for it, but it does not drop media silently. |
 
 ### Mapping (roundtrip)
 
@@ -326,7 +389,8 @@ to the `url` of external `media`.
 | `table` with a header row, one paragraph per cell (optionally followed by external images, written after the cell's text), no spans, consistent column alignment | GFM table |
 | `mention`, `status`, `date`, `emoji`, `inlineCard` | the `adf:` link forms above |
 | `mediaSingle` with external `media` | `![alt](url)` |
-| anything else: other tables, Media Services files, `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), pretty-printed in its key order for the first 16 JSON levels and compact below |
+| `mediaSingle` with one Media Services file that fits [the read-back rule](#reading-file-media-back) | `![alt](adf:media/UUID?…)` |
+| anything else: other tables, other Media Services files (`mediaGroup`, `mediaInline`, captions, marks), `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), pretty-printed in its key order for the first 16 JSON levels and compact below |
 
 In the roundtrip flavour, attributes and marks that Markdown cannot express are dropped and
 reported with `W_ATTR_DROPPED`, whose `pointer` locates the node or the mark. This covers:
@@ -350,6 +414,51 @@ Attributes whose value carries no information (`null`, `""`, `false`, or the def
 mention `userType: "DEFAULT"`) are dropped silently, and so are `localId`s, because they are editor
 bookkeeping. The plain flavour drops all of these without warnings.
 
+### Reading file media back
+
+In the roundtrip flavour, a `mediaSingle` becomes an `![alt](adf:media/UUID?…)` line exactly when
+`adf` can write every attribute it holds, so that [converting it back](#round-trip-guarantee)
+gives the same document. All of these must hold:
+
+- it has exactly one child, a `media` node of `type` `file`, and no `caption`;
+- neither node has `marks`;
+- `media` has only these attributes: `type`, `id`, `collection`, `alt`, `width`, `height`,
+  `localId`. `id` is a UUID, `collection` is present and uses the characters `A-Za-z0-9_-` (at
+  most 64, and it may be `""`), `width` and `height` are absent or integers from 1 to 100000, and
+  `alt` is absent or a string;
+- `mediaSingle` has only these attributes: `layout`, `width`, `widthType`, `localId`. `layout` is
+  absent or one of the layouts listed [above](#file-media-adfmedia-images). `width` and
+  `widthType` are either both absent, or `width` is an integer from 1 to 100 and `widthType` is
+  absent or `percentage` (written `size=N%`), or `width` is an integer from 1 to 100000 and
+  `widthType` is `pixel` (written `size=Npx`).
+
+The query parameters are written in the order `collection`, `width`, `height`, `layout`, `size`.
+Defaults are left out: an empty `collection` and the `center` layout. `localId`s are dropped
+silently, as everywhere. A `mediaSingle` without `layout` is read as `center`, so it comes back
+with `"layout":"center"`.
+
+Everything else keeps its raw ```` ```adf ```` block with `W_ADF_PASSTHROUGH`: a file
+`mediaSingle` with a caption, with marks (Confluence's `border`, for example), with other
+attributes (`occurrenceKey`, for example) or with an id that is not a UUID; a `media` of type
+`link`; a `mediaGroup`; and a paragraph holding a `mediaInline`. A lone external `mediaSingle`
+keeps its `![alt](url)` form.
+
+### Plain flavour: media
+
+`--md-flavor plain` has no syntax for Media Services files, because plain Markdown is for reading.
+It still never loses a media node without a trace. Each of these leaves a marker in the text,
+without a warning, wherever the node is, including in table cells and inline:
+
+| ADF | Plain Markdown |
+|---|---|
+| `mediaSingle` with a file | `[image: alt]` (`[image]` when there is no alt) |
+| a file in a `mediaGroup` | `[attachment: alt]`, or `[attachment]` when there is no alt; one marker per file, each on its own line |
+| `mediaInline` | the same marker as a `mediaGroup` file, inline in its paragraph, with single spaces around it |
+| `mediaSingle` with external media | `![alt](url)` (the caption goes on the next line) |
+
+Markers are not read back: converting plain Markdown to ADF gives text, not media. Use the
+roundtrip flavour to edit and post content that holds media.
+
 ### Round-trip guarantee
 
 For a document `x` that contains only constructs with a roundtrip mapping above:
@@ -362,13 +471,15 @@ where `normalize`:
 - removes all `localId` attributes, except on task lists and items, which are compared by
   position;
 - splits `\n` inside text nodes into `hardBreak`s;
+- gives a file `mediaSingle` without a `layout` the layout `center`;
 - drops every attribute and mark that `adf_to_md` drops, as described above (each one is
   reported with `W_ATTR_DROPPED`, so a conversion without that warning drops nothing but
   `localId`s and empty or default attributes).
 
 `md_to_adf` here runs for the document's target, with all ADF extensions on (the roundtrip
 Markdown is written with them) and with `--images external` (`![alt](url)` stands for an external
-image). To edit converted content and post it back, convert the Markdown with the same options:
+image; `![alt](adf:media/…)` stands for a file and does not depend on `--images`, except that
+`--images drop` removes it). To edit converted content and post it back, convert the Markdown with the same options:
 `adf convert FILE.md --images external` plus the envelope (`-e jira-description`,
 `-e confluence`, …). With the default `--images link`, each external image becomes a text link
 (`W_IMAGE_AS_LINK`).

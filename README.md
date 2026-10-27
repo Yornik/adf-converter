@@ -176,6 +176,11 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o issue.json \
 Confluence pages and footer comments, acli (and its `comment create` caveat), and scoped tokens.
 [docs/envelopes.md](docs/envelopes.md) describes every envelope.
 
+Screenshots and attachments are references to uploaded files, not URLs. `adf` never uploads or
+downloads: you upload with `curl`, find the media id, and write it as `![alt](adf:media/<id>)`.
+The steps, including which of them are undocumented, are in
+[Attaching files and screenshots](docs/posting.md#attaching-files-and-screenshots).
+
 ## Supported syntax
 
 CommonMark and GitHub Flavored Markdown, plus a few extensions for ADF-only nodes. The normative
@@ -203,13 +208,14 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[😄](adf:emoji/:smile:)` | `emoji` |
 | `[https://…](adf:card)` | `inlineCard` (smart link) |
 | `![alt](url)` | a link (`W_IMAGE_AS_LINK`); `--images external` embeds by URL |
+| `![alt](adf:media/<uuid>?width=…&height=…)` | `mediaSingle` with a `media` of type `file`: a screenshot or image you already uploaded ([how](docs/posting.md#attaching-files-and-screenshots)) |
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
 them. ADF → Markdown writes the same syntax, so for these constructs, converting back with
 `--images external` gives the same document (with the default `--images link`, embedded external
-images become links). Nodes Markdown cannot express become ```` ```adf ```` blocks
-(`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
+images become links; `adf:media` images need no flag). Nodes Markdown cannot express become
+```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
 ## Exit codes

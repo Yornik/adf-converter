@@ -216,7 +216,7 @@ pub(crate) struct MarkdownArgs {
     pub images: ImagesArg,
 
     /// ADF extensions to recognise: all, none, or a comma-separated list
-    /// (alerts,details,cells,raw-adf,mention,status,date,emoji,card)
+    /// (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
     #[arg(long, default_value = "all", value_name = "LIST", value_parser = parse_extensions)]
     pub extensions: Extensions,
 }

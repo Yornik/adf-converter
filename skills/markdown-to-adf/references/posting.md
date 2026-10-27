@@ -185,6 +185,71 @@ adf convert "$work/d.md" -e jira-description --images external -o "$work/d.json"
 - If `--from adf` reported `W_ATTR_DROPPED`, posting back loses those details (column widths, cell
   colours, alignment, Confluence inline-comment anchors). Tell the user before overwriting.
 
+## Attaching files and screenshots
+
+An uploaded image is a reference to a media-service file, not a URL. `adf` never uploads or
+downloads and never looks ids up: you do the API calls, then write
+`![alt](adf:media/<media id>?width=W&height=H)` in the Markdown (syntax:
+[syntax.md](syntax.md#file-media-media)). Steps are labelled **documented** (Atlassian API
+reference), **community-reported** (not documented, may break) or **unverified**; say so when you
+tell the user what you did. The full recipe with sources is
+[docs/posting.md](https://github.com/Yornik/adf-converter/blob/main/docs/posting.md#attaching-files-and-screenshots).
+
+The media id is **not** the numeric attachment id. Only upload files the user asked you to.
+
+```sh
+# Jira: 1. upload (documented). The response is an array; .[0].id is the ATTACHMENT id.
+curl --fail-with-body -sS -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H 'X-Atlassian-Token: no-check' -F 'file=@shot.png' \
+  "$JIRA_BASE_URL/rest/api/3/issue/PROJ-123/attachments" -o "$work/att.json"
+
+# 2. media id (community-reported, undocumented): do not follow the redirect and never print it,
+#    it can hold a short-lived token. Accept HTTP 302 or 303; the id is the second path segment
+#    of https://api.media.atlassian.com/file/<media id>/binary?...
+att_id=$(jq -r '.[0].id' "$work/att.json")
+out=$(curl -sS -o /dev/null -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -w '%{http_code} %{redirect_url}' \
+  "$JIRA_BASE_URL/rest/api/3/attachment/content/$att_id")
+media_id=$(printf '%s\n' "${out#* }" |
+  sed -n 's|^https://api\.media\.atlassian\.com/file/\([0-9A-Fa-f-]\{36\}\)/.*|\1|p')
+test -n "$media_id" || echo "no media id (HTTP ${out%% *})" >&2
+```
+
+3. Write the line (Jira: no `collection`), pre-flight and post as in the sections above:
+   `![shot.png](adf:media/$media_id?width=1512&height=945)` (use an unquoted heredoc so the shell
+   fills in `$media_id`). Read the pixel size from the file.
+
+```sh
+# Confluence: 1. upload to the page with v1 (documented); header value is nocheck.
+curl --fail-with-body -sS -X POST -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H 'X-Atlassian-Token: nocheck' -F 'file=@shot.png' \
+  "$CONFLUENCE_BASE_URL/rest/api/content/$PAGE_ID/child/attachment" -o "$work/att.json"
+# 2. media id and collection (community-reported): the v2 attachment `fileId`, never the `att…` id.
+jq -r '.results[0].extensions | "\(.fileId) \(.collectionName)"' "$work/att.json"
+```
+
+3. Write `![shot.png](adf:media/<fileId>?collection=<collectionName>&width=W&height=H)` and post
+   with `-e confluence` as above.
+
+Pitfalls:
+- Wrong id (attachment id, made-up or from another issue): `adf` accepts any UUID; Jira answers
+  `400` `ATTACHMENT_VALIDATION_ERROR` (community-reported). A non-UUID gives
+  `W_INVALID_EXTENSION_ARG` and the alt text.
+- Confluence: uploading the same file name again can break the earlier media id
+  (CONFCLOUD-84732, CONFCLOUD-84716): use unique names. Files uploaded through REST are reported
+  not to render in Confluence comments (CONFCLOUD-84916; editor uploads use the collection
+  `comment-container-<pageId>`).
+- Media is a block: keep the line outside lists, tables and quotes. Give `width` and `height`.
+- JSM request comments are plain strings, not ADF; use `POST /rest/api/3/issue/{key}/comment`.
+- Other files (PDF, logs) have no Markdown syntax in this version.
+
+Reading: the roundtrip flavour writes `![alt](adf:media/<id>?…)` lines; the plain flavour writes
+markers such as `[image: alt]` and `[attachment: name]`. To fetch a file, list the issue's
+attachments (`GET /rest/api/3/issue/KEY?fields=attachment`, match `.filename` to the alt text,
+download `GET /rest/api/3/attachment/content/ID` with `curl -L -o FILE`), or on Confluence list
+`GET /wiki/api/v2/pages/ID/attachments` and select the entry whose `fileId` equals the id. These
+are your calls; `adf` does not make them. If the alt text does not identify the attachment, repeat
+the redirect lookup for each candidate and compare (community-reported).
+
 ## acli
 
 acli takes a bare document: convert without `-e`.
