@@ -118,7 +118,12 @@ fn write_grid(
                 .cell_at(row, column)
                 .and_then(|index| fields.get(index))
                 .map_or("", String::as_str);
-            out.push_str(field);
+            // A lone empty field would be a blank line, which readers skip.
+            out.push_str(if field.is_empty() && grid.width == 1 {
+                "\"\""
+            } else {
+                field
+            });
             if out.len() > MAX_OUTPUT_BYTES {
                 return Err(too_large());
             }
@@ -366,6 +371,19 @@ mod tests {
             json!({"type": "tableHeader", "content": []}),
         ]])]);
         assert_eq!(run(&doc, &AdfToCsvOptions::default()).output, ",\n");
+    }
+
+    #[test]
+    fn an_empty_field_in_a_one_column_table_is_quoted() {
+        let doc = doc(&[table(&[
+            vec![cell("tableHeader", "h")],
+            vec![json!({"type": "tableCell"})],
+            vec![cell("tableCell", "b")],
+        ])]);
+        assert_eq!(
+            run(&doc, &AdfToCsvOptions::default()).output,
+            "h\n\"\"\nb\n"
+        );
     }
 
     #[test]

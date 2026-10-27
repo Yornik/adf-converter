@@ -197,7 +197,7 @@ impl CsvDelimiter {
         };
         if !c.is_ascii() || c == '"' || (c.is_ascii_control() && c != '\t') {
             return Err(
-                "the delimiter must be one ASCII character other than a quote or a line break"
+                "the delimiter must be one printable ASCII character (or a tab) other than a double quote"
                     .to_owned(),
             );
         }

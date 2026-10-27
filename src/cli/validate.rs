@@ -99,7 +99,21 @@ pub(crate) fn run(args: &ValidateArgs) -> Outcome {
 }
 
 /// Flags that only apply to CSV input are refused for any other input, before it is read.
+/// `-e` names the envelope of a conversion; validating ADF detects the envelope instead.
+fn check_no_envelope(args: &ValidateArgs) -> Result<(), Box<Outcome>> {
+    if args.envelope.envelope.is_some() {
+        return Err(Box::new(Outcome::usage(
+            "-e/--envelope cannot be used when validating ADF; the envelope is detected from the input",
+            "Drop -e, or use --from md or --from csv to validate a conversion",
+        )));
+    }
+    Ok(())
+}
+
 fn check_flags(args: &ValidateArgs) -> Result<(), Box<Outcome>> {
+    if args.from == ValidateFrom::Adf {
+        check_no_envelope(args)?;
+    }
     if args.from == ValidateFrom::Csv {
         return Ok(());
     }
@@ -142,12 +156,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
     let label = Some(input.label.clone());
 
     if from_adf {
-        if args.envelope.envelope.is_some() {
-            return Err(Box::new(Outcome::usage(
-                "-e/--envelope cannot be used when validating ADF; the envelope is detected from the input",
-                "Drop -e, or use --from md or --from csv to validate a conversion",
-            )));
-        }
+        check_no_envelope(args)?;
         let field = args.envelope.field.as_deref();
         check_adf_field(field)?;
         let unwrapped = match parse_and_unwrap(&input.text, field) {

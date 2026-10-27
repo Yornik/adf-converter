@@ -248,7 +248,7 @@ fn parse_extensions(spec: &str) -> Result<Extensions, String> {
 #[derive(Debug, Args)]
 #[command(next_help_heading = "CSV options")]
 pub(crate) struct CsvArgs {
-    /// Field separator: comma (default), tab, semicolon, pipe, or one character such as '|'
+    /// Field separator: comma (default), tab, semicolon, pipe, or one printable ASCII character such as '|' (--from csv, --to csv)
     #[arg(long, value_name = "DELIM", value_parser = parse_delimiter)]
     pub delimiter: Option<CsvDelimiter>,
 

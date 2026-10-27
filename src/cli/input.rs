@@ -82,7 +82,8 @@ fn read_error(what: &str, err: &io::Error) -> Diagnostic {
     )
 }
 
-/// UTF-8 decoding that reports the first invalid byte; strips a byte-order mark.
+/// UTF-8 decoding that reports the first invalid byte. A byte-order mark stays: the Markdown and
+/// CSV readers and [`parse_json`] each ignore one leading BOM, so it is dropped exactly once.
 fn decode(bytes: Vec<u8>) -> Result<String, Diagnostic> {
     let text = String::from_utf8(bytes).map_err(|err| {
         let offset = err.utf8_error().valid_up_to();
@@ -102,16 +103,14 @@ fn decode(bytes: Vec<u8>) -> Result<String, Diagnostic> {
         })
         .with_hint("Convert the input to UTF-8")
     })?;
-    Ok(match text.strip_prefix('\u{feff}') {
-        Some(rest) => rest.to_owned(),
-        None => text,
-    })
+    Ok(text)
 }
 
 /// Parses JSON input. Errors are `E_INPUT_JSON`, or `E_INPUT_TOO_DEEP` beyond
 /// [`Limits::max_json_depth`](crate::Limits::max_json_depth) levels, with the line and column
 /// (counted in characters).
 pub(crate) fn parse_json(text: &str) -> Result<Value, Diagnostic> {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let max_depth = crate::Limits::default().max_json_depth();
     crate::json::parse_bounded(text, max_depth).map_err(|err| match err {
         crate::json::JsonError::TooDeep { offset } => {
@@ -197,8 +196,13 @@ mod tests {
     }
 
     #[test]
-    fn bom_is_removed() {
-        assert_eq!(decode("\u{feff}# x".as_bytes().to_vec()).unwrap(), "# x");
+    fn one_bom_is_ignored_by_the_json_parser_only() {
+        assert_eq!(
+            decode("\u{feff}# x".as_bytes().to_vec()).unwrap(),
+            "\u{feff}# x"
+        );
+        assert!(parse_json("\u{feff}{}").is_ok());
+        assert!(parse_json("\u{feff}\u{feff}{}").is_err());
     }
 
     #[test]

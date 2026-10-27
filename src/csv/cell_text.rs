@@ -7,6 +7,7 @@
 use crate::adf::reader::{Node, marker_alt};
 use crate::adf::to_md::date::{civil_date, timestamp_millis};
 use crate::md::strip_controls;
+use serde_json::Value;
 
 /// The text of `cell` with control characters (other than tab and line feed) removed, and
 /// whether any were removed.
@@ -49,7 +50,7 @@ fn block_parts(node: &Node<'_>, parts: &mut Vec<String>) {
     match node.ty {
         "mediaSingle" | "mediaGroup" => push_part(media_text(node), parts),
         "blockCard" | "embedCard" => {
-            push_part(node.attr_str("url").unwrap_or_default().to_owned(), parts);
+            push_part(card_url(node).to_owned(), parts);
         }
         "paragraph" | "heading" | "codeBlock" | "taskItem" | "decisionItem" | "caption" => {
             // Everything inside a text block is part of its one piece, known or not.
@@ -79,7 +80,7 @@ fn inline_text(node: &Node<'_>, out: &mut String) {
         ),
         "date" => out.push_str(&date_text(node)),
         "inlineCard" | "blockCard" | "embedCard" => {
-            out.push_str(node.attr_str("url").unwrap_or_default());
+            out.push_str(card_url(node));
         }
         "media" | "mediaInline" => push_marker(out, "attachment", node),
         "mediaSingle" | "mediaGroup" => out.push_str(&media_text(node)),
@@ -90,6 +91,17 @@ fn inline_text(node: &Node<'_>, out: &mut String) {
             }
         }
     }
+}
+
+/// A smart link's `attrs.url`, else the `url` of its JSON-LD `attrs.data`.
+fn card_url<'a>(node: &Node<'a>) -> &'a str {
+    node.attr_str("url")
+        .or_else(|| {
+            node.attr("data")
+                .and_then(|data| data.get("url"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default()
 }
 
 fn non_empty(value: Option<&str>) -> Option<&str> {
@@ -106,19 +118,17 @@ fn mention_text(node: &Node<'_>, out: &mut String) {
     }
 }
 
-/// `YYYY-MM-DD`; the raw timestamp when it is not a date.
+/// `YYYY-MM-DD`; the raw timestamp when it is a string or number that is not a date, else empty.
 fn date_text(node: &Node<'_>) -> String {
     let timestamp = node.attr("timestamp");
     timestamp
         .and_then(timestamp_millis)
         .and_then(civil_date)
         .map_or_else(
-            || {
-                timestamp
-                    .map(ToString::to_string)
-                    .unwrap_or_default()
-                    .trim_matches('"')
-                    .to_owned()
+            || match timestamp {
+                Some(Value::String(raw)) => raw.clone(),
+                Some(Value::Number(raw)) => raw.to_string(),
+                _ => String::new(),
             },
             |(date, _)| date,
         )
@@ -283,6 +293,23 @@ mod tests {
         assert_eq!(text_of(&content), "soon");
         let content = json!([para(&json!([{"type": "date"}]))]);
         assert_eq!(text_of(&content), "");
+        // A string is kept as it is, not as JSON; other values give nothing.
+        let content = json!([para(
+            &json!([{"type": "date", "attrs": {"timestamp": "a\"b\\"}}])
+        )]);
+        assert_eq!(text_of(&content), "a\"b\\");
+        let content = json!([para(
+            &json!([{"type": "date", "attrs": {"timestamp": null}}])
+        )]);
+        assert_eq!(text_of(&content), "");
+    }
+
+    #[test]
+    fn a_card_without_a_url_uses_the_url_of_its_data() {
+        let content = json!([para(&json!([
+            {"type": "inlineCard", "attrs": {"data": {"url": "https://example.com/d", "name": "N"}}}
+        ]))]);
+        assert_eq!(text_of(&content), "https://example.com/d");
     }
 
     #[test]

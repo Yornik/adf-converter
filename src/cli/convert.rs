@@ -420,7 +420,15 @@ pub(crate) fn csv_pipeline(
     text: &str,
     opts: &CsvToAdfOptions,
 ) -> Result<Converted, Vec<Diagnostic>> {
-    self_checked(crate::csv_to_adf(text, opts), opts.target)
+    let mut converted = self_checked(crate::csv_to_adf(text, opts), opts.target)?;
+    for warning in &mut converted.warnings {
+        if warning.code == Code::SizeLimit {
+            warning.hint = Some(
+                "Use --max-rows N to keep a preview, and attach the full file instead".to_owned(),
+            );
+        }
+    }
+    Ok(converted)
 }
 
 /// Turns self-check errors into `E_INTERNAL` (our bug) and `E_RAW_ADF` (inside raw blocks).

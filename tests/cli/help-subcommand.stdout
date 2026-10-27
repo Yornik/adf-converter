@@ -90,7 +90,8 @@ Markdown options:
 
 CSV options:
       --delimiter <DELIM>
-          Field separator: comma (default), tab, semicolon, pipe, or one character such as '|'
+          Field separator: comma (default), tab, semicolon, pipe, or one printable ASCII character
+          such as '|' (--from csv, --to csv)
 
       --no-header
           The first CSV row is data: the header becomes "Column 1", "Column 2", … (--from csv)

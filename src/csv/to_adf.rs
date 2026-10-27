@@ -32,7 +32,9 @@ pub(super) fn convert(csv: &str, opts: &CsvToAdfOptions) -> Result<Conversion<Do
                     csv.len()
                 ),
             )
-            .with_hint("Split the file, or keep fewer rows"),
+            .with_hint(
+                "--max-rows does not lift this limit; cut the file first, for example with head -n 100",
+            ),
         ));
     }
     let text = normalize(csv);
@@ -177,7 +179,11 @@ impl<'o> Builder<'o> {
             ),
         )
         .at(positions.location(record.start))
-        .with_hint("Use --max-rows to keep fewer rows, or split the file")
+        .with_hint(if self.width.saturating_mul(2) > MAX_TABLE_CELLS {
+            "The header alone is too wide; split the file into narrower files"
+        } else {
+            "Use --max-rows to keep fewer rows, or split the file"
+        })
     }
 
     /// Converts the fields of a kept record; tracks numeric columns for data rows.

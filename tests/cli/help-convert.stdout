@@ -37,8 +37,8 @@ Markdown options:
                            [default: all]
 
 CSV options:
-      --delimiter <DELIM>  Field separator: comma (default), tab, semicolon, pipe, or one character
-                           such as '|'
+      --delimiter <DELIM>  Field separator: comma (default), tab, semicolon, pipe, or one printable
+                           ASCII character such as '|' (--from csv, --to csv)
       --no-header          The first CSV row is data: the header becomes "Column 1", "Column 2", …
                            (--from csv)
       --max-rows <N>       Keep only the first N data rows, with W_CSV_TRUNCATED when more existed

@@ -37,7 +37,7 @@ Markdown; the output is the whole document, a single table.
 - `--align-numbers` right-aligns a column when every value in it is a number (`1,250.50`, `-3`,
   `12%`), the header too.
 - Limits: 1 MiB of CSV text and **100,000 cells** in the table (`E_INPUT_TOO_LARGE`, with the
-  record where it was crossed). For bigger files use `--max-rows` and attach the file.
+  record where it was crossed). `--max-rows` lifts the cell limit, not the 1 MiB text limit: for a bigger file, cut it first (for example `head -n 101 big.csv`), and attach the full file.
 - Control characters in the data are removed with `W_CONTROL_CHAR`.
 
 ### Big tables: preview in the text, full file attached
@@ -46,7 +46,7 @@ Jira stores at most about **32,767 characters** per comment or description. A ta
 hundred rows can exceed that (`W_SIZE_LIMIT`). Post a preview and attach the file:
 
 1. Convert the first rows: `adf convert data.csv --from csv --max-rows 25 -e jira-comment -o
-   body.json`. It prints `W_CSV_TRUNCATED` ("kept 25 of 1832 data rows"): expected. Add a sentence
+   body.json`. It prints `W_CSV_TRUNCATED` ("Kept 25 of 1832 data rows"): expected. Add a sentence
    to the comment, such as "First 25 of 1,832 rows; full file attached: `report.csv`." Say so
    whenever you truncate; never present a preview as the whole table.
 2. Upload the CSV to the same issue (Jira: `POST /rest/api/3/issue/{key}/attachments`, see
@@ -147,22 +147,24 @@ some-command | python3 scripts/csv2md.py - > table.md
 adf validate --from md table.md && adf convert table.md -e jira-comment -o body.json
 ```
 
-It behaves like the native command: the same header rules, `Column 1`… with `--no-header`,
+It behaves like the native command in the normal cases: the same header rules, `Column 1`… with `--no-header`,
 escaping so that nothing in a cell is read as Markdown, line breaks as `<br>`, bare `http(s)://`
 URLs stay links, short rows padded, blank lines skipped, `--max-rows N` (prints `kept N of M data
 rows` on stderr instead of a warning) and `--align-numbers`. Exit 3 means the file is not UTF-8,
 has no rows, or is above the 100,000-cell limit. Because the table goes through Markdown, it can
-sit between other Markdown in the same comment, which the native command cannot do yet.
+sit between other Markdown in the same comment, which the native command cannot do yet. Two
+differences: an unterminated quote is not an error (the rest of the file ends up in one cell, so
+check the row count), and `--max-rows 0` means "all rows".
 
 **Table → CSV** with `jq`. Fetch the content as ADF, then print the first table of a document (also
 inside `{"body": …}`, `{"fields": {"description": …}}` and comment envelopes) as CSV; cell text with
 several paragraphs or line breaks is joined with spaces:
 
 ```sh
-jq -r '[.. | objects | select(.type == "table")] | first
+jq -r '[.. | objects | select(.type == "table")] | first // empty
        | .content[] | [.content[] | [.. | .text? // empty] | join(" ")] | @csv' issue.json > table.csv
 ```
 
-Use `... | .[1]` instead of `first` for the second table. The text of mentions, statuses, dates and
-emoji is not a `text` node and is skipped, merged cells are not repeated, and nothing guards against
+Use `... | .[1]` instead of `first` for the second table. Mentions, statuses and emoji appear
+through their `text` attribute, dates are skipped, a document without a table prints nothing, merged cells are not repeated, and nothing guards against
 spreadsheet formulas: prefer `--to csv --csv-safe` when you can.

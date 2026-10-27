@@ -404,7 +404,7 @@ the middle of a Markdown document (phase 3). Today the CSV is the whole input.
 - Every cell holds exactly one paragraph. The cell text is trimmed of spaces, tabs and line
   breaks at both ends. An empty cell holds a paragraph without content.
 - `--max-rows N` keeps the first N data rows. If there were more, `W_CSV_TRUNCATED` is reported,
-  located at the first record that was left out: `kept N of M data rows`. The header row is never
+  located at the first record that was left out: `Kept N of M data rows`. The header row is never
   counted. Tell the reader that the table is a preview, and attach the full file.
 - A table may have at most 100,000 cells (`width × (data rows + 1)`). `adf` checks while it
   reads, so memory is never spent beyond the limit; `E_INPUT_TOO_LARGE` is located at the record
@@ -495,7 +495,8 @@ Without `--align-numbers` the `alignment` marks are absent.
 **CSV text**
 - A field is quoted if it contains the delimiter, a double quote, a line feed or a carriage
   return, or if it starts or ends with a space or a tab. Quotes inside are doubled. Other fields
-  are written bare.
+  are written bare, except an empty field in a one-column table, which is written as `""` so that
+  its row does not become a blank line.
 - Records end with LF, and the output always ends with LF. There is no BOM. The same delimiter is
   used everywhere (`--delimiter`, comma by default).
 - The output is deterministic and limited to 64 MiB.

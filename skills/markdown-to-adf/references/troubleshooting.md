@@ -83,7 +83,7 @@ listed problems and run again.
 
 | Code | Meaning | Fix |
 |---|---|---|
-| `W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table ("kept N of M data rows"; located at the first row left out). | Expected for a preview: attach the full file and say the table is a preview. Raise `--max-rows` otherwise. With `--strict` it fails (exit 5), so leave `--strict` off. |
+| `W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table ("Kept N of M data rows"; located at the first row left out). | Expected for a preview: attach the full file and say the table is a preview. Raise `--max-rows` otherwise. With `--strict` it fails (exit 5), so leave `--strict` off. |
 | `W_CSV_MERGED_CELLS` | `--to csv`: a table with merged cells was written by repeating the merged cell's text in every cell it covers (one warning per table). | Expected for such tables. Tell the user that those columns hold repeated values. |
 
 ## HTTP errors after posting

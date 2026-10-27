@@ -74,7 +74,7 @@ adf version [--json]            (also: adf --version)
 
   | Flag | Valid with | Value |
   |---|---|---|
-  | `--delimiter DELIM` | `--from csv`, `--to csv` | `comma` (default), `tab`, `semicolon`, `pipe`, or one ASCII character other than `"` (a literal tab is fine) |
+  | `--delimiter DELIM` | `--from csv`, `--to csv` | `comma` (default), `tab`, `semicolon`, `pipe`, or one printable ASCII character other than `"` (a literal tab, or the two characters `\t`, is fine; other control characters are refused) |
   | `--no-header`, `--align-numbers` | `--from csv` | |
   | `--max-rows N` | `--from csv` | an integer ≥ 1 |
   | `--table N` | `--to csv` | an integer ≥ 1 (default 1) |
@@ -170,7 +170,7 @@ full shape):
 
 ```json
 {"schema_version":1,"version":"0.1.0","adf_schema":"@atlaskit/adf-schema@57.7.18",
- "directions":["md->adf","adf->md"],
+ "directions":["md->adf","adf->md","csv->adf","adf->csv"],
  "envelopes":[{"name":"jira-comment","shape":"{\"body\":DOC}","endpoint":"POST /rest/api/3/issue/{key}/comment, …","default_target":"jira","requires_field":false}…],
  "targets":["jira","confluence"],
  "features":[{"name":"tables","kind":"gfm","syntax":"| a | b |","adf":["table","tableRow","tableHeader","tableCell","paragraph","alignment"]}…],
@@ -191,6 +191,10 @@ Prints curated Markdown → ADF examples, one per feature. The Markdown of each 
 into the binary, and the ADF is produced by converting it when the command runs, so it is what
 this version outputs. With `FEATURE`, prints only that feature; the full list is long, so agents
 should ask for one feature at a time.
+
+With `--json`, each entry has `name`, `kind`, `syntax`, `adf`, `warnings` and, for an extension,
+`extension`. The source of the example is `markdown` for every feature except the CSV feature
+(`kind` `csv`), which has `csv` instead; read `markdown` or `csv`, whichever is present.
 
 ### `schema NAME`
 
@@ -360,7 +364,7 @@ from Markdown or ADF input alike:
 
 | Code | Meaning |
 |---|---|
-| <a id="w_csv_truncated"></a>`W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table. Located at the first row that was left out; the message says `kept N of M data rows`. |
+| <a id="w_csv_truncated"></a>`W_CSV_TRUNCATED` | `--from csv`: data rows beyond `--max-rows` were left out of the table. Located at the first row that was left out; the message says `Kept N of M data rows`. |
 | <a id="w_csv_merged_cells"></a>`W_CSV_MERGED_CELLS` | `--to csv`: a table with merged cells (`colspan` or `rowspan`) was written by repeating the text of a merged cell in every cell it covers. One warning per table, pointing at the table. |
 
 CSV conversions also report `W_CONTROL_CHAR` (control characters other than tab and line feed were
@@ -399,6 +403,14 @@ requests.
 A CSV file is bounded the same way, but exactly: `adf` counts `width × (rows + 1)` while it reads
 the records, where the width is the largest field count seen so far, so the memory it uses never
 exceeds the limit. `E_INPUT_TOO_LARGE` is located at the record that crosses it.
+
+The CSV limits are on the CSV, not on the ADF it becomes: a table of 100,000 cells is about 12 MB
+of JSON, more than Jira accepts (`W_SIZE_LIMIT`) and more than the 4 MiB ADF input limit, so
+`adf` cannot read it back. About 33,000 cells is the practical bound for a CSV → ADF → CSV round
+trip. A CSV above 1 MiB is refused before `--max-rows` applies, and input above 4 MiB is refused
+by the general read limit first; cut such a file (for example with `head -n 100`) before
+converting. Peak memory is a multiple of the input: a 1 MiB cell of line breaks needs about
+500 MB.
 
 GFM pads every table row to the header width, so a few kilobytes of Markdown can describe
 millions of cells. `adf` estimates the padded size with a linear scan before parsing, and fails

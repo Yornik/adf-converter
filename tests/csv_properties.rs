@@ -358,6 +358,10 @@ proptest! {
         let mut expected = String::new();
         for row in &kept {
             let fields: Vec<String> = row.iter().map(|c| expected_field(c, delimiter)).collect();
+            // A lone empty field is written as `""`, so that it is not a blank line.
+            if fields.len() == 1 && fields[0].is_empty() {
+                expected.push_str("\"\"");
+            }
             expected.push_str(&fields.join(&delimiter.to_string()));
             expected.push('\n');
         }
