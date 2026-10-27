@@ -327,7 +327,7 @@
         "media",
         "mediaInline"
       ],
-      "note": "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION)"
+      "note": "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION). How Jira and Confluence render mediaGroup and mediaInline written through the API is not verified"
     },
     {
       "name": "csv",
@@ -456,16 +456,18 @@
     },
     {
       "name": "media",
-      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)",
+      "syntax": "![alt](adf:media/UUID?collection=&width=&height=&layout=&size=); [file name](adf:attachment/UUID?collection=)",
       "adf": [
         "mediaSingle",
-        "media"
+        "media",
+        "mediaGroup",
+        "mediaInline"
       ],
       "default": true
     },
     {
       "name": "csv",
-      "syntax": "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text",
+      "syntax": "```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text; ![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR",
       "adf": [
         "table",
         "tableRow",

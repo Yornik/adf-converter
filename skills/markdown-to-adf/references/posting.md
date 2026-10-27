@@ -194,7 +194,7 @@ An uploaded image is a reference to a media-service file, not a URL. `adf` never
 downloads and never looks ids up: you do the API calls, then write
 `![alt](adf:media/<media id>?width=W&height=H)` in the Markdown (syntax:
 [syntax.md](syntax.md#file-media-media)), or `[file name](adf:attachment/<media id>)` for a file
-that is not a picture. Steps are labelled **documented** (Atlassian API
+that is not a picture (`adf` 0.4.0 or later). Steps are labelled **documented** (Atlassian API
 reference), **community-reported** (not documented, may break) or **unverified**; say so when you
 tell the user what you did. The full recipe with sources is
 [docs/posting.md](https://github.com/Yornik/adf-converter/blob/main/docs/posting.md#attaching-files-and-screenshots).
@@ -253,8 +253,8 @@ Pitfalls:
   makes the whole table or list a raw ```` ```adf ```` block when read back. Give `width` and
   `height`.
 - JSM request comments are plain strings, not ADF; use `POST /rest/api/3/issue/{key}/comment`.
-- Other files (PDF, logs, archives): write `[name](adf:attachment/<media id>)` with the media id
-  and collection found as above ([syntax.md](syntax.md#attached-files-media)). A paragraph of only
+- Other files (PDF, logs, archives): write `[name](adf:attachment/<media id>)` (`adf` 0.4.0 or
+  later) with the media id and collection found as above ([syntax.md](syntax.md#attached-files-media)). A paragraph of only
   such links is a `mediaGroup`, a link amid text a `mediaInline`. `adf` validates both nodes for
   Jira and Confluence, but whether the products render them when written through the API is
   **unverified**: tell the user, and check the result.

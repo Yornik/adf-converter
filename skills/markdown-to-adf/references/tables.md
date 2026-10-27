@@ -53,7 +53,7 @@ hundred rows can exceed that (`W_SIZE_LIMIT`). Post a preview and attach the fil
    "Attaching files" in [posting.md](posting.md#attaching-files-and-screenshots)). It then shows
    under the issue's attachments. To show the file by name *inside* the comment text, get its media
    id as in [posting.md](posting.md#attaching-files-and-screenshots) and write
-   `[report.csv](adf:attachment/<media-id>)` (see
+   `[report.csv](adf:attachment/<media-id>)` (`adf` 0.4.0 or later; see
    [syntax.md](syntax.md#attached-files-media); rendering in the products is not verified).
 
 `adf validate --from csv --max-rows 25 data.csv` shows the warnings without writing anything. With

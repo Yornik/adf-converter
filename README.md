@@ -188,7 +188,7 @@ Confluence pages and footer comments, acli (and its `comment create` caveat), an
 
 Screenshots and attachments are references to uploaded files, not URLs. `adf` never uploads or
 downloads: you upload with `curl`, find the media id, and write it as `![alt](adf:media/<id>)` for
-a picture, or as `[file name](adf:attachment/<id>)` for a file. The steps, including which of them are undocumented, are in
+a picture, or (adf 0.4.0 or later; older versions keep the text and report `W_UNKNOWN_EXTENSION`) as `[file name](adf:attachment/<id>)` for a file. The steps, including which of them are undocumented, are in
 [Attaching files and screenshots](docs/posting.md#attaching-files-and-screenshots).
 
 ## Supported syntax
@@ -222,7 +222,7 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `![alt](url)` | a link (`W_IMAGE_AS_LINK`); `--images external` embeds by URL |
 | `![alt](adf:csv/PATH?delimiter=…)` with `--include-root DIR` ([rules](docs/syntax.md#including-a-csv-file)) | `table` from a CSV file under `DIR`; off by default, one way |
 | `![alt](adf:media/<uuid>?width=…&height=…)` | `mediaSingle` with a `media` of type `file`: a screenshot or image you already uploaded ([how](docs/posting.md#attaching-files-and-screenshots)) |
-| `[file name](adf:attachment/<uuid>?collection=…)` | `mediaGroup` for a paragraph of only such links, `mediaInline` for a link amid text: a file you already uploaded, shown by name ([rules](docs/syntax.md#attached-files-adfattachment-links); not verified to render, see [posting](docs/posting.md#other-files-pdf-logs-archives)) |
+| `[file name](adf:attachment/<uuid>?collection=…)` | `mediaGroup` for a paragraph of only such links, `mediaInline` for a link amid text: a reference to a file you already uploaded, by name; adf 0.4.0 or later ([rules](docs/syntax.md#attached-files-adfattachment-links); not verified to render, see [posting](docs/posting.md#other-files-pdf-logs-archives)) |
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits

@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use crate::adf::model::{
     ALLOWED_URL_FORMS, AttachmentFile, Date, Emoji, Href, Inline, InlineCard, MediaInline, Mention,
-    NonEmptyString, Status, StatusColor,
+    NonEmptyString, Status, StatusColor, has_visible_char,
 };
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{Extensions, Target};
@@ -62,11 +62,22 @@ pub(crate) fn split_adf_url(url: &str) -> Option<(String, Option<&str>)> {
         return None;
     }
     let rest = url.get(4..)?;
+    // `adf:attachment?x` and `adf:attachment#x` are attachment links with a missing id, not an
+    // unknown kind: the same warning and `--images drop` behaviour as `adf:attachment`.
+    if let Some(word) = rest.get(..ATTACHMENT_KIND.len())
+        && word.eq_ignore_ascii_case(ATTACHMENT_KIND)
+        && let Some(tail) = rest.get(ATTACHMENT_KIND.len()..)
+        && tail.starts_with(['?', '#'])
+    {
+        return Some((ATTACHMENT_KIND.to_owned(), Some(tail)));
+    }
     Some(match rest.split_once('/') {
         Some((kind, arg)) => (kind.to_ascii_lowercase(), Some(arg)),
         None => (rest.to_ascii_lowercase(), None),
     })
 }
+
+const ATTACHMENT_KIND: &str = "attachment";
 
 /// Why an `adf:` link stays plain text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -243,7 +254,9 @@ fn card(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
 fn attachment(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
     let hinted = |message: String| invalid(message).with_hint(media::ATTACHMENT_HINT);
     let parsed = media::parse_attachment(arg).map_err(hinted)?;
-    let alt = NonEmptyString::new(label.trim())
+    let name = label.trim();
+    let alt = NonEmptyString::new(name)
+        .filter(|_| has_visible_char(name))
         .ok_or_else(|| hinted("adf:attachment needs the file name as the link text".to_owned()))?;
     Ok(Inline::MediaInline(MediaInline {
         file: AttachmentFile {
@@ -522,6 +535,51 @@ mod tests {
         assert_eq!(split_adf_url("ADF:Date"), Some(("date".into(), None)));
         assert_eq!(split_adf_url("https://x"), None);
         assert_eq!(split_adf_url("adf"), None);
+    }
+
+    #[test]
+    fn attachment_urls_without_a_slash_keep_their_kind() {
+        assert_eq!(
+            split_adf_url("adf:attachment?collection=x"),
+            Some(("attachment".into(), Some("?collection=x")))
+        );
+        assert_eq!(
+            split_adf_url("ADF:Attachment#x"),
+            Some(("attachment".into(), Some("#x")))
+        );
+        // Other words that merely start with the kind stay unknown kinds.
+        assert_eq!(
+            split_adf_url("adf:attachments?x"),
+            Some(("attachments?x".into(), None))
+        );
+        assert_eq!(
+            split_adf_url("adf:attachment"),
+            Some(("attachment".into(), None))
+        );
+    }
+
+    #[test]
+    fn attachment_labels_need_a_visible_character() {
+        let ext = Extensions::all();
+        let id = Some("11111111-2222-3333-4444-555555555555");
+        for label in [
+            "",
+            " ",
+            "\u{a0}",
+            "\u{3000}\u{2003}",
+            "\u{200b}",
+            "\u{feff}",
+            " \u{200d} ",
+        ] {
+            let err = build_link_node("attachment", id, label, &ext).unwrap_err();
+            assert_eq!(err.code, Code::InvalidExtensionArg, "{label:?}");
+        }
+        for label in ["a", "\u{a0}a\u{3000}", "\u{200b}a"] {
+            assert!(
+                build_link_node("attachment", id, label, &ext).is_ok(),
+                "{label:?}"
+            );
+        }
     }
 
     #[test]

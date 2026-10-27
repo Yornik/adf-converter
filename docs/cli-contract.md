@@ -351,7 +351,7 @@ included in `adf capabilities --json`.
 
 | Code | Meaning |
 |---|---|
-| <a id="w_mark_dropped"></a>`W_MARK_DROPPED` | A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (`--images external`, or an `adf:media` image). |
+| <a id="w_mark_dropped"></a>`W_MARK_DROPPED` | A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (`--images external`, or an `adf:media` image), or formatting around or inside an `adf:attachment` link was dropped. |
 | <a id="w_heading_demoted"></a>`W_HEADING_DEMOTED` | A heading inside a list item or quote became a bold paragraph. |
 | <a id="w_block_hoisted"></a>`W_BLOCK_HOISTED` | A block was moved out of a container that cannot hold it (for example a table inside a list). |
 | <a id="w_block_flattened"></a>`W_BLOCK_FLATTENED` | A nested container was merged into its parent (for example a quote inside a quote). |

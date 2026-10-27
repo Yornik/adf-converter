@@ -311,8 +311,8 @@ and `height` when present.
 - **Not checked.** `adf` cannot know whether the id exists, belongs to this site or issue, or
   which collection the product expects. A made-up id converts without a warning; the product
   rejects or fails to render it when you post.
-- **Files by name.** The image form builds a picture. To show a file by its name, as Jira shows an
-  attachment, use the link form below.
+- **Files by name.** The image form builds a picture. To refer to a file by its name instead, use
+  the link form below.
 
 #### Attached files (`adf:attachment` links)
 
@@ -354,7 +354,8 @@ product lists of `adf validate` (`src/adf/targets.rs`) reject neither node, so `
 | `mediaInline` (inline) | `paragraph`, `heading`, `taskItem` (and `decisionItem`) | `caption`, a code block, anywhere outside inline content |
 
 `mediaInline` accepts the marks `link`, `annotation`, `border` and `dataConsumer` in the schema;
-Markdown cannot say any of them on an attachment, and Jira rejects `border` and `dataConsumer`.
+Markdown cannot say any of them on an attachment, and the Jira product list of `adf validate`
+rejects `border` and `dataConsumer`.
 Formatting around the link or in its label (`**[a.pdf](…)**`, `[**a**.pdf](…)`) is dropped with
 `W_MARK_DROPPED`; the label is plain text.
 
@@ -365,9 +366,13 @@ Formatting around the link or in its label (`**[a.pdf](…)**`, `[**a**.pdf](…
   whatever else the cell holds. Use a `::: cell` box for a group in a table. An external image
   next to a link makes it inline: only paragraphs of nothing but links become groups.
 - **Invalid input.** A bad id, a bad `collection`, a key other than `collection`, a repeated key,
-  an empty value, or a label that is empty after trimming (spaces and tabs around the label are
-  removed) keeps the label as plain text and reports `W_INVALID_EXTENSION_ARG`, located at the
-  link, with the syntax as the hint. The whole link falls back.
+  an empty value, or a label with no visible character keeps the label as plain text and reports
+  `W_INVALID_EXTENSION_ARG`, located at the link, with the syntax as the hint. The whole link
+  falls back. White space around the label (Unicode white space, a non-breaking space too) is
+  removed first. A label of only white space, zero-width characters (U+200B to U+200F, U+2060 to
+  U+206F, U+FEFF), bidirectional marks, variation selectors, a soft hyphen or filler characters is
+  empty. An address with no id, such as `adf:attachment?collection=x` or `adf:attachment#x`,
+  is the missing id of an attachment link (also for `--images drop`), not an unknown kind.
 - **`--extensions` without `media`.** The label is kept as plain text, with
   `W_EXTENSION_DISABLED`.
 - **`--images`.** `--images drop` removes attachment links, label included, with
@@ -375,8 +380,10 @@ Formatting around the link or in its label (`**[a.pdf](…)**`, `[**a**.pdf](…
 - **The image form is not an attachment.** `![x](adf:attachment/…)` keeps its alt text and reports
   `W_UNKNOWN_EXTENSION` with a hint that points at the link form; `[x](adf:media/…)` is the mirror
   case.
-- **A title** on the link (`[a](adf:attachment/… "Title")`) is ignored, as for the other `adf:`
-  links. An image in the label follows the node (`W_BLOCK_HOISTED`).
+- **A title** on the link (`[a](adf:attachment/… "Title")`) is ignored without a warning, as for
+  the other `adf:` links (`adf:mention`, `adf:status`, …); only an image title, which has a place
+  in the picture form, is reported (`W_MARK_DROPPED`). An image in the label follows the node
+  (`W_BLOCK_HOISTED`).
 - **Not checked.** As for images, `adf` cannot know whether the id exists or which collection the
   product expects. Whether Jira and Confluence *render* a `mediaGroup` or `mediaInline` that was
   written through the REST API is not verified: see
@@ -913,8 +920,9 @@ attribute they hold can be written: all of these must hold, or the node keeps it
 - `id` is a UUID, `collection` is present and uses the characters `A-Za-z0-9_-` (at most 64, and
   it may be `""`; it is left out of the link when empty);
 - `alt` is present, not empty, without control characters or line breaks and without leading or
-  trailing whitespace (Unicode whitespace counts). A `mediaInline` **without** `alt`, which real
-  Jira data has, keeps its raw block.
+  trailing whitespace (Unicode whitespace counts), and has a visible character (a name of only
+  zero-width or other invisible characters reads back as an invalid link). A `mediaInline`
+  **without** `alt`, which real Jira data has, keeps its raw block.
 
 A group is written as **one paragraph**, its links joined by a single space; one file that fails
 the conditions keeps the whole group raw. The file name is escaped like other link text
@@ -934,6 +942,16 @@ makes of them:
 The last row is the one place where a file that fits the conditions stays raw. Two files with
 nothing between them (`[a](…)[b](…)`) are not apart and stay a paragraph; a lone file in a list
 item, a heading, a task item or a table cell is written as its link.
+
+The raw block is the input node as it was, without optional `localId`s (and without an `attrs`
+object that held nothing else). The round trip of a raw block holds for schema-valid nodes only:
+a `mediaGroup` with `marks`, or a `mediaInline` without `collection`, is schema-invalid input
+(`W_INPUT_SCHEMA`), and its raw block is refused when read back (`E_RAW_ADF`).
+
+A paragraph of only files where a group is allowed stays raw although a few of its shapes (a
+text between two files that carries a mark, for example) would not read back as a group; the raw
+block is exact, so the over-approximation costs only the link form. A lone file chip in such a
+paragraph has no link form at all (it would read back as a group), so `--strict` fails on it.
 
 The plain flavour is unchanged: `[attachment: name]` markers, see
 [below](#plain-flavour-media).

@@ -6,6 +6,7 @@
 
 use serde_json::Value;
 
+use crate::adf::model::has_visible_char;
 use crate::adf::reader::{Node, marker_alt};
 
 use super::escape::{TextContext, TextEscape, escape_text, has_unsafe_control};
@@ -150,6 +151,9 @@ pub(super) fn attachment_link(node: &Node<'_>) -> Result<(String, String), Strin
         return Err(
             "the file name has control characters, line breaks or surrounding spaces".to_owned(),
         );
+    }
+    if !has_visible_char(alt) {
+        return Err("the file name has no visible character".to_owned());
     }
     let mut dest = format!("adf:attachment/{id}");
     if !collection.is_empty() {

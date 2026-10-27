@@ -165,6 +165,11 @@ impl Serialize for Stripped<'_> {
                         && !keep_local_id
                         && let Value::Object(attrs) = item
                     {
+                        // `attrs` that held nothing but a `localId` is left out: a node that
+                        // takes no attributes (a `mediaGroup`) would not read back with `{}`.
+                        if attrs.keys().all(|name| name == "localId") {
+                            continue;
+                        }
                         out.serialize_entry(
                             key,
                             &Attrs {
@@ -445,7 +450,7 @@ mod tests {
                         {"type": "status", "attrs": {"text": "X", "color": "blue"}}
                     ]}
                 ]},
-                {"type": "rule", "attrs": {}}
+                {"type": "rule"}
             ])
         );
     }

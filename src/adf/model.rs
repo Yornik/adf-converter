@@ -93,6 +93,34 @@ impl<T: Serialize> Serialize for NonEmpty<T> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NonEmptyString(String);
 
+/// Whether `text` has a character that shows: not white space, and not one of the invisible
+/// format characters (zero-width spaces and joiners, bidirectional marks, the byte order mark,
+/// variation selectors, soft hyphen, filler characters). A file name without one is nameless.
+pub(crate) fn has_visible_char(text: &str) -> bool {
+    text.chars()
+        .any(|c| !c.is_whitespace() && !is_invisible_format(c))
+}
+
+fn is_invisible_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00AD}'
+            | '\u{034F}'
+            | '\u{061C}'
+            | '\u{115F}'..='\u{1160}'
+            | '\u{17B4}'..='\u{17B5}'
+            | '\u{180B}'..='\u{180F}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{206F}'
+            | '\u{3164}'
+            | '\u{FE00}'..='\u{FE0F}'
+            | '\u{FEFF}'
+            | '\u{FFA0}'
+            | '\u{FFF9}'..='\u{FFFB}'
+    )
+}
+
 impl NonEmptyString {
     /// Returns `None` for an empty string. Whitespace-only text is valid ADF.
     pub fn new(value: impl Into<String>) -> Option<Self> {

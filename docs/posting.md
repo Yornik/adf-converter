@@ -419,8 +419,9 @@ See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
 
 - A paragraph of only attachment links is one `mediaGroup`; a link with text around it is a
   `mediaInline`. In a list item, a heading, a task item and a cell of a GFM table the links are
-  always inline, because a list item cannot hold a `mediaGroup` and the others are not blocks you
-  can fill with one.
+  always inline: a list item cannot hold a `mediaGroup`, a heading and a task item hold inline
+  content only, and a GFM table cell is a single paragraph. Use a `::: cell` box for a group in a
+  table ([syntax.md](syntax.md#attached-files-adfattachment-links)).
 - The link text becomes the file name (`alt`). It must not be empty, and it is not looked up or
   checked against the attachment.
 - Jira: leave `collection` out. Confluence: use what the upload returned, as for images.
@@ -429,9 +430,10 @@ See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
 - **Rendering is not verified.** `adf` validates both nodes for Jira and Confluence, but nobody has
   confirmed that the products show a `mediaGroup` or `mediaInline` that was written through the
   REST API, in a comment, a description or a page. Community reports for Jira comments disagree on
-  which node the editor writes (`mediaGroup` in 2023, `mediaInline` in 2025). Try the syntax in
-  your sandbox first; the checklist is in
-  [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site).
+  which node the editor writes, and one of them
+  ([developer community 94822](https://community.developer.atlassian.com/t/94822), see the
+  sources below) shows a `mediaInline` without a file name. Try the syntax in your sandbox first;
+  the checklist is in [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site).
 - For anything the link cannot say (a caption is not part of a group; extra attributes), splice
   the node in with a raw ```` ```adf ```` block.
 

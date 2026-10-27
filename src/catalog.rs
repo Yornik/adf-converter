@@ -335,7 +335,7 @@ pub const FEATURES: &[Feature] = &[
             adf: &["mediaGroup", "media", "mediaInline"],
             note: None,
         },
-        "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION)",
+        "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION). How Jira and Confluence render mediaGroup and mediaInline written through the API is not verified",
     ),
     with_note(
         extension(
@@ -643,12 +643,15 @@ pub struct FeatureInfo {
     pub note: Option<&'static str>,
 }
 
-/// An extension as described by `capabilities`.
+/// An extension as described by `capabilities`: everything its features write, since one
+/// `--extensions` name switches all of them.
 #[derive(Debug, Clone, Serialize)]
 pub struct ExtensionInfo {
     pub name: &'static str,
-    pub syntax: &'static str,
-    pub adf: &'static [&'static str],
+    /// The syntax of each of its features, separated by `; `.
+    pub syntax: String,
+    /// The ADF types of all its features, each once, in order of first use.
+    pub adf: Vec<&'static str>,
     /// Whether it is on without `--extensions`.
     pub default: bool,
 }
@@ -693,6 +696,22 @@ pub struct Capabilities {
 /// The vendored schema version without the trailing newline of `schemas/adf/VERSION`.
 pub const ADF_SCHEMA: &str = crate::ADF_SCHEMA_VERSION;
 
+fn extension_info(name: &'static str, defaults: &Extensions) -> ExtensionInfo {
+    let features = || FEATURES.iter().filter(|f| f.extension == Some(name));
+    let mut adf: Vec<&'static str> = Vec::new();
+    for ty in features().flat_map(|f| f.adf.iter().copied()) {
+        if !adf.contains(&ty) {
+            adf.push(ty);
+        }
+    }
+    ExtensionInfo {
+        name,
+        syntax: features().map(|f| f.syntax).collect::<Vec<_>>().join("; "),
+        adf,
+        default: extension_enabled(defaults, name),
+    }
+}
+
 /// Builds the capabilities document for this build.
 pub fn capabilities() -> Capabilities {
     let defaults = Extensions::default();
@@ -716,17 +735,7 @@ pub fn capabilities() -> Capabilities {
             .collect(),
         extensions: Extensions::NAMES
             .iter()
-            .map(|&name| {
-                let feature = FEATURES
-                    .iter()
-                    .find(|feature| feature.extension == Some(name));
-                ExtensionInfo {
-                    name,
-                    syntax: feature.map_or("", |feature| feature.syntax),
-                    adf: feature.map_or(&[], |feature| feature.adf),
-                    default: extension_enabled(&defaults, name),
-                }
-            })
+            .map(|&name| extension_info(name, &defaults))
             .collect(),
         exit_codes: EXIT_CODES
             .iter()
@@ -749,6 +758,7 @@ pub fn capabilities() -> Capabilities {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MdToAdfOptions;
 
     #[test]
     fn feature_names_are_unique_kebab_case() {
@@ -786,6 +796,74 @@ mod tests {
         for feature in FEATURES {
             if let Some(name) = feature.extension {
                 assert!(Extensions::NAMES.contains(&name), "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_extension_lists_the_syntax_and_nodes_of_all_its_features() {
+        let caps = capabilities();
+        for feature in FEATURES {
+            let Some(name) = feature.extension else {
+                continue;
+            };
+            let info = caps.extensions.iter().find(|e| e.name == name).unwrap();
+            assert!(info.syntax.contains(feature.syntax), "{}", feature.name);
+            for ty in feature.adf {
+                assert!(info.adf.contains(ty), "{} lacks {ty}", feature.name);
+            }
+        }
+        let media = caps.extensions.iter().find(|e| e.name == "media").unwrap();
+        for ty in ["mediaSingle", "media", "mediaGroup", "mediaInline"] {
+            assert!(media.adf.contains(&ty), "{ty}");
+        }
+    }
+
+    /// The node and mark types of an ADF value: `type` of every node reached through `content`
+    /// and of every mark (`attrs` hold other `type`s, such as `file`, and are not walked).
+    fn types_in(value: &serde_json::Value, found: &mut std::collections::BTreeSet<String>) {
+        let mut stack = vec![value];
+        while let Some(node) = stack.pop() {
+            if let Some(ty) = node.get("type").and_then(|t| t.as_str()) {
+                found.insert(ty.to_owned());
+            }
+            for key in ["content", "marks"] {
+                if let Some(children) = node.get(key).and_then(|c| c.as_array()) {
+                    stack.extend(children);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_example_converts_to_the_declared_nodes_without_warnings() {
+        let opts = MdToAdfOptions {
+            extensions: Extensions::all(),
+            ..MdToAdfOptions::default()
+        };
+        for feature in FEATURES {
+            if matches!(feature.kind, FeatureKind::Csv) || feature.name == "csv-include" {
+                continue;
+            }
+            let conversion = crate::md_to_adf(feature.example, &opts)
+                .unwrap_or_else(|e| panic!("{}: {e:?}", feature.name));
+            // Some CommonMark and GFM examples show a lossy construct on purpose; the
+            // extensions' examples show the construct working.
+            if feature.extension.is_some() {
+                let codes: Vec<_> = conversion.warnings.iter().map(|w| w.code).collect();
+                assert!(codes.is_empty(), "{}: {codes:?}", feature.name);
+            }
+            let doc = conversion.output.to_value().unwrap();
+            let mut found = std::collections::BTreeSet::new();
+            types_in(&doc, &mut found);
+            // The attachment example shows exactly the nodes its entry declares.
+            if feature.name == "attachment" {
+                let declared: std::collections::BTreeSet<String> =
+                    feature.adf.iter().map(|t| (*t).to_owned()).collect();
+                for plain in ["doc", "paragraph", "text"] {
+                    found.remove(plain);
+                }
+                assert_eq!(found, declared);
             }
         }
     }

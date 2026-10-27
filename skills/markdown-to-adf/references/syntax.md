@@ -185,9 +185,12 @@ not the numeric attachment id). `adf` never uploads and never looks ids up; see
 
 ### Attached files (`media`)
 
-A file that is already attached, shown by its name: the link text is the file name, the path is
-the same **media id** as for images (a UUID, not the numeric attachment id), and `?collection=…`
-is optional. Same extension (`media`) as the image form. `adf` never uploads or looks ids up.
+A reference to a file that is already attached, by its name: the link text is the file name, the
+path is the same **media id** as for images (a UUID, not the numeric attachment id), and
+`?collection=…` is optional. Same extension (`media`) as the image form. `adf` never uploads or
+looks ids up. Needs `adf` 0.4.0 or later: older versions keep the link text as plain text and
+report `W_UNKNOWN_EXTENSION` (exit 0), so check `adf --version` first, and note that those versions
+also write such files as ```` ```adf ```` blocks when reading ADF.
 
 ```markdown
 [report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) [trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)
@@ -200,7 +203,8 @@ See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
   `mediaInline` (a file inside the line).
 - In a list item, a heading, a task item and a cell of a GFM table the links are always inline:
   a list item cannot hold a `mediaGroup`. For a group in a table, use a `::: cell` box.
-- The link text must not be empty. Only the key `collection` exists; `width`, `height`, `layout`
+- The link text must have a visible character (white space or only invisible characters is empty).
+  Only the key `collection` exists; `width`, `height`, `layout`
   and `size` are for images. A bad id, a bad or repeated key or an empty link text keeps the link
   text as plain text (`W_INVALID_EXTENSION_ARG`). With `--extensions` lacking `media` the text stays
   too (`W_EXTENSION_DISABLED`). `--images drop` removes the links (`W_IMAGE_DROPPED`);
