@@ -1,0 +1,4 @@
+# A csv fence becomes a table; the output is one line.
+bin.name = "adf"
+args = ["convert", "--compact"]
+binary = true

@@ -1,0 +1,4 @@
+# Without the csv extension the fence stays a code block, with W_EXTENSION_DISABLED.
+bin.name = "adf"
+args = ["convert", "--compact", "--extensions", "alerts"]
+binary = true

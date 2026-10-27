@@ -46,6 +46,7 @@ ADF extensions (--extensions; all on by default):
   emoji           [😄](adf:emoji/:smile:)
   card            [https://…](adf:card)
   media           ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
+  csv             ```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text
   csv-include     ![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR
 
 CSV tables (--from csv, --from adf --to csv):

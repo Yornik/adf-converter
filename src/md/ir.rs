@@ -162,7 +162,8 @@ pub(crate) enum Block {
         media: MediaSingle,
         span: Span,
     },
-    /// A table from an included CSV file, hoisted out of inline content. Placed like a GFM table.
+    /// A table built from CSV text (a ```` ```csv ```` / ```` ```tsv ```` fence, or an included
+    /// file hoisted out of inline content), already in the typed model. Placed like a GFM table.
     Csv {
         table: Box<Table>,
         span: Span,

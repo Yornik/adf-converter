@@ -42,7 +42,9 @@ adf version [--json]            (also: adf --version)
 
 - **Input.** `INPUT` is a path, or `-` / omitted for stdin. If stdin is a terminal and no input
   is given, a short usage message is printed to stderr and the exit code is 2.
-- **`--from md`** (default): Markdown → ADF.
+- **`--from md`** (default): Markdown → ADF. A ```` ```csv ```` or ```` ```tsv ```` fence in the
+  Markdown becomes a table (extension `csv`, on by default; `--extensions` without `csv` keeps it
+  a code block); see [Inline CSV tables](syntax.md#inline-csv-tables).
 - **`--from adf`**: ADF → Markdown, or with `--to csv` ADF → CSV. The input may be a bare document
   or any [envelope](#envelopes). `-e` is not allowed with `--from adf` (exit 2).
 - **`--from csv`**: CSV or TSV → an ADF document that holds one table; see
@@ -340,7 +342,7 @@ included in `adf capabilities --json`.
 | <a id="e_target"></a>`E_TARGET` | 4 | The ADF document uses a node, mark or attribute the target product does not accept. |
 | <a id="e_invariant"></a>`E_INVARIANT` | 4 | The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema. |
 | <a id="e_lossy"></a>`E_LOSSY` | 5 | The conversion would lose information and `--strict` (or `--html error`) is set. |
-| <a id="e_input_csv"></a>`E_INPUT_CSV` | 3 | The CSV input is malformed or has no rows: a quoted field is never closed (located at its opening quote, by line and column), or every line is blank. |
+| <a id="e_input_csv"></a>`E_INPUT_CSV` | 3 | The CSV input is malformed or has no rows: a quoted field is never closed (located at its opening quote, by line and column), or every line is blank. In a ```` ```csv ```` fence of a Markdown document the location is the Markdown line, and the message starts with `In the ```csv block:`. |
 | <a id="e_csv_option"></a>`E_CSV_OPTION` | 3 | A ```` ```csv ```` fence or an `adf:csv` include has an unknown, repeated or invalid option (`delimiter`, `header`, `max-rows`, `align`); located at the fence's info string or at the image. |
 | <a id="e_include"></a>`E_INCLUDE` | 3 | An `adf:csv` include was refused or failed: an empty, absolute or otherwise invalid PATH (backslash, `:`, `..`, `.`, empty component, control character, bad percent-encoding), a file that resolves outside `--include-root` (a symbolic link out of it), a target that is not a regular file (directory, device, FIFO, socket), a file that is missing or unreadable, an unusable root, or a budget used up (more than 16 includes, or more than 4 MiB read, per document). Located at the image; the message names the rule and the PATH as written, never a resolved path. A file over 1 MiB is `E_INPUT_TOO_LARGE`, one that is not UTF-8 is `E_INPUT_ENCODING`, a CSV problem inside the file is `E_INPUT_CSV`, each naming the PATH. |
 | <a id="e_input_no_table"></a>`E_INPUT_NO_TABLE` | 3 | `--to csv`: the ADF document has no table, or fewer tables than the number given with `--table`; the message says how many it has. |
@@ -365,7 +367,7 @@ included in `adf capabilities --json`.
 | <a id="w_front_matter_dropped"></a>`W_FRONT_MATTER_DROPPED` | Leading YAML front matter was removed. |
 | <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. |
 | <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. For an `adf:media` image (extension `media`): a bad id, collection, `width`, `height`, `layout` or `size`, an unknown or duplicate key, or an empty value; the alt text is kept. |
-| <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown. |
+| <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown (a ```` ```csv ```` fence with `csv` off stays a code block). |
 | <a id="w_include_disabled"></a>`W_INCLUDE_DISABLED` | An `![alt](adf:csv/PATH)` include was found but no include root is set (`--include-root`), so nothing was read and the image became its alt text (the PATH when the alt text is empty). Located at the image. |
 | <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | Reserved: a construct is not supported by the target product and was replaced by a fallback. This version never emits it: Markdown cannot produce a construct a target rejects, and raw ADF that the target rejects fails with `E_RAW_ADF` instead. |
 
@@ -420,7 +422,7 @@ files that `![alt](adf:csv/PATH)` images name under `DIR` (see
 |---|---|---|
 | Input size | Markdown and CSV (text): 1 MiB; ADF (JSON): 4 MiB | `E_INPUT_TOO_LARGE` |
 | `*` and `_` characters in one paragraph of Markdown (a block between blank lines, code included) | 20,000 | `E_INPUT_TOO_LARGE` |
-| Table cells in Markdown input: all tables of the document together, counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
+| Table cells in Markdown input: all tables of the document together (GFM tables and ```` ```csv ```` / ```` ```tsv ```` fences), counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in CSV input: the columns of the widest row × (the data rows + the header row), checked while the file is read, located at the record that crosses the limit | 100,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in ADF → CSV: the grid of the selected table after merged cells are expanded | 100,000 | `E_INPUT_TOO_LARGE` |
 | Nesting depth | Markdown input: 64 container levels (lists, quotes, cells, expands); ADF input: 512 levels of JSON arrays/objects (8 × the container limit, so everything `adf` writes can be read back) | `E_INPUT_TOO_DEEP` |

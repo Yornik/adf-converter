@@ -1,0 +1,5 @@
+# An unterminated quote is E_INPUT_CSV at the Markdown line (the CSV starts on the line after the fence).
+bin.name = "adf"
+args = ["convert"]
+status.code = 3
+binary = true

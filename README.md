@@ -207,6 +207,7 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `>` quotes, `---` rules | `blockquote`, `rule` |
 | GFM tables, with column alignment | `table` with `tableHeader` cells and `alignment` marks |
 | A CSV or TSV file (`--from csv`, [rules](docs/syntax.md#csv-and-tsv-tables)); the other way, `--from adf --to csv` | `table`; cell text is never read as Markdown |
+| ```` ```csv ```` / ```` ```tsv ```` fence, with options such as `delimiter=semicolon` ([rules](docs/syntax.md#inline-csv-tables)) | `table`; one way (ADF → Markdown writes a GFM table) |
 | `<u>`, `<sub>`, `<sup>`, `<br>` | `underline`, `subsup`, `hardBreak` |
 | `<span style="color: #rrggbb">`, `<span style="background-color: #rrggbb">` | `textColor`, `backgroundColor` |
 | `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]` | `panel` (info, success, note, warning, error) |
@@ -224,15 +225,17 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
-them. ADF → Markdown writes the same syntax, so for these constructs, converting back with
+them. ADF → Markdown writes the same syntax (except the one-way `csv` fence), so for these constructs, converting back with
 `--images external` gives the same document (with the default `--images link`, embedded external
 images become links; `adf:media` images need no flag). Nodes Markdown cannot express become
 ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
-CSV is read and written by the commands above, and a CSV file can be included in Markdown with
-`--include-root` (a `csv` block inside Markdown is planned in
-[#13](https://github.com/Yornik/adf-converter/issues/13)). The Agent Skill's
+CSV is read and written by the commands above. A ```` ```csv ```` or ```` ```tsv ```` fence inside
+Markdown becomes a table (extension `csv`). **A ```` ```csv ```` fence used to stay a code block**:
+to show CSV as code, use another language word such as ```` ```text ````, or turn the extension
+off. A CSV file can be included in the middle of a Markdown document with `--include-root`
+(see [Including a CSV file](docs/syntax.md#including-a-csv-file)). The Agent Skill's
 [tables.md](skills/markdown-to-adf/references/tables.md) has recipes for previews of big tables
 and for spreadsheets.
 

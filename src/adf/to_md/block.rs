@@ -516,6 +516,13 @@ fn code_block(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
                 "a code block in the language adf would be read back as raw ADF",
             ));
         }
+        // The fence would be read back as a table (extension `csv`).
+        Some(lang @ ("csv" | "tsv")) if cx.roundtrip => {
+            return Err(Fail::unrepresentable(
+                &node.pointer(),
+                &format!("a code block in the language {lang} would be read back as a table"),
+            ));
+        }
         other => other,
     };
     let mut text = String::new();

@@ -184,8 +184,11 @@ To turn a CSV or TSV file into a table, run `adf convert data.csv --from csv -e 
 body.json` (add `--delimiter tab` or `semicolon`; adf never guesses it). To get a table out as CSV,
 run `adf convert issue.json --from adf --to csv -o table.csv`, with `--csv-safe` when the file goes
 to a spreadsheet. Both need `adf` 0.3.0 or later; with older versions use `python3
-scripts/csv2md.py data.csv > table.md` (next to this `SKILL.md`) and the `jq` recipe. Big tables,
-merged cells and the limits are in [references/tables.md](references/tables.md).
+scripts/csv2md.py data.csv > table.md` (next to this `SKILL.md`) and the `jq` recipe. To put a CSV
+table in the middle of a comment, write a ```` ```csv ```` fence (options as `key=value` words after
+`csv`, such as `delimiter=semicolon`; adf 0.3.0 or later); a ```` ```csv ```` fence is a table, not
+a code block, so show CSV as code with ```` ```text ````. Big tables, merged cells and the limits
+are in [references/tables.md](references/tables.md).
 
 To put a CSV table between paragraphs of one Markdown document, `adf` 0.3.0 or later can include a
 file: `![Q1 numbers](adf:csv/q1.csv)` together with `--include-root DIR`. It is **off unless you

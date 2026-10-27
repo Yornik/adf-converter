@@ -131,7 +131,6 @@ pub(crate) fn embedded_table(
 
 /// Moves a diagnostic from CSV-relative lines to the lines of the Markdown that holds the CSV:
 /// `first_line` is the Markdown line of the CSV's first line.
-#[allow(dead_code)] // used by the csv fence (phase 2)
 pub(crate) fn shift_lines(diagnostic: &mut Diagnostic, first_line: u32) {
     if let Some(location) = diagnostic.location.as_mut() {
         let shift = first_line.saturating_sub(1);

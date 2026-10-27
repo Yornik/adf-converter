@@ -152,6 +152,16 @@ impl<'a> Cx<'a> {
         self.opts.limits.max_depth.min(HARD_MAX_DEPTH)
     }
 
+    /// The 1-based line of byte `offset`.
+    pub(crate) fn line_of(&self, offset: usize) -> u32 {
+        self.locator.line_col(offset).0
+    }
+
+    /// The location covering `span`.
+    pub(crate) fn location(&self, span: &Span) -> Location {
+        self.locator.location(span)
+    }
+
     /// A diagnostic located at `span`.
     pub(crate) fn diag(&self, code: Code, message: impl Into<String>, span: &Span) -> Diagnostic {
         Diagnostic::new(code, message).at(self.locator.location(span))

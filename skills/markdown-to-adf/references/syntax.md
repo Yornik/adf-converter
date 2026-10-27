@@ -20,7 +20,7 @@ the installed version supports.
 | `- item` / `* item` / `+ item` | bullet list | Indent sub-items to line up with the item's text: 2 spaces under `- `, 3 under `1. `. |
 | `1. item` | numbered list | Starts at the number you write. |
 | `- [ ] todo` / `- [x] done` | task list | Use `-`, not `1.` (`W_TASK_NUMBERING_LOST`). |
-| ```` ```python ```` … ```` ``` ```` | code block with language | Contents are never formatted. |
+| ```` ```python ```` … ```` ``` ```` | code block with language | Contents are never formatted. Except ```` ```csv ```` and ```` ```tsv ````: those become tables ([below](#csv-tables-in-markdown-csv)). |
 | `> quote` | quote | Quotes hold paragraphs, lists and code only. |
 | `---` on its own line (blank line before it) | horizontal rule | Directly under a text line, `---` makes that line a heading instead. |
 | `![alt](https://…/x.png)` | a link to the image | `W_IMAGE_AS_LINK`. Images need uploaded media in Jira; `--images external` embeds by URL, without the image's title or a link around it (`W_MARK_DROPPED`). For a file you uploaded, use `![alt](adf:media/<id>)` ([below](#file-media-media)). |
@@ -43,7 +43,8 @@ the installed version supports.
   more fails with `E_INPUT_TOO_LARGE`.
 - `<br>` makes a line break inside a cell. Put lists or several paragraphs in a box cell instead
   (below).
-- Building a table from CSV data (`adf convert data.csv --from csv`), getting one out as CSV
+- Building a table from CSV data (`adf convert data.csv --from csv`, or a ```` ```csv ```` fence
+  inside Markdown: [below](#csv-tables-in-markdown-csv)), getting one out as CSV
   (`--from adf --to csv`), big tables: see [tables.md](tables.md).
 - Tables only work at the top level or inside `<details>`. Inside a list, quote, panel or box they
   are moved out (`W_BLOCK_HOISTED`).
@@ -129,6 +130,27 @@ These nodes cannot be bold or italic; formatting around them is dropped (`W_MARK
 argument keeps the label as text (`W_INVALID_EXTENSION_ARG`); an unknown kind such as
 `adf:foo/x` too (`W_UNKNOWN_EXTENSION`). A line break inside a label becomes a space, so a label
 may wrap across lines even with `--softbreak hardbreak`.
+
+### CSV tables in Markdown (`csv`)
+
+`````markdown
+```csv align=numbers
+Item,Qty,Notes
+Widget,3,"Blue, small"
+Gadget,12,
+```
+`````
+
+A ```` ```csv ```` or ```` ```tsv ```` fence (backticks or tildes) becomes a table, in the middle of
+a comment or description. The body is the CSV text; cell text is never Markdown. Options after
+the word, as `key=value` with no spaces: `delimiter` (`comma`, `tab`, `semicolon`, `pipe` or one
+character; `tsv` defaults to `tab`), `header` (`true` or `false`), `max-rows` (at least 1) and
+`align` (`numbers` or `none`). A bad option is `E_CSV_OPTION`, an unterminated quote or empty body
+`E_INPUT_CSV` (exit 3). The table is placed like any table (top level or `<details>`; elsewhere it
+is moved out with `W_BLOCK_HOISTED`) and counts toward the 100,000 cells of all tables. Needs
+`adf` 0.3.0 or later. **Behaviour change:** a ```` ```csv ```` fence used to be a code block; to
+show CSV as code, write ```` ```text ````, or leave `csv` out of `--extensions`. Converting back
+writes a GFM table, never a fence. More in [tables.md](tables.md#csv-in-the-middle-of-a-markdown-document).
 
 ### File media (`media`)
 

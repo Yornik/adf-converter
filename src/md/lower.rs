@@ -1095,11 +1095,11 @@ impl Lowerer<'_, '_> {
                 | Block::Quote { .. }
                 | Block::Alert { .. }
                 | Block::Table { .. }
+                | Block::Csv { .. }
                 | Block::Box { .. }
                 | Block::Details { .. }
                 | Block::Raw { .. }
-                | Block::Media { .. }
-                | Block::Csv { .. }) => {
+                | Block::Media { .. }) => {
                     self.cx.warn(
                         Code::BlockHoisted,
                         format!(

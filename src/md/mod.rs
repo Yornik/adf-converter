@@ -15,6 +15,7 @@
 //! along that bounded tree.
 
 mod budget;
+mod csv_fence;
 mod cx;
 mod delimiters;
 mod extensions;
