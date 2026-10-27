@@ -76,12 +76,15 @@ pub struct Extensions {
     pub emoji: bool,
     /// `[https://…](adf:card)` → `inlineCard` (smart link).
     pub card: bool,
+    /// `![alt](adf:media/UUID?…)` → a `mediaSingle` holding an existing Media Services file.
+    pub media: bool,
 }
 
 impl Extensions {
     /// The names accepted by `--extensions`, in documentation order.
     pub const NAMES: &'static [&'static str] = &[
         "alerts", "details", "cells", "raw-adf", "mention", "status", "date", "emoji", "card",
+        "media",
     ];
 
     pub fn all() -> Self {
@@ -95,6 +98,7 @@ impl Extensions {
             date: true,
             emoji: true,
             card: true,
+            media: true,
         }
     }
 
@@ -109,6 +113,7 @@ impl Extensions {
             date: false,
             emoji: false,
             card: false,
+            media: false,
         }
     }
 
@@ -131,6 +136,7 @@ impl Extensions {
                 "date" => ext.date = true,
                 "emoji" => ext.emoji = true,
                 "card" => ext.card = true,
+                "media" => ext.media = true,
                 other => {
                     return Err(format!(
                         "unknown extension '{other}'; expected all, none, or a list of: {}",

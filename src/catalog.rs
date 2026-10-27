@@ -401,6 +401,7 @@ pub fn extension_enabled(extensions: &Extensions, name: &str) -> bool {
         "date" => extensions.date,
         "emoji" => extensions.emoji,
         "card" => extensions.card,
+        "media" => extensions.media,
         _ => false,
     }
 }
