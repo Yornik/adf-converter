@@ -12,7 +12,7 @@
 
 mod support;
 
-use adf_converter::{ImagePolicy, MdFlavor, MdToAdfOptions};
+use adf_converter::{ImagePolicy, MdFlavor, MdToAdfOptions, Target};
 use serde_json::{Value, json};
 
 #[test]
@@ -270,9 +270,12 @@ fn confluence_file_media_cases() -> Vec<(&'static str, Value)> {
     ]
 }
 
-fn assert_file_media_round_trips(cases: &[(&str, Value)]) {
+/// `target` is the product the documents come from: Jira rejects marks (`border`) that
+/// Confluence stores, so a raw block holding one only converts back for Confluence.
+fn assert_file_media_round_trips(cases: &[(&str, Value)], target: Target) {
     let external_images = MdToAdfOptions {
         images: ImagePolicy::External,
+        target,
         ..MdToAdfOptions::default()
     };
     for (name, x) in cases {
@@ -290,15 +293,13 @@ fn assert_file_media_round_trips(cases: &[(&str, Value)]) {
 }
 
 #[test]
-#[ignore = "needs media-md"]
 fn jira_shaped_file_media_round_trips_after_normalize() {
-    assert_file_media_round_trips(&jira_file_media_cases());
+    assert_file_media_round_trips(&jira_file_media_cases(), Target::Jira);
 }
 
 #[test]
-#[ignore = "needs media-md"]
 fn confluence_shaped_file_media_round_trips_after_normalize() {
-    assert_file_media_round_trips(&confluence_file_media_cases());
+    assert_file_media_round_trips(&confluence_file_media_cases(), Target::Confluence);
 }
 
 /// The file media documents are valid ADF, and the Markdown for them contains the syntax only

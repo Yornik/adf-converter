@@ -2961,3 +2961,25 @@ fn quadratic_emphasis_input_is_refused_fast() {
         start.elapsed()
     );
 }
+
+/// `adf:media` is an image form; written as a link it keeps the label as text and says so,
+/// instead of calling the kind unknown.
+#[test]
+fn adf_media_written_as_a_link_points_at_the_image_form() {
+    let md = "[report](adf:media/11111111-2222-3333-4444-555555555555)\n";
+    let conversion = super::to_adf(md, &MdToAdfOptions::default()).unwrap();
+    let warning = conversion
+        .warnings
+        .iter()
+        .find(|w| w.code == Code::UnknownExtension)
+        .expect("a warning");
+    assert!(
+        warning.message.contains("![alt](adf:media/"),
+        "{}",
+        warning.message
+    );
+    assert_eq!(
+        conversion.output.to_value().unwrap()["content"][0]["content"][0]["text"],
+        "report"
+    );
+}

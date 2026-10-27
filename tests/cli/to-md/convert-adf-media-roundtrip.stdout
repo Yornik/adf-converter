@@ -1,0 +1,29 @@
+![build.png](adf:media/11111111-2222-3333-4444-555555555555?collection=contentId-123456&width=1512&height=945&layout=wide&size=720px)
+
+```adf
+{
+  "type": "mediaSingle",
+  "attrs": {
+    "layout": "center"
+  },
+  "content": [
+    {
+      "type": "media",
+      "attrs": {
+        "type": "file",
+        "id": "11111111-2222-3333-4444-555555555556",
+        "collection": ""
+      },
+      "marks": [
+        {
+          "type": "border",
+          "attrs": {
+            "color": "#091e4224",
+            "size": 2
+          }
+        }
+      ]
+    }
+  ]
+}
+```

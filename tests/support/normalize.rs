@@ -45,7 +45,32 @@ pub fn normalize(doc: &Value) -> Value {
     let mut out = doc.clone();
     let mut task_ordinal = 0_usize;
     normalize_node(&mut out, &mut task_ordinal, 0);
+    sort_keys(&mut out, 0);
     out
+}
+
+/// Orders the keys of every object alphabetically: the order of keys in ADF carries no meaning
+/// (Jira and Confluence write them in any order), but the comparison is textual.
+fn sort_keys(node: &mut Value, depth: usize) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    match node {
+        Value::Object(object) => {
+            let mut entries: Vec<(String, Value)> = std::mem::take(object).into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            for (_, value) in &mut entries {
+                sort_keys(value, depth + 1);
+            }
+            object.extend(entries);
+        }
+        Value::Array(items) => {
+            for item in items {
+                sort_keys(item, depth + 1);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) => {}
+    }
 }
 
 fn normalize_node(node: &mut Value, task_ordinal: &mut usize, depth: usize) {

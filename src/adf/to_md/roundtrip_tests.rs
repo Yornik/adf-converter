@@ -707,7 +707,6 @@ fn file_media_docs() -> Vec<(&'static str, Value)> {
 }
 
 #[test]
-#[ignore = "needs media-md"]
 fn file_media_round_trips_with_the_adf_media_syntax() {
     for (name, document) in file_media_docs() {
         eprintln!("round trip: {name}");
@@ -716,7 +715,6 @@ fn file_media_round_trips_with_the_adf_media_syntax() {
 }
 
 #[test]
-#[ignore = "needs media-md"]
 fn file_media_markdown_is_a_fixed_point() {
     for (name, document) in file_media_docs() {
         let first = to_markdown(&document, &AdfToMdOptions::default())

@@ -83,6 +83,12 @@ pub(crate) fn build_link_node(
         "date" => LinkExt::Date,
         "emoji" => LinkExt::Emoji,
         "card" => LinkExt::Card,
+        "media" => {
+            return Err(Fallback::new(
+                Code::UnknownExtension,
+                "adf:media is an image form, not a link kind; write ![alt](adf:media/<uuid>) instead",
+            ));
+        }
         other => {
             return Err(Fallback::new(
                 Code::UnknownExtension,

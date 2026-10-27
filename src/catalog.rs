@@ -485,7 +485,7 @@ pub fn advice(code: Code) -> &'static str {
         Code::TaskNumberingLost => "Use - [ ] instead of 1. [ ] for task lists.",
         Code::FrontMatterDropped => "Remove the front matter from the input if it is not needed.",
         Code::UnknownExtension => {
-            "Use one of the adf: link kinds mention, status, date, emoji or card (`adf capabilities` lists them)."
+            "Use one of the adf: link kinds mention, status, date, emoji or card, or the adf:media image form ![alt](adf:media/<uuid>) (`adf capabilities` lists them)."
         }
         Code::InvalidExtensionArg => {
             "Fix the argument of the adf: link or adf:media image; `adf examples NAME` shows the syntax."
