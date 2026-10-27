@@ -1,0 +1,63 @@
+## attachment (extension)
+
+Syntax: [file name](adf:attachment/UUID?collection=)
+
+```markdown
+[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) [trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)
+
+See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
+```
+
+```json
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000000",
+            "collection": "",
+            "alt": "report.pdf"
+          }
+        },
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000002",
+            "collection": "contentId-123456",
+            "alt": "trace.zip"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "See "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000001",
+            "collection": "",
+            "alt": "log.txt"
+          }
+        },
+        {
+          "type": "text",
+          "text": " for details."
+        }
+      ]
+    }
+  ]
+}
+```

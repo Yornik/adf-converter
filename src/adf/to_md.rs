@@ -23,6 +23,8 @@ mod table;
 mod verify;
 
 #[cfg(test)]
+mod attachment_tests;
+#[cfg(test)]
 mod media_tests;
 #[cfg(test)]
 mod roundtrip_tests;

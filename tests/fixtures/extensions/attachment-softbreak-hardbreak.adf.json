@@ -1,0 +1,113 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A line break between attachment links keeps the group:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000901",
+            "collection": "",
+            "alt": "first.pdf"
+          }
+        },
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000902",
+            "collection": "",
+            "alt": "second.pdf"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Text on the lines around them makes them inline files:"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Before"
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000903",
+            "collection": "",
+            "alt": "inline.pdf"
+          }
+        },
+        {
+          "type": "hardBreak"
+        },
+        {
+          "type": "text",
+          "text": "after"
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "in a list item"
+                },
+                {
+                  "type": "hardBreak"
+                },
+                {
+                  "type": "mediaInline",
+                  "attrs": {
+                    "type": "file",
+                    "id": "66666666-7777-8888-9999-000000000904",
+                    "collection": "",
+                    "alt": "list.pdf"
+                  }
+                },
+                {
+                  "type": "hardBreak"
+                },
+                {
+                  "type": "text",
+                  "text": "text after the file"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

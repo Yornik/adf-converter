@@ -16,6 +16,7 @@ use super::escape::{
     TextContext, TextEscape, code_span, escape_text, has_unsafe_control, link_destination,
     link_title, normalize_cr,
 };
+use super::media::attachment_link;
 use super::verify::{self, Run};
 use super::{Ctx, Fail};
 
@@ -118,6 +119,25 @@ pub(super) fn render_inline(
             "its inline formatting could not be written as Markdown that parses back unchanged",
         )
     })
+}
+
+/// Attachment links (file name, `adf:attachment/…` destination) as one line, joined by a space.
+/// `None` when the line would not parse back as those links.
+pub(super) fn render_attachment_links(
+    links: Vec<(String, String)>,
+    kind: InlineKind,
+) -> Option<String> {
+    let mut atoms = Vec::with_capacity(links.len().saturating_mul(2));
+    for (index, (label, dest)) in links.into_iter().enumerate() {
+        if index > 0 {
+            atoms.push(Atom::Text {
+                text: " ".to_owned(),
+                style: Style::default(),
+            });
+        }
+        atoms.push(Atom::Ext { label, dest });
+    }
+    render_atoms(atoms, kind, true)
 }
 
 /// `true` when the inline content renders to nothing (no atoms after dropping trailing breaks).
@@ -332,8 +352,13 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                 (None, false) => {}
             }
         }
+        // Roundtrip: an attachment link; anything it cannot say keeps the raw block.
+        "mediaInline" if cx.roundtrip => match attachment_link(node) {
+            Ok((label, dest)) => atoms.push(Atom::Ext { label, dest }),
+            Err(reason) => return Err(Fail::unrepresentable(&node.pointer(), &reason)),
+        },
         // Plain: a Media Services file has no URL in ADF; a marker shows that it was there.
-        "mediaInline" if !cx.roundtrip => {
+        "mediaInline" => {
             let alt = crate::adf::reader::marker_alt(node.attr_str("alt"));
             let raw = |text: &str| Atom::Raw {
                 text: text.to_owned(),

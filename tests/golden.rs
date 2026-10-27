@@ -258,8 +258,6 @@ fn holds(doc: &serde_json::Value, outer: &str, inner: &str) -> bool {
 /// pin what the fixtures are about.
 #[test]
 fn fixtures_still_test_what_they_say() {
-    use serde_json::Value;
-    type Claim = (&'static str, &'static str, fn(&Value) -> bool);
     let claims: &[Claim] = &[
         (
             "commonmark/hard-breaks",
@@ -313,6 +311,15 @@ fn fixtures_still_test_what_they_say() {
             },
         ),
     ];
+    assert_claims(claims);
+}
+
+/// A claim about a blessed fixture: its name, what it is about, and a check of its document.
+type Claim = (&'static str, &'static str, fn(&serde_json::Value) -> bool);
+
+/// Fails for each claim whose blessed document no longer shows what the fixture is about.
+fn assert_claims(claims: &[Claim]) {
+    use serde_json::Value;
     let mut failures = Vec::new();
     for (name, claim, check) in claims {
         let path = support::fixtures_dir().join(format!("{name}.adf.json"));
@@ -323,6 +330,51 @@ fn fixtures_still_test_what_they_say() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The `adf:attachment` fixtures, checked like the ones above.
+#[test]
+fn attachment_fixtures_still_test_what_they_say() {
+    let claims: &[Claim] = &[
+        (
+            "extensions/attachment-in-containers",
+            "a media group in a quote, a panel, an expand and a table cell, and an inline file in a list item, a heading and a task item",
+            |doc| {
+                ["blockquote", "panel", "expand", "tableCell"]
+                    .iter()
+                    .all(|outer| holds(doc, outer, "mediaGroup"))
+                    && ["listItem", "heading", "taskItem"]
+                        .iter()
+                        .all(|outer| holds(doc, outer, "mediaInline"))
+            },
+        ),
+        (
+            "extensions/attachment-basic",
+            "a group of two files, a group of one and inline files",
+            |doc| {
+                let groups = support::nodes_of_type(doc, "mediaGroup");
+                groups.len() >= 4
+                    && groups
+                        .iter()
+                        .any(|g| g["content"].as_array().is_some_and(|c| c.len() == 2))
+                    && groups
+                        .iter()
+                        .any(|g| g["content"].as_array().is_some_and(|c| c.len() == 1))
+                    && support::nodes_of_type(doc, "mediaInline").len() >= 4
+            },
+        ),
+        (
+            "extensions/attachment-softbreak-hardbreak",
+            "a group of two files from a line break, and hard breaks around an inline file",
+            |doc| {
+                support::nodes_of_type(doc, "mediaGroup")
+                    .iter()
+                    .any(|g| g["content"].as_array().is_some_and(|c| c.len() == 2))
+                    && support::nodes_of_type(doc, "hardBreak").len() >= 4
+            },
+        ),
+    ];
+    assert_claims(claims);
 }
 
 /// The support code itself must not be vacuous: known-bad documents are rejected by the

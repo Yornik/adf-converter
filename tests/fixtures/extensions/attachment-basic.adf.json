@@ -1,0 +1,196 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A paragraph of only attachment links becomes a media group:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000000",
+            "collection": "",
+            "alt": "report.pdf"
+          }
+        },
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000001",
+            "collection": "",
+            "alt": "log.txt"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A single attachment is a group of one, and a collection is optional:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000002",
+            "collection": "contentId-123456",
+            "alt": "trace.zip"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A line break between the links keeps the group, and an empty collection is what Jira writes:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000003",
+            "collection": "",
+            "alt": "first.pdf"
+          }
+        },
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000004",
+            "collection": "",
+            "alt": "second.pdf"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "The scheme and the kind are not case sensitive, and the id keeps its case:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "AAAAAAAA-BBBB-2222-CCCC-DDDDEEEEFFFF",
+            "collection": "",
+            "alt": "Upper.PDF"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Text around the link makes it an inline file: see "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000002",
+            "collection": "contentId-123456",
+            "alt": "trace.zip"
+          }
+        },
+        {
+          "type": "text",
+          "text": " for details, and "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000001",
+            "collection": "",
+            "alt": "log.txt"
+          }
+        },
+        {
+          "type": "text",
+          "text": " as well."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Links with nothing between them stay inline: "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000005",
+            "collection": "",
+            "alt": "a.txt"
+          }
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000006",
+            "collection": "",
+            "alt": "b.txt"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "A link title is not part of the node: "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000007",
+            "collection": "",
+            "alt": "titled.pdf"
+          }
+        }
+      ]
+    }
+  ]
+}

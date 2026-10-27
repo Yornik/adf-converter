@@ -11,8 +11,8 @@ use super::escape::{
     TextContext, TextEscape, escape_text, has_unsafe_control, html_text, info_string,
     link_destination, longest_run, normalize_cr, replace_controls,
 };
-use super::inline::{InlineKind, is_blank, plain_autolink, render_inline};
-use super::media::{file_media_dest, group_markers, marker};
+use super::inline::{InlineKind, is_blank, plain_autolink, render_attachment_links, render_inline};
+use super::media::{attachment_link, file_media_dest, group_markers, marker};
 use super::passthrough::raw_block;
 use super::table;
 use super::{Ctx, Fail};
@@ -50,6 +50,7 @@ impl Container {
             "paragraph" | "bulletList" | "orderedList" | "codeBlock" | "mediaSingle"
         );
         common
+            || (ty == "mediaGroup" && self.allows_media_group())
             || match self {
                 Self::Doc => matches!(
                     ty,
@@ -76,6 +77,14 @@ impl Container {
                     matches!(ty, "heading" | "taskList" | "blockquote" | "panel" | "rule")
                 }
             }
+    }
+}
+
+impl Container {
+    /// Whether Markdown → ADF turns a paragraph of only attachment links into a `mediaGroup`
+    /// here (the schema allows it everywhere except in a list item).
+    fn allows_media_group(self) -> bool {
+        self != Self::ListItem
     }
 }
 
@@ -393,6 +402,7 @@ fn is_known_block(ty: &str) -> bool {
             | "expand"
             | "nestedExpand"
             | "mediaSingle"
+            | "mediaGroup"
     )
 }
 
@@ -410,7 +420,7 @@ fn render_block(
     cx: &mut Ctx,
 ) -> Result<Rendered, Fail> {
     let render: Render = match node.ty {
-        "paragraph" => |node, _, _, cx| paragraph(node, cx).map(Rendered::plain),
+        "paragraph" => |node, container, _, cx| paragraph(node, container, cx).map(Rendered::plain),
         "heading" => |node, _, _, cx| heading(node, cx).map(Rendered::plain),
         "bulletList" | "orderedList" => |node, _, prev, cx| list(node, prev, cx),
         "taskList" => |node, _, prev, cx| {
@@ -430,6 +440,9 @@ fn render_block(
         "table" => |node, _, _, cx| table::render_table(node, cx).map(Rendered::plain),
         "expand" | "nestedExpand" => |node, _, _, cx| expand(node, cx).map(Rendered::plain),
         "mediaSingle" => |node, _, _, cx| media_single(node, false, cx).map(Rendered::plain),
+        "mediaGroup" => {
+            |node, container, _, cx| media_group(node, container, cx).map(Rendered::plain)
+        }
         _ => |node, container, _, cx| {
             if cx.roundtrip {
                 Err(Fail::unrepresentable(
@@ -451,7 +464,7 @@ fn render_block(
 // Leaf blocks
 // ---------------------------------------------------------------------------------------------
 
-fn paragraph(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
+fn paragraph(node: &Node<'_>, container: Container, cx: &mut Ctx) -> Result<String, Fail> {
     cx.drop_block_marks(node);
     cx.drop_attrs(node, &[], &[]);
     if is_blank(&node.content) {
@@ -464,7 +477,82 @@ fn paragraph(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {
             Ok(String::new())
         };
     }
-    render_inline(&node.content, InlineKind::Block, cx)
+    let md = render_inline(&node.content, InlineKind::Block, cx)?;
+    // The same Markdown would read back as a `mediaGroup`: Markdown cannot tell the two apart.
+    if cx.roundtrip && container.allows_media_group() && is_attachment_row(&node.content) {
+        return Err(Fail::unrepresentable(
+            &node.pointer(),
+            "a paragraph of only attachment links reads back as a mediaGroup",
+        ));
+    }
+    Ok(md)
+}
+
+/// Whether a paragraph holds nothing but `mediaInline` nodes, each pair apart by a hard break or
+/// a text of spaces, tabs and line breaks: the shape Markdown → ADF (`md/lower.rs`, `attachment_group`) turns
+/// into a `mediaGroup`. Text marks are ignored, which can only make this answer `true` more often
+/// (the paragraph is then written as raw ADF, which is exact).
+fn is_attachment_row(nodes: &[Node<'_>]) -> bool {
+    let mut links = 0usize;
+    // Whether a link was seen and no separator has followed it yet.
+    let mut touching = false;
+    for node in nodes {
+        match node.ty {
+            "mediaInline" if !touching => {
+                links += 1;
+                touching = true;
+            }
+            "hardBreak" => touching = false,
+            "text" if node.text.is_some_and(is_blank_run) => touching = false,
+            _ => return false,
+        }
+    }
+    links > 0
+}
+
+/// Spaces, tabs and line breaks only, at least one character. A line break in text is written
+/// as a hard break, which also keeps two files apart.
+fn is_blank_run(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|c| matches!(c, ' ' | '\t' | '\n' | '\r'))
+}
+
+/// A `mediaGroup` as one paragraph of attachment links joined by a space; anything else the
+/// group holds keeps the raw block. Plain: one `[attachment: name]` marker per file.
+fn media_group(node: &Node<'_>, container: Container, cx: &mut Ctx) -> Result<String, Fail> {
+    if !cx.roundtrip {
+        return plain_fallback(node, container, cx);
+    }
+    if !node.marks.is_empty() || node.attr_names().next().is_some() {
+        return Err(Fail::unrepresentable(
+            &node.pointer(),
+            "a mediaGroup with marks or attributes has no adf:attachment form",
+        ));
+    }
+    let mut links = Vec::with_capacity(node.content.len());
+    for media in &node.content {
+        if media.ty != "media" {
+            return Err(Fail::unrepresentable(
+                &media.pointer(),
+                "only media can be an attachment link",
+            ));
+        }
+        links.push(
+            attachment_link(media)
+                .map_err(|reason| Fail::unrepresentable(&media.pointer(), &reason))?,
+        );
+    }
+    if links.is_empty() {
+        return Err(Fail::unrepresentable(
+            &node.pointer(),
+            "a mediaGroup without files has no Markdown form",
+        ));
+    }
+    render_attachment_links(links, InlineKind::Block).ok_or_else(|| {
+        Fail::unrepresentable(
+            &node.pointer(),
+            "its file names could not be written as Markdown that parses back unchanged",
+        )
+    })
 }
 
 fn heading(node: &Node<'_>, cx: &mut Ctx) -> Result<String, Fail> {

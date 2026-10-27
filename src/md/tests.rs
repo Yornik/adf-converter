@@ -1954,6 +1954,15 @@ fn large_inputs_stay_fast() {
         ("footnotes", fill("x[^1] ") + "\n\n[^1]: n\n"),
         ("entities", fill("&amp;&#32;")),
         ("adf links", fill("[@A](adf:mention/x) ")),
+        // One paragraph of attachment links is one media group; with words between, inline files.
+        (
+            "attachment group",
+            fill("[f.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) "),
+        ),
+        (
+            "attachment inline",
+            fill("see [f.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) "),
+        ),
         ("boxes", fill("::: cell\nx\n:::\n")),
         (
             "details",

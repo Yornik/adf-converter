@@ -1,0 +1,37 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "The image form is not an attachment: report.pdf keeps its alt text."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "The link form is: "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000801",
+            "collection": "",
+            "alt": "report.pdf"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

@@ -3,11 +3,13 @@
 use serde_json::{Value, json};
 
 use crate::adf::model::{
-    ALLOWED_URL_FORMS, Date, Emoji, Href, Inline, InlineCard, Mention, NonEmptyString, Status,
-    StatusColor,
+    ALLOWED_URL_FORMS, AttachmentFile, Date, Emoji, Href, Inline, InlineCard, MediaInline, Mention,
+    NonEmptyString, Status, StatusColor,
 };
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{Extensions, Target};
+
+use super::media;
 
 /// The kinds of `adf:` link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,9 +19,11 @@ pub(crate) enum LinkExt {
     Date,
     Emoji,
     Card,
+    Attachment,
 }
 
 impl LinkExt {
+    /// The kind: the word after `adf:`.
     fn name(self) -> &'static str {
         match self {
             Self::Mention => "mention",
@@ -27,6 +31,15 @@ impl LinkExt {
             Self::Date => "date",
             Self::Emoji => "emoji",
             Self::Card => "card",
+            Self::Attachment => "attachment",
+        }
+    }
+
+    /// The `--extensions` name that switches the kind on (`adf:attachment` shares `media`).
+    fn extension(self) -> &'static str {
+        match self {
+            Self::Attachment => "media",
+            Self::Mention | Self::Status | Self::Date | Self::Emoji | Self::Card => self.name(),
         }
     }
 
@@ -37,6 +50,7 @@ impl LinkExt {
             Self::Date => ext.date,
             Self::Emoji => ext.emoji,
             Self::Card => ext.card,
+            Self::Attachment => ext.media,
         }
     }
 }
@@ -59,6 +73,8 @@ pub(crate) fn split_adf_url(url: &str) -> Option<(String, Option<&str>)> {
 pub(crate) struct Fallback {
     pub(crate) code: Code,
     pub(crate) message: String,
+    /// What to write instead, when the message alone does not say.
+    pub(crate) hint: Option<&'static str>,
 }
 
 impl Fallback {
@@ -66,7 +82,13 @@ impl Fallback {
         Self {
             code,
             message: message.into(),
+            hint: None,
         }
+    }
+
+    fn with_hint(mut self, hint: &'static str) -> Self {
+        self.hint = Some(hint);
+        self
     }
 }
 
@@ -83,6 +105,7 @@ pub(crate) fn build_link_node(
         "date" => LinkExt::Date,
         "emoji" => LinkExt::Emoji,
         "card" => LinkExt::Card,
+        "attachment" => LinkExt::Attachment,
         "media" => {
             return Err(Fallback::new(
                 Code::UnknownExtension,
@@ -99,7 +122,7 @@ pub(crate) fn build_link_node(
             return Err(Fallback::new(
                 Code::UnknownExtension,
                 format!(
-                    "Unknown adf: link kind '{}'; expected mention, status, date, emoji or card",
+                    "Unknown adf: link kind '{}'; expected mention, status, date, emoji, card or attachment",
                     truncate(other, 40)
                 ),
             ));
@@ -111,7 +134,7 @@ pub(crate) fn build_link_node(
             format!(
                 "adf:{} link found, but the '{}' extension is disabled; kept as text",
                 which.name(),
-                which.name()
+                which.extension()
             ),
         ));
     }
@@ -121,6 +144,7 @@ pub(crate) fn build_link_node(
         LinkExt::Date => date(arg, label),
         LinkExt::Emoji => emoji(arg, label),
         LinkExt::Card => card(arg, label),
+        LinkExt::Attachment => attachment(arg, label),
     }
 }
 
@@ -213,6 +237,21 @@ fn card(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
         ))
     })?;
     Ok(Inline::InlineCard(InlineCard { url }))
+}
+
+/// `[file name](adf:attachment/<uuid>?collection=<c>)`. The link text is the file name.
+fn attachment(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
+    let hinted = |message: String| invalid(message).with_hint(media::ATTACHMENT_HINT);
+    let parsed = media::parse_attachment(arg).map_err(hinted)?;
+    let alt = NonEmptyString::new(label.trim())
+        .ok_or_else(|| hinted("adf:attachment needs the file name as the link text".to_owned()))?;
+    Ok(Inline::MediaInline(MediaInline {
+        file: AttachmentFile {
+            id: parsed.id,
+            collection: parsed.collection,
+            alt,
+        },
+    }))
 }
 
 /// `YYYY-MM-DD` → milliseconds since the Unix epoch at 00:00 UTC.

@@ -1,0 +1,81 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "--images external does not affect attachments:"
+        }
+      ]
+    },
+    {
+      "type": "mediaGroup",
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000701",
+            "collection": "",
+            "alt": "report.pdf"
+          }
+        },
+        {
+          "type": "media",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000702",
+            "collection": "",
+            "alt": "log.txt"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Next to an external image: see "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000703",
+            "collection": "",
+            "alt": "trace.zip"
+          }
+        }
+      ]
+    },
+    {
+      "type": "mediaSingle",
+      "attrs": {
+        "layout": "center"
+      },
+      "content": [
+        {
+          "type": "media",
+          "attrs": {
+            "type": "external",
+            "url": "https://example.com/chart.png",
+            "alt": "chart"
+          }
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "for the chart."
+        }
+      ]
+    }
+  ]
+}

@@ -78,7 +78,8 @@ pub struct Extensions {
     pub emoji: bool,
     /// `[https://…](adf:card)` → `inlineCard` (smart link).
     pub card: bool,
-    /// `![alt](adf:media/UUID?…)` → a `mediaSingle` holding an existing Media Services file.
+    /// `![alt](adf:media/UUID?…)` → a `mediaSingle` holding an existing Media Services file, and
+    /// `[file name](adf:attachment/UUID?…)` → a `mediaGroup` or `mediaInline` naming one.
     pub media: bool,
     /// ```` ```csv ```` / ```` ```tsv ```` fences → a table, and `![alt](adf:csv/PATH?…)` → a
     /// table read from a file under `MdToAdfOptions::include` (issue #13, phases 2 and 3).

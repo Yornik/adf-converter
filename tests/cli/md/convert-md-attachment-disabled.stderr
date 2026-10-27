@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"warning","code":"W_EXTENSION_DISABLED","message":"adf:attachment link found, but the 'media' extension is disabled; kept as text","location":{"file":"-","line":1,"column":5,"end_line":1,"end_column":70},"docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#w_extension_disabled"}

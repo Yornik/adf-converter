@@ -25,14 +25,14 @@ W_BLOCK_FLATTENED         warning   A nested container was merged into its paren
 W_HTML_AS_TEXT            warning   Raw HTML without an ADF equivalent was kept as literal text.
 W_HTML_DROPPED            warning   Raw HTML was dropped (--html drop), or an unrecognised tag was removed from an expand title.
 W_IMAGE_AS_LINK           warning   An image became a link; ADF images need media uploaded to Jira/Confluence.
-W_IMAGE_DROPPED           warning   An image was dropped (--images drop), including an adf:media file image.
+W_IMAGE_DROPPED           warning   An image was dropped (--images drop), including an adf:media file image or an adf:attachment link.
 W_UNSAFE_URL              warning   A link target is not an allowed URL (http, https, ftp, ftps, mailto, tel, /path, #anchor) and became plain text.
 W_CONTROL_CHAR            warning   Control characters were removed from text.
 W_TABLE_CELL_DROPPED      warning   Table cells beyond the header row's width were dropped.
 W_FOOTNOTE_FLATTENED      warning   Footnotes became superscript numbers plus a numbered list at the end; ADF has no footnotes.
 W_TASK_NUMBERING_LOST     warning   An ordered task list lost its numbering; ADF task lists are unordered.
 W_FRONT_MATTER_DROPPED    warning   Leading YAML front matter was removed.
-W_UNKNOWN_EXTENSION       warning   An adf: link names an unknown extension and was kept as plain text.
+W_UNKNOWN_EXTENSION       warning   An adf: link names an unknown extension, or an adf: form is written the wrong way round (adf:attachment as an image), and was kept as plain text.
 W_INVALID_EXTENSION_ARG   warning   An adf: extension has an invalid argument and was kept as plain text.
 W_EXTENSION_DISABLED      warning   Extension syntax was found but the extension is disabled (--extensions), so it was converted as plain Markdown.
 W_NODE_NOT_IN_TARGET      warning   A construct is not supported by the target product and was replaced by a fallback.

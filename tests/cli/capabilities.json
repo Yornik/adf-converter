@@ -318,6 +318,18 @@
       "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
     },
     {
+      "name": "attachment",
+      "kind": "extension",
+      "extension": "media",
+      "syntax": "[file name](adf:attachment/UUID?collection=)",
+      "adf": [
+        "mediaGroup",
+        "media",
+        "mediaInline"
+      ],
+      "note": "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION)"
+    },
+    {
       "name": "csv",
       "kind": "extension",
       "extension": "csv",
@@ -630,7 +642,7 @@
       "code": "W_IMAGE_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "An image was dropped (--images drop), including an adf:media file image."
+      "summary": "An image was dropped (--images drop), including an adf:media file image or an adf:attachment link."
     },
     {
       "code": "W_UNSAFE_URL",
@@ -672,7 +684,7 @@
       "code": "W_UNKNOWN_EXTENSION",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "An adf: link names an unknown extension and was kept as plain text."
+      "summary": "An adf: link names an unknown extension, or an adf: form is written the wrong way round (adf:attachment as an image), and was kept as plain text."
     },
     {
       "code": "W_INVALID_EXTENSION_ARG",

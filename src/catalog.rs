@@ -323,6 +323,20 @@ pub const FEATURES: &[Feature] = &[
         ),
         "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
     ),
+    // The link form of the `media` extension: attached files by name. Only this item belongs to
+    // the link form; the image form has its own entry, which comes first.
+    with_note(
+        Feature {
+            name: "attachment",
+            kind: FeatureKind::Extension,
+            extension: Some("media"),
+            syntax: "[file name](adf:attachment/UUID?collection=)",
+            example: "[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) [trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)\n\nSee [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.\n",
+            adf: &["mediaGroup", "media", "mediaInline"],
+            note: None,
+        },
+        "references files already attached to a Jira issue or Confluence page; adf never uploads. A paragraph of only attachment links is a mediaGroup (not in a list item), a link amid text is a mediaInline. The link text is the file name. --images drop removes the links (W_IMAGE_DROPPED); a bad argument keeps the link text (W_INVALID_EXTENSION_ARG); the image form ![x](adf:attachment/UUID) is not an attachment (W_UNKNOWN_EXTENSION)",
+    ),
     with_note(
         extension(
             "csv",
@@ -550,10 +564,10 @@ pub fn advice(code: Code) -> &'static str {
         Code::TaskNumberingLost => "Use - [ ] instead of 1. [ ] for task lists.",
         Code::FrontMatterDropped => "Remove the front matter from the input if it is not needed.",
         Code::UnknownExtension => {
-            "Use one of the adf: link kinds mention, status, date, emoji or card, or the adf:media image form ![alt](adf:media/<uuid>) (`adf capabilities` lists them)."
+            "Use one of the adf: link kinds mention, status, date, emoji, card or attachment ([file name](adf:attachment/<uuid>)), or the adf:media image form ![alt](adf:media/<uuid>) (`adf capabilities` lists them)."
         }
         Code::InvalidExtensionArg => {
-            "Fix the argument of the adf: link or adf:media image; `adf examples NAME` shows the syntax."
+            "Fix the argument of the adf: link, the adf:attachment link or the adf:media image; `adf examples NAME` shows the syntax."
         }
         Code::ExtensionDisabled => {
             "Enable the extension with --extensions, or write plain Markdown."

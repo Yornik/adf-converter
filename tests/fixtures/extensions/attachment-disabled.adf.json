@@ -1,0 +1,73 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "With the media extension off, the file name stays as text: report.pdf and "
+        },
+        {
+          "type": "text",
+          "text": "styled",
+          "marks": [
+            {
+              "type": "em"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " name.txt."
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "alone.pdf"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Other links are not affected: "
+        },
+        {
+          "type": "text",
+          "text": "ordinary",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": {
+                "href": "https://example.com/a.pdf"
+              }
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5b10ac8d82e05b22cc7d4ef5",
+            "text": "a mention"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

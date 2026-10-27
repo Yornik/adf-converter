@@ -1,14 +1,52 @@
-//! The argument of an `adf:media` image: `<id>` or `<id>?key=value&key=value`.
+//! The argument of an `adf:media` image or an `adf:attachment` link: `<id>` or
+//! `<id>?key=value&key=value`.
 //!
-//! The id is a UUID; the keys are `collection`, `width`, `height`, `layout` and `size`, each at
-//! most once, in any order. There is no percent-decoding. Every failure is one sentence that says
-//! which part is wrong, for `W_INVALID_EXTENSION_ARG`.
+//! The id is a UUID. The keys of an image are `collection`, `width`, `height`, `layout` and
+//! `size`; an attachment takes `collection` only. Each key is allowed at most once, in any order.
+//! There is no percent-decoding. Every failure is one sentence that says which part is wrong, for
+//! `W_INVALID_EXTENSION_ARG`.
 
 use crate::adf::model::{
     FileMedia, MediaCollection, MediaDimension, MediaId, MediaLayout, MediaSize,
 };
 
 use super::extensions::truncate;
+
+/// Which `adf:` form an argument belongs to: decides the name in messages and the keys allowed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Form {
+    /// `![alt](adf:media/<arg>)`.
+    Image,
+    /// `[file name](adf:attachment/<arg>)`.
+    Attachment,
+}
+
+impl Form {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Image => "adf:media",
+            Self::Attachment => "adf:attachment",
+        }
+    }
+
+    fn keys(self) -> &'static str {
+        match self {
+            Self::Image => "collection, width, height, layout or size",
+            Self::Attachment => "collection",
+        }
+    }
+}
+
+/// What `adf:attachment/<arg>` stands for, before the link text (the file name) is added.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Attachment {
+    pub(crate) id: MediaId,
+    pub(crate) collection: MediaCollection,
+}
+
+/// The syntax, shown as the hint of every invalid attachment argument.
+pub(crate) const ATTACHMENT_HINT: &str = "Write [file name](adf:attachment/<uuid>?collection=<c>); the file name is the link text and \
+     the collection is optional";
 
 /// What `adf:media/<arg>` stands for, before the alt text is added.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,26 +62,7 @@ pub(crate) const SYNTAX_HINT: &str = "Write ![alt](adf:media/<uuid>?collection=<
 
 /// Parses the text after `adf:media/` (`None` when there was no `/`).
 pub(crate) fn parse(arg: Option<&str>) -> Result<FileImage, String> {
-    let arg = arg.unwrap_or_default();
-    let (id, query) = match arg.split_once('?') {
-        Some((id, query)) => (id, Some(query)),
-        None => (arg, None),
-    };
-    if id.is_empty() {
-        return Err("adf:media needs the file's media ID: adf:media/<uuid>".to_owned());
-    }
-    let id = MediaId::parse(id).ok_or_else(|| {
-        format!(
-            "adf:media id '{}' is not a UUID (8-4-4-4-12 hex digits)",
-            shown(id)
-        )
-    })?;
-    let mut params = Params::default();
-    if let Some(query) = query {
-        for pair in query.split('&') {
-            params.add(pair)?;
-        }
-    }
+    let (id, params) = split(Form::Image, arg)?;
     Ok(FileImage {
         file: FileMedia {
             id,
@@ -54,6 +73,42 @@ pub(crate) fn parse(arg: Option<&str>) -> Result<FileImage, String> {
         layout: params.layout.unwrap_or_default(),
         size: params.size,
     })
+}
+
+/// Parses the text after `adf:attachment/` (`None` when there was no `/`): a UUID and, optionally,
+/// `?collection=<c>`. The id and the collection follow the same rules as for `adf:media`.
+pub(crate) fn parse_attachment(arg: Option<&str>) -> Result<Attachment, String> {
+    let (id, params) = split(Form::Attachment, arg)?;
+    Ok(Attachment {
+        id,
+        collection: params.collection.unwrap_or_default(),
+    })
+}
+
+/// The id and the query parameters of an argument.
+fn split(form: Form, arg: Option<&str>) -> Result<(MediaId, Params), String> {
+    let name = form.name();
+    let arg = arg.unwrap_or_default();
+    let (id, query) = match arg.split_once('?') {
+        Some((id, query)) => (id, Some(query)),
+        None => (arg, None),
+    };
+    if id.is_empty() {
+        return Err(format!("{name} needs the file's media ID: {name}/<uuid>"));
+    }
+    let id = MediaId::parse(id).ok_or_else(|| {
+        format!(
+            "{name} id '{}' is not a UUID (8-4-4-4-12 hex digits)",
+            shown(id)
+        )
+    })?;
+    let mut params = Params::default();
+    if let Some(query) = query {
+        for pair in query.split('&') {
+            params.add(form, pair)?;
+        }
+    }
+    Ok((id, params))
 }
 
 /// A value for a message: escaped, so a control character cannot reach it, and short.
@@ -74,41 +129,60 @@ struct Params {
 
 impl Params {
     /// Adds one `key=value` pair.
-    fn add(&mut self, pair: &str) -> Result<(), String> {
+    fn add(&mut self, form: Form, pair: &str) -> Result<(), String> {
+        let name = form.name();
         if pair.is_empty() {
-            return Err("adf:media has an empty parameter".to_owned());
+            return Err(format!("{name} has an empty parameter"));
         }
         let (key, value) = pair.split_once('=').ok_or_else(|| {
             format!(
-                "adf:media parameter '{}' has no value; write key=value",
+                "{name} parameter '{}' has no value; write key=value",
                 shown(pair)
             )
         })?;
         // An empty collection is the value Jira itself writes, so `collection=` is allowed.
         if value.is_empty() && key != "collection" {
             return Err(format!(
-                "adf:media parameter '{}' has an empty value",
+                "{name} parameter '{}' has an empty value",
                 shown(key)
             ));
         }
+        let image = form == Form::Image;
         match key {
             "collection" => assign(
+                name,
                 &mut self.collection,
                 key,
                 value,
                 MediaCollection::parse(value),
                 "use up to 64 letters, digits, '-' or '_'",
             ),
-            "width" => assign(&mut self.width, key, value, dimension(value), PIXELS_HINT),
-            "height" => assign(&mut self.height, key, value, dimension(value), PIXELS_HINT),
-            "layout" => assign(
+            "width" if image => assign(
+                name,
+                &mut self.width,
+                key,
+                value,
+                dimension(value),
+                PIXELS_HINT,
+            ),
+            "height" if image => assign(
+                name,
+                &mut self.height,
+                key,
+                value,
+                dimension(value),
+                PIXELS_HINT,
+            ),
+            "layout" if image => assign(
+                name,
                 &mut self.layout,
                 key,
                 value,
                 MediaLayout::parse(value),
                 "use wide, full-width, center, wrap-right, wrap-left, align-end or align-start",
             ),
-            "size" => assign(
+            "size" if image => assign(
+                name,
                 &mut self.size,
                 key,
                 value,
@@ -116,8 +190,9 @@ impl Params {
                 "use N% (1 to 100) or Npx (1 to 100000)",
             ),
             _ => Err(format!(
-                "adf:media has an unknown parameter '{}'; expected collection, width, height, layout or size",
-                shown(key)
+                "{name} has an unknown parameter '{}'; expected {}",
+                shown(key),
+                form.keys()
             )),
         }
     }
@@ -125,6 +200,7 @@ impl Params {
 
 /// Stores a parsed value, refusing a repeated key and an invalid value.
 fn assign<T>(
+    name: &str,
     slot: &mut Option<T>,
     key: &str,
     value: &str,
@@ -132,14 +208,12 @@ fn assign<T>(
     expected: &str,
 ) -> Result<(), String> {
     if slot.is_some() {
-        return Err(format!("adf:media repeats the parameter '{key}'"));
+        return Err(format!("{name} repeats the parameter '{key}'"));
     }
-    *slot = Some(parsed.ok_or_else(|| {
-        format!(
-            "adf:media {key} '{}' is not valid; {expected}",
-            shown(value)
-        )
-    })?);
+    *slot = Some(
+        parsed
+            .ok_or_else(|| format!("{name} {key} '{}' is not valid; {expected}", shown(value)))?,
+    );
     Ok(())
 }
 
@@ -414,5 +488,102 @@ mod tests {
             assert!(!message.chars().any(char::is_control), "{message:?}");
             assert!(!message.contains('\n'));
         }
+    }
+
+    // --- adf:attachment ---------------------------------------------------------------------
+
+    fn attachment(arg: &str) -> Attachment {
+        parse_attachment(Some(arg)).unwrap_or_else(|e| panic!("{arg}: {e}"))
+    }
+
+    fn attachment_err(arg: &str) -> String {
+        parse_attachment(Some(arg)).expect_err(arg)
+    }
+
+    #[test]
+    fn attachment_takes_an_id_and_an_optional_collection() {
+        let plain = attachment(ID);
+        assert_eq!(plain.id.as_str(), ID);
+        assert!(plain.collection.is_empty());
+        assert_eq!(
+            attachment(&format!("{ID}?collection=contentId-123456"))
+                .collection
+                .as_str(),
+            "contentId-123456"
+        );
+        // The empty collection Jira writes is the same as none.
+        assert_eq!(attachment(&format!("{ID}?collection=")), plain);
+        let upper = "ABCDEF01-2222-3333-4444-5555555555AB";
+        assert_eq!(attachment(upper).id.as_str(), upper);
+    }
+
+    #[test]
+    fn attachment_uses_the_collection_and_id_rules_of_the_image_form() {
+        for collection in [
+            "a",
+            "a-b_C9",
+            &"a".repeat(64),
+            &"a".repeat(65),
+            "a b",
+            "a.b",
+            "é",
+        ] {
+            let image = parse(Some(&format!("{ID}?collection={collection}")));
+            let file = parse_attachment(Some(&format!("{ID}?collection={collection}")));
+            assert_eq!(image.is_ok(), file.is_ok(), "{collection:?}");
+            if let (Ok(image), Ok(file)) = (image, file) {
+                assert_eq!(image.file.collection, file.collection);
+            }
+        }
+        for id in ["abc", "11111111222233334444555555555555", "123", ""] {
+            assert_eq!(parse(Some(id)).is_ok(), parse_attachment(Some(id)).is_ok());
+        }
+    }
+
+    #[test]
+    fn attachment_refuses_the_image_parameters() {
+        for key in [
+            "width=1",
+            "height=1",
+            "layout=wide",
+            "size=50%",
+            "colour=red",
+        ] {
+            let message = attachment_err(&format!("{ID}?{key}"));
+            assert!(
+                message.starts_with("adf:attachment has an unknown parameter"),
+                "{message}"
+            );
+            assert!(message.ends_with("expected collection"), "{message}");
+        }
+        // The image form still takes them.
+        assert!(parse(Some(&format!("{ID}?width=1"))).is_ok());
+    }
+
+    #[test]
+    fn attachment_failures_name_the_attachment_form() {
+        assert!(
+            attachment_err(&format!("{ID}?collection=a&collection=b"))
+                .contains("adf:attachment repeats the parameter 'collection'")
+        );
+        assert!(
+            attachment_err("not-a-uuid").contains("adf:attachment id 'not-a-uuid' is not a UUID")
+        );
+        assert!(
+            parse_attachment(None)
+                .unwrap_err()
+                .contains("adf:attachment needs the file's media ID: adf:attachment/<uuid>")
+        );
+        assert!(
+            attachment_err(&format!("{ID}?")).contains("adf:attachment has an empty parameter")
+        );
+        assert!(
+            attachment_err(&format!("{ID}?collection=a b"))
+                .contains("adf:attachment collection 'a b' is not valid")
+        );
+        assert!(
+            attachment_err(&format!("{ID}?collection"))
+                .contains("adf:attachment parameter 'collection' has no value")
+        );
     }
 }
