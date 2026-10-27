@@ -332,6 +332,21 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                 (None, false) => {}
             }
         }
+        // Plain: a Media Services file has no URL in ADF; a marker shows that it was there.
+        "mediaInline" if !cx.roundtrip => {
+            let alt = crate::adf::reader::marker_alt(node.attr_str("alt"));
+            let raw = |text: &str| Atom::Raw {
+                text: text.to_owned(),
+                style: Style::default(),
+            };
+            if alt.is_empty() {
+                atoms.push(raw("[attachment]"));
+            } else {
+                atoms.push(raw("[attachment: "));
+                push_text(&alt, &Style::default(), atoms);
+                atoms.push(raw("]"));
+            }
+        }
         other => {
             if cx.roundtrip {
                 return Err(Fail::unrepresentable(
