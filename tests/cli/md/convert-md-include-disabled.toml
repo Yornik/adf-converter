@@ -1,0 +1,3 @@
+# Without --include-root nothing is read: the image becomes its alt text (W_INCLUDE_DISABLED).
+bin.name = "adf"
+args = ["convert"]

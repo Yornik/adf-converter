@@ -53,7 +53,7 @@ the installed version supports.
 All are on by default (`--extensions all`). `--extensions none` or a list such as
 `--extensions alerts,details` turns them off; their syntax is then plain Markdown
 (`W_EXTENSION_DISABLED`). Names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`,
-`date`, `emoji`, `card`, `media`.
+`date`, `emoji`, `card`, `media`, `csv`.
 
 ### Panels (`alerts`)
 
@@ -160,6 +160,27 @@ not the numeric attachment id). `adf` never uploads and never looks ids up; see
 - An image title, or a link around the image, is dropped (`W_MARK_DROPPED`).
 - `adf` cannot tell whether the id exists. A wrong id fails when you post.
 - Only images: there is no `adf:` form for other files yet (PDFs, logs). Do not invent one.
+
+### CSV include (`csv`, needs `--include-root`)
+
+```markdown
+![Q1 numbers](adf:csv/q1.csv)
+![Q1 numbers](adf:csv/reports/q1.csv?delimiter=semicolon&header=true&max-rows=50&align=numbers)
+```
+
+`adf` 0.3.0 or later replaces the image by the table of a CSV file. **Off unless you pass
+`--include-root DIR`**: the Markdown then decides which files under `DIR` are read and published,
+so use a scratch directory with a copy of just the data, never a home directory or repository, and
+never for Markdown built from untrusted text. Details and the safe recipe: see
+[tables.md](tables.md#a-csv-table-in-the-middle-of-a-document-include).
+
+- The path is relative to `DIR`, uses `/`, and is `%`-decoded once; `..`, a leading `/`, `\`, `:`,
+  control characters and symbolic links out of `DIR` are `E_INCLUDE`. Options: `delimiter`,
+  `header`, `max-rows`, `align` (`E_CSV_OPTION` for a bad one).
+- No root: the image becomes its alt text (`W_INCLUDE_DISABLED`). Without `csv` in `--extensions`:
+  `W_EXTENSION_DISABLED`. The link form `[x](adf:csv/…)` is not an include (`W_UNKNOWN_EXTENSION`).
+- The table is placed like a Markdown table (moved out of lists and quotes with
+  `W_BLOCK_HOISTED`), and is one-way: ADF → Markdown writes a normal table.
 
 ## Inline HTML
 

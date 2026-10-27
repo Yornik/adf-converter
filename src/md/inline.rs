@@ -16,6 +16,7 @@ use crate::options::{HtmlPolicy, ImagePolicy, SoftBreak};
 use super::cx::Cx;
 use super::extensions::{build_link_node, split_adf_url, truncate};
 use super::html::{HtmlMark, HtmlTag, Recognised, classify, closes_by_name, parse_tag};
+use super::include;
 use super::ir::{Marks, Span, Tok};
 use super::media;
 
@@ -43,6 +44,12 @@ enum ImageMode {
     File,
     /// `adf:media/<id>…` while the `media` extension is disabled: only the alt text is kept.
     FileDisabled,
+    /// `adf:csv/PATH…` with an include root: the file becomes a table.
+    Csv,
+    /// `adf:csv/PATH…` without an include root: nothing is read, the alt text is kept.
+    CsvNoRoot,
+    /// `adf:csv/PATH…` while the `csv` extension is disabled: only the alt text is kept.
+    CsvDisabled,
 }
 
 #[derive(Debug)]
@@ -387,13 +394,24 @@ fn image_mode(dest: &str, cx: &Cx<'_>) -> ImageMode {
         ImagePolicy::External => ImageMode::External,
         ImagePolicy::Drop => return ImageMode::Drop,
     };
-    if split_adf_url(dest).is_none_or(|(kind, _)| kind != "media") {
-        return policy;
-    }
-    if cx.opts.extensions.media {
-        ImageMode::File
-    } else {
-        ImageMode::FileDisabled
+    match split_adf_url(dest) {
+        Some((kind, _)) if kind == "media" => {
+            if cx.opts.extensions.media {
+                ImageMode::File
+            } else {
+                ImageMode::FileDisabled
+            }
+        }
+        Some((kind, _)) if kind == "csv" => {
+            if !cx.opts.extensions.csv {
+                ImageMode::CsvDisabled
+            } else if cx.opts.include.is_none() {
+                ImageMode::CsvNoRoot
+            } else {
+                ImageMode::Csv
+            }
+        }
+        _ => policy,
     }
 }
 
@@ -452,7 +470,7 @@ fn adf_label(toks: &[Tok]) -> String {
                     gap = false;
                 }
             }
-            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => gap = true,
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } | Tok::Table { .. } => gap = true,
         }
     }
     if gap {
@@ -469,7 +487,7 @@ fn keep_linked_whitespace(toks: &mut [Tok]) {
             Tok::Text { text, marks, .. } => {
                 marks.fmt.link.is_some() && text.chars().all(|c| c == ' ' || c == '\t')
             }
-            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => false,
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } | Tok::Table { .. } => false,
         });
     if only_linked_space {
         for tok in toks {
@@ -843,7 +861,7 @@ impl InlineBuilder {
         let inner = self.toks.get(start..).unwrap_or_default();
         let inner_marked = inner.iter().any(|t| match t {
             Tok::Text { marks, .. } => !marks.is_empty(),
-            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } => false,
+            Tok::HardBreak | Tok::Node(_) | Tok::Media { .. } | Tok::Table { .. } => false,
         });
         let written = adf_label(inner);
         let label = strip_controls(&written);
@@ -871,10 +889,10 @@ impl InlineBuilder {
                 let images: Vec<Tok> = self
                     .toks
                     .drain(start..)
-                    .filter(|t| matches!(t, Tok::Media { .. }))
+                    .filter(|t| matches!(t, Tok::Media { .. } | Tok::Table { .. }))
                     .collect();
                 for image in &images {
-                    if let Tok::Media { span, .. } = image {
+                    if let Tok::Media { span, .. } | Tok::Table { span, .. } = image {
                         cx.warn(
                             Code::BlockHoisted,
                             format!(
@@ -947,21 +965,23 @@ impl InlineBuilder {
     }
 
     /// End of an image.
-    pub(crate) fn end_image(&mut self, cx: &mut Cx<'_>) {
+    ///
+    /// Fails only for an `adf:csv` include that is refused or cannot be read.
+    pub(crate) fn end_image(&mut self, cx: &mut Cx<'_>) -> Result<(), Diagnostic> {
         self.flush(cx);
         let Some(Frame {
             kind: FrameKind::Image(frame),
             ..
         }) = self.stack.pop_until(|k| matches!(k, FrameKind::Image(_)))
         else {
-            return;
+            return Ok(());
         };
         if self.stack.capturing > 0 {
             // A nested image inside captured alt text: its alt text joins the outer one.
             if let Some(outer) = self.stack.capture_alt() {
                 outer.push_str(&frame.alt);
             }
-            return;
+            return Ok(());
         }
         match frame.mode {
             ImageMode::Link => {
@@ -991,12 +1011,55 @@ impl InlineBuilder {
                 let alt = clean_alt(&frame, cx);
                 self.push_alt_text(alt, frame.span);
             }
+            ImageMode::CsvDisabled => {
+                cx.warn(
+                    Code::ExtensionDisabled,
+                    "adf:csv image found, but the 'csv' extension is disabled; the alt text was kept",
+                    &frame.span,
+                );
+                let alt = clean_alt(&frame, cx);
+                self.push_alt_text(alt, frame.span);
+            }
+            ImageMode::CsvNoRoot => self.end_disabled_include(&frame, cx),
+            ImageMode::Csv => self.end_csv_image(frame, cx)?,
             ImageMode::Drop => cx.warn(
                 Code::ImageDropped,
                 "Image dropped (--images drop)",
                 &frame.span,
             ),
         }
+        Ok(())
+    }
+
+    /// An `adf:csv` include while no include root is set: nothing is read; the alt text (the
+    /// PATH when there is none) stays.
+    fn end_disabled_include(&mut self, frame: &ImageFrame, cx: &mut Cx<'_>) {
+        cx.warn_hint(
+            Code::IncludeDisabled,
+            "adf:csv include found, but no include root is set; nothing was read and the alt text was kept",
+            "Pass --include-root DIR to read files under DIR, or convert the CSV with --from csv",
+            &frame.span,
+        );
+        let mut text = clean_alt(frame, cx);
+        if text.is_empty() {
+            let arg = split_adf_url(&frame.url).and_then(|(_, arg)| arg);
+            strip_controls(include::raw_path(arg))
+                .trim()
+                .clone_into(&mut text);
+        }
+        self.push_alt_text(text, frame.span.clone());
+    }
+
+    /// An `adf:csv` include: the file read as a table token.
+    fn end_csv_image(&mut self, frame: ImageFrame, cx: &mut Cx<'_>) -> Result<(), Diagnostic> {
+        let arg = split_adf_url(&frame.url).and_then(|(_, arg)| arg);
+        let table = include::load(arg, &frame.span, cx)?;
+        self.warn_media_marks(&frame, cx);
+        self.toks.push(Tok::Table {
+            table: Box::new(table),
+            span: frame.span,
+        });
+        Ok(())
     }
 
     /// An image with `--images external`: a media token, or its alt text for a bad URL.

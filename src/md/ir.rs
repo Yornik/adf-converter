@@ -14,8 +14,8 @@ use std::ops::Range;
 use serde_json::Value;
 
 use crate::adf::model::{
-    Align, Formatting, HeadingLevel, Inline, MediaSingle, NonEmptyString, PanelType, TaskState,
-    TextMarks,
+    Align, Formatting, HeadingLevel, Inline, MediaSingle, NonEmptyString, PanelType, Table,
+    TaskState, TextMarks,
 };
 
 /// Byte range in the normalised source (see `prepass.rs`).
@@ -94,6 +94,9 @@ pub(crate) enum Tok {
     Node(Inline),
     /// An external image (`--images external`), placed at block level by the lowering pass.
     Media { media: MediaSingle, span: Span },
+    /// A table made from an included CSV file (`![alt](adf:csv/PATH)`), placed at block level by
+    /// the lowering pass like an external image.
+    Table { table: Box<Table>, span: Span },
 }
 
 /// A block, before ADF container rules are applied.
@@ -159,6 +162,11 @@ pub(crate) enum Block {
         media: MediaSingle,
         span: Span,
     },
+    /// A table from an included CSV file, hoisted out of inline content. Placed like a GFM table.
+    Csv {
+        table: Box<Table>,
+        span: Span,
+    },
 }
 
 impl Block {
@@ -176,7 +184,8 @@ impl Block {
             | Self::Box { span, .. }
             | Self::Details { span, .. }
             | Self::Raw { span, .. }
-            | Self::Media { span, .. } => span.clone(),
+            | Self::Media { span, .. }
+            | Self::Csv { span, .. } => span.clone(),
         }
     }
 
@@ -191,7 +200,7 @@ impl Block {
             Self::List { .. } => "list",
             Self::Quote { .. } => "quote",
             Self::Alert { .. } => "alert",
-            Self::Table { .. } => "table",
+            Self::Table { .. } | Self::Csv { .. } => "table",
             Self::Box { .. } => "::: cell box",
             Self::Details { .. } => "<details> block",
             Self::Raw { .. } => "```adf block",

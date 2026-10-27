@@ -115,9 +115,53 @@ carry.
 
 Do not turn CSV into a Markdown table yourself: `--from csv` does not go through Markdown, so
 nothing in the data needs escaping. `--from csv` makes a document that is only the table. To put
-a CSV table between paragraphs of one comment, use the `csv2md.py` route
+a CSV table between paragraphs of one comment, include the file
+([next section](#a-csv-table-in-the-middle-of-a-document-include)), use the `csv2md.py` route
 ([below](#before-adf-030-the-csv2mdpy-helper)), or post the table as its own comment. (Inline
 `csv` blocks in Markdown are planned, not available yet.)
+
+## A CSV table in the middle of a document (include)
+
+Needs `adf` 0.3.0 or later.
+
+```markdown
+Results of the run:
+
+![Q1 numbers](adf:csv/q1.csv?delimiter=semicolon&max-rows=50&align=numbers)
+
+Details follow.
+```
+
+```sh
+work=$(mktemp -d) && mkdir "$work/data" && cp q1.csv "$work/data/"
+adf convert comment.md -e jira-comment --include-root "$work/data" -o "$work/comment.json"
+```
+
+The image is replaced by the table of `q1.csv`, with the options of `--from csv` as a query
+(`delimiter`, `header`, `max-rows`, `align`; percent-encode `&`, `=` and `%` in values). The path
+is relative to the root, uses `/`, and is `%`-decoded once (`my%20file.csv`, or
+`<adf:csv/my file.csv>`).
+
+**Security: the Markdown decides what is read.** Includes are off unless you pass
+`--include-root DIR`. Then every `![](adf:csv/PATH)` in the Markdown reads a file under `DIR`, and
+the table is part of what you post.
+
+- **Use a scratch directory that holds only a copy of the data to include**, as above. Never a
+  home directory, a repository, `/`, `~/Downloads`, or a directory with credentials, configuration
+  or anything you would not publish.
+- **Do not enable it for Markdown built from untrusted text** (an issue, a web page, an e-mail, a
+  tool's output): that text can contain an include line for any file under the root.
+- Do not add the flag unless the user asked for a CSV in the middle of a document, and tell them
+  which directory you used.
+- `adf validate --from md --include-root DIR --json doc.md` lists in `includes` which files would
+  be read, without writing ADF. Check it before you post.
+
+Paths with `..`, a leading `/`, a backslash, `:` or control characters, symbolic links that lead
+out of the directory, and anything that is not a regular file are refused with `E_INCLUDE` (exit
+3, nothing written); do not try to work around it. Limits: 16 files per document, 1 MiB per file,
+4 MiB in all; the table counts toward the 100,000-cell limit. Without the flag, the image becomes
+its alt text with `W_INCLUDE_DISABLED`. An included table is one-way: reading the posted content
+back (`--from adf`) gives an ordinary Markdown table.
 
 ## Read or edit a table in Markdown
 

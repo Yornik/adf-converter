@@ -1,0 +1,4 @@
+# --include-root only applies to Markdown input.
+bin.name = "adf"
+args = ["convert", "--from", "adf", "--include-root", "tests/fixtures/include/data"]
+status.code = 2

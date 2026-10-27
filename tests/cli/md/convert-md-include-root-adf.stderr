@@ -1,0 +1,1 @@
+{"schema_version":1,"severity":"error","code":"E_USAGE","message":"--include-root only applies to Markdown input","hint":"Drop --include-root; ![alt](adf:csv/PATH) includes are read only when converting Markdown (--from md)","docs":"https://github.com/Yornik/adf-converter/blob/main/docs/cli-contract.md#e_usage","exit_code":2}

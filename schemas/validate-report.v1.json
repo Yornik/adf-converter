@@ -12,7 +12,8 @@
     "envelope",
     "adf_schema",
     "errors",
-    "warnings"
+    "warnings",
+    "includes"
   ],
   "additionalProperties": false,
   "properties": {
@@ -72,6 +73,25 @@
             }
           }
         ]
+      }
+    },
+    "includes": {
+      "description": "The files that adf:csv includes read, in document order: the PATH as written in the Markdown (before %-decoding, without the query) and the bytes read. Always present; empty when nothing was read (no --include-root, no include, or input that is not Markdown).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "bytes"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       }
     }
   },

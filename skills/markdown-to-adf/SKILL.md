@@ -27,6 +27,11 @@ with `curl` or acli.
   variable is set with `test -n "$JIRA_API_TOKEN"`, never by echoing it.
 - Post only where the user asked. Don't comment on many issues (JQL, loops) unless asked to.
 - Write Markdown to a file with a quoted heredoc (`<<'EOF'`), not as a shell-quoted string.
+- **Never pass `--include-root` on your own initiative**, and never to a home directory, a
+  repository, `/`, or any directory with more than the data to include. It lets the Markdown choose
+  which files `adf` reads and publishes. Use it only when the user asked to include a CSV file in
+  the middle of a document, with a fresh scratch directory that holds a copy of just that file.
+  See [references/tables.md](references/tables.md#a-csv-table-in-the-middle-of-a-document-include).
 
 ## 1. Check the tool
 
@@ -181,6 +186,13 @@ run `adf convert issue.json --from adf --to csv -o table.csv`, with `--csv-safe`
 to a spreadsheet. Both need `adf` 0.3.0 or later; with older versions use `python3
 scripts/csv2md.py data.csv > table.md` (next to this `SKILL.md`) and the `jq` recipe. Big tables,
 merged cells and the limits are in [references/tables.md](references/tables.md).
+
+To put a CSV table between paragraphs of one Markdown document, `adf` 0.3.0 or later can include a
+file: `![Q1 numbers](adf:csv/q1.csv)` together with `--include-root DIR`. It is **off unless you
+give `--include-root`**, and the Markdown then decides what is read from `DIR`, so only ever point
+it at a scratch directory holding just the data to publish (see
+[references/tables.md](references/tables.md#a-csv-table-in-the-middle-of-a-document-include)).
+Without the flag nothing is read and you get `W_INCLUDE_DISABLED`.
 
 Keep tables, headings, rules, panels and `<details>` out of lists and quotes; otherwise `adf`
 moves or converts them (`W_BLOCK_HOISTED`, `W_HEADING_DEMOTED`, `W_BLOCK_FLATTENED`). The full

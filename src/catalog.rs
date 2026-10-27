@@ -323,6 +323,29 @@ pub const FEATURES: &[Feature] = &[
         ),
         "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)",
     ),
+    // The include form of the `csv` extension (issue #13, phase 3). Only this item belongs to it;
+    // the fence form of the same extension has its own entry.
+    with_note(
+        Feature {
+            name: "csv-include",
+            kind: FeatureKind::Extension,
+            extension: Some("csv"),
+            syntax: "![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR",
+            example: "![Inventory](adf:csv/inventory.csv)\n",
+            adf: &[
+                "table",
+                "tableRow",
+                "tableHeader",
+                "tableCell",
+                "paragraph",
+                "hardBreak",
+                "link",
+                "alignment",
+            ],
+            note: None,
+        },
+        "off unless --include-root DIR is given (the example below shows the disabled form: nothing is read, W_INCLUDE_DISABLED); PATH is relative to DIR, uses / and is %-decoded once; absolute paths, .., backslashes, ':' and symlinks out of DIR are refused (E_INCLUDE); the Markdown decides what is read, so DIR must hold only data you are willing to publish; at most 16 files, 1 MiB each and 4 MiB in all per document",
+    ),
     with_note(
         feature(
             "csv-tables",

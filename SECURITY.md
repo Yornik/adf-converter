@@ -32,7 +32,8 @@ unless you prefer not to be named.
 ## Scope
 
 `adf` is an offline converter. It makes no network requests, does not handle credentials, reads
-no configuration files, and reads only the environment variables listed in
+no configuration files (and no files other than its input, except the CSV files named by
+`![alt](adf:csv/PATH)` under an explicit `--include-root`), and reads only the environment variables listed in
 [docs/cli-contract.md](docs/cli-contract.md). In scope is how it handles **untrusted input**,
 which is the normal case: AI agents and scripts generate the Markdown and ADF it reads.
 
@@ -44,6 +45,10 @@ In scope:
   `javascript:` or other non-allowlisted URL that ends up as a link, or content from one part of
   the input leaking into another;
 - writing to a path other than the one given with `-o`, or leaving a partial file behind;
+- reading a file outside the directory given with `--include-root`, reading any file for
+  `![alt](adf:csv/PATH)` without that flag, or leaking a path or file content into a message
+  (the Markdown decides which files *under* the root are read; that is documented behaviour, see
+  [Including a CSV file](docs/syntax.md#including-a-csv-file));
 - problems in the release process: tampered or unverifiable release archives, checksums or
   attestations, and weaknesses in this repository's GitHub Actions workflows.
 

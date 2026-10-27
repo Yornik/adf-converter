@@ -1,0 +1,1 @@
+{ "extensions": "alerts,details,cells,raw-adf,mention,status,date,emoji,card,media", "include-root": "tests/fixtures/include/data" }

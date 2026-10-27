@@ -135,6 +135,16 @@ impl Node {
     }
 }
 
+/// A table from an included CSV file, with the position of its image.
+type IncludedTable = (Box<Table>, Span);
+
+/// What a leaf's inline content holds besides text, in document order.
+#[derive(Debug)]
+enum Embedded {
+    Media(MediaSingle),
+    Table(Box<Table>, Span),
+}
+
 /// Output of lowering a block in some container.
 #[derive(Debug)]
 enum Piece {
@@ -414,7 +424,8 @@ fn raw_local_ids(parsed: &Parsed, cx: &Cx<'_>) -> Result<BTreeSet<String>, Diagn
             | Block::Code { .. }
             | Block::Rule { .. }
             | Block::Table { .. }
-            | Block::Media { .. } => {}
+            | Block::Media { .. }
+            | Block::Csv { .. } => {}
         }
     }
     raws.sort_by_key(|(span, _)| span.start);
@@ -536,14 +547,14 @@ impl Lowerer<'_, '_> {
     #[allow(clippy::too_many_lines)]
     fn block(&mut self, ctx: Ctx, block: Block, arrived: bool) -> Result<Vec<Piece>, Diagnostic> {
         match block {
-            Block::Paragraph { content, .. } => Ok(self.paragraph(content)),
+            Block::Paragraph { content, .. } => Ok(self.paragraph(ctx, content)),
             Block::Heading {
                 level,
                 mut content,
                 span,
             } => {
                 if ctx.allows_heading_rule() {
-                    return Ok(self.heading(level, content));
+                    return Ok(self.heading(ctx, level, content));
                 }
                 self.cx.warn(
                     Code::HeadingDemoted,
@@ -554,7 +565,7 @@ impl Lowerer<'_, '_> {
                     &span,
                 );
                 embolden(&mut content);
-                Ok(self.paragraph(content))
+                Ok(self.paragraph(ctx, content))
             }
             Block::Code { language, text, .. } => {
                 Ok(vec![Piece::Node(Node::Code(CodeBlock { language, text }))])
@@ -608,12 +619,25 @@ impl Lowerer<'_, '_> {
                 );
                 self.seq(Ctx::Quote, children)
             }
-            block @ (Block::Table { .. } | Block::Box { .. }) if !ctx.allows_table() => {
+            block @ (Block::Table { .. } | Block::Box { .. } | Block::Csv { .. })
+                if !ctx.allows_table() =>
+            {
                 Ok(self.hoist(ctx, block, arrived))
             }
             Block::Table { aligns, rows, .. } => {
-                Ok(vec![Piece::Node(self.gfm_table(&aligns, rows)?)])
+                let (table, extra) = self.gfm_table(&aligns, rows)?;
+                let mut out = vec![Piece::Node(table)];
+                for (included, span) in extra {
+                    self.cx.warn(
+                        Code::BlockHoisted,
+                        "A table is not allowed in a table cell; it was moved after the table",
+                        &span,
+                    );
+                    out.push(Piece::Node(Node::Table(*included)));
+                }
+                Ok(out)
             }
+            Block::Csv { table, .. } => Ok(vec![Piece::Node(Node::Table(*table))]),
             Block::Box { children, .. } => self.boxed(ctx, children),
             Block::Details {
                 title,
@@ -670,8 +694,8 @@ impl Lowerer<'_, '_> {
         }
     }
 
-    /// A paragraph, split around external images.
-    fn paragraph(&mut self, content: Vec<Tok>) -> Vec<Piece> {
+    /// A paragraph, split around external images and included tables.
+    fn paragraph(&mut self, ctx: Ctx, content: Vec<Tok>) -> Vec<Piece> {
         let mut out = Vec::new();
         for segment in split_media(content) {
             match segment {
@@ -682,13 +706,24 @@ impl Lowerer<'_, '_> {
                     }
                 }
                 Segment::Media(media) => out.push(Piece::Node(Node::Media(media))),
+                Segment::Table(table, span) => out.extend(self.included_table(ctx, table, span)),
             }
         }
         out
     }
 
-    /// Inline content of a non-paragraph leaf: text plus the external images found in it.
-    fn leaf_inline(&mut self, content: Vec<Tok>) -> (Vec<Inline>, Vec<MediaSingle>) {
+    /// A table from an included CSV file, placed like a GFM table.
+    fn included_table(&mut self, ctx: Ctx, table: Box<Table>, span: Span) -> Vec<Piece> {
+        if ctx.allows_table() {
+            vec![Piece::Node(Node::Table(*table))]
+        } else {
+            self.hoist(ctx, Block::Csv { table, span }, false)
+        }
+    }
+
+    /// Inline content of a non-paragraph leaf: text plus the external images and included
+    /// tables found in it.
+    fn leaf_inline(&mut self, content: Vec<Tok>) -> (Vec<Inline>, Vec<Embedded>) {
         let mut toks = Vec::new();
         let mut media = Vec::new();
         let mut after_media = false;
@@ -703,7 +738,11 @@ impl Lowerer<'_, '_> {
                     after_media = false;
                 }
                 Segment::Media(m) => {
-                    media.push(m);
+                    media.push(Embedded::Media(m));
+                    after_media = true;
+                }
+                Segment::Table(table, span) => {
+                    media.push(Embedded::Table(table, span));
                     after_media = true;
                 }
             }
@@ -711,10 +750,15 @@ impl Lowerer<'_, '_> {
         (finalize(toks, self.cx), media)
     }
 
-    fn heading(&mut self, level: HeadingLevel, content: Vec<Tok>) -> Vec<Piece> {
-        let (content, media) = self.leaf_inline(content);
+    fn heading(&mut self, ctx: Ctx, level: HeadingLevel, content: Vec<Tok>) -> Vec<Piece> {
+        let (content, embedded) = self.leaf_inline(content);
         let mut out = vec![Piece::Node(Node::Heading(Heading { level, content }))];
-        out.extend(media.into_iter().map(|m| Piece::Node(Node::Media(m))));
+        for item in embedded {
+            match item {
+                Embedded::Media(m) => out.push(Piece::Node(Node::Media(m))),
+                Embedded::Table(table, span) => out.extend(self.included_table(ctx, table, span)),
+            }
+        }
         out
     }
 
@@ -825,7 +869,12 @@ impl Lowerer<'_, '_> {
         })
     }
 
-    fn gfm_table(&mut self, aligns: &[Option<Align>], rows: Vec<Row>) -> Result<Node, Diagnostic> {
+    fn gfm_table(
+        &mut self,
+        aligns: &[Option<Align>],
+        rows: Vec<Row>,
+    ) -> Result<(Node, Vec<IncludedTable>), Diagnostic> {
+        let mut extra = Vec::new();
         let width = aligns.len().max(1);
         let mut out_rows = Vec::with_capacity(rows.len());
         for row in rows {
@@ -838,7 +887,7 @@ impl Lowerer<'_, '_> {
             let mut source = row.cells.into_iter();
             for column in 0..width {
                 let align = aligns.get(column).copied().flatten();
-                let (content, media) = match source.next() {
+                let (content, embedded) = match source.next() {
                     Some(toks) => self.leaf_inline(toks),
                     None => (Vec::new(), Vec::new()),
                 };
@@ -846,7 +895,12 @@ impl Lowerer<'_, '_> {
                     content,
                     align,
                 })];
-                children.extend(media.into_iter().map(TableCellChild::MediaSingle));
+                for item in embedded {
+                    match item {
+                        Embedded::Media(m) => children.push(TableCellChild::MediaSingle(m)),
+                        Embedded::Table(table, span) => extra.push((table, span)),
+                    }
+                }
                 cells.push(TableCell {
                     kind,
                     content: non_empty(children)?,
@@ -856,9 +910,10 @@ impl Lowerer<'_, '_> {
                 cells: non_empty(cells)?,
             });
         }
-        Ok(Node::Table(Table {
+        let table = Node::Table(Table {
             rows: non_empty(out_rows)?,
-        }))
+        });
+        Ok((table, extra))
     }
 
     fn list(
@@ -1043,7 +1098,8 @@ impl Lowerer<'_, '_> {
                 | Block::Box { .. }
                 | Block::Details { .. }
                 | Block::Raw { .. }
-                | Block::Media { .. }) => {
+                | Block::Media { .. }
+                | Block::Csv { .. }) => {
                     self.cx.warn(
                         Code::BlockHoisted,
                         format!(
@@ -1077,6 +1133,15 @@ impl Lowerer<'_, '_> {
         let mut after_media = false;
         for tok in content {
             match tok {
+                Tok::Table { table, span } => {
+                    self.cx.warn(
+                        Code::BlockHoisted,
+                        "A table is not allowed in a task item; it was moved out of the task list",
+                        &span,
+                    );
+                    ups.push(Block::Csv { table, span });
+                    after_media = true;
+                }
                 Tok::Media { media, span } => {
                     self.cx.warn(
                         Code::BlockHoisted,
@@ -1164,7 +1229,7 @@ fn ends_in_space(toks: &[Tok]) -> bool {
         Some(Tok::Text {
             text, trim: true, ..
         }) => text.ends_with([' ', '\t']),
-        Some(Tok::Text { .. } | Tok::Node(_) | Tok::Media { .. }) => false,
+        Some(Tok::Text { .. } | Tok::Node(_) | Tok::Media { .. } | Tok::Table { .. }) => false,
     }
 }
 

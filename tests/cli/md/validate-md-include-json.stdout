@@ -1,0 +1,1 @@
+{"schema_version":1,"valid":true,"from":"md","target":"jira","envelope":"doc","adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[],"warnings":[],"includes":[{"path":"quarterly.csv","bytes":53},{"path":"sub/my%20file.csv","bytes":8}]}

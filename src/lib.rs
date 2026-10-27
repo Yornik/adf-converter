@@ -30,7 +30,7 @@ pub use diagnostics::{Code, Diagnostic, Diagnostics, LineIndex, Location, Severi
 pub use limits::Limits;
 pub use options::{
     AdfToCsvOptions, AdfToMdOptions, CsvDelimiter, CsvToAdfOptions, Extensions, HtmlPolicy,
-    ImagePolicy, MdFlavor, MdToAdfOptions, SoftBreak, Target,
+    ImagePolicy, IncludeOptions, MdFlavor, MdToAdfOptions, SoftBreak, Target,
 };
 
 const ADF_SCHEMA_VERSION_RAW: &str = concat!(
@@ -61,6 +61,19 @@ pub fn md_to_adf(
     opts: &MdToAdfOptions,
 ) -> Result<Conversion<adf::model::Doc>, Diagnostics> {
     md::to_adf(markdown, opts)
+}
+
+/// [`md_to_adf`], and the files `![alt](adf:csv/PATH)` includes read, in document order (also
+/// when the conversion failed after reading them). The list is empty unless
+/// [`MdToAdfOptions::include`] is set.
+pub fn md_to_adf_with_includes(
+    markdown: &str,
+    opts: &MdToAdfOptions,
+) -> (
+    Result<Conversion<adf::model::Doc>, Diagnostics>,
+    Vec<md::IncludedFile>,
+) {
+    md::to_adf_with_includes(markdown, opts)
 }
 
 /// Converts CSV (or TSV) text to an ADF document holding one table.

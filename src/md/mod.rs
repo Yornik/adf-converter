@@ -20,6 +20,7 @@ mod delimiters;
 mod extensions;
 mod finalize;
 mod html;
+mod include;
 mod inline;
 mod ir;
 mod lower;
@@ -41,8 +42,29 @@ use cx::Cx;
 // Shared with `crate::csv`: control-character stripping and GFM autolink detection.
 pub(crate) use inline::{find_autolinks, strip_controls};
 
+pub use include::IncludedFile;
+
 /// Converts Markdown source to a strict ADF document. Warnings carry line/column locations.
 pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Diagnostics> {
+    to_adf_with_includes(source, opts).0
+}
+
+/// [`to_adf`], and the files that `adf:csv` includes read (in document order, also when the
+/// conversion failed later). Empty unless `opts.include` is set.
+pub fn to_adf_with_includes(
+    source: &str,
+    opts: &MdToAdfOptions,
+) -> (Result<Conversion<Doc>, Diagnostics>, Vec<IncludedFile>) {
+    let mut included = Vec::new();
+    let result = convert(source, opts, &mut included);
+    (result, included)
+}
+
+fn convert(
+    source: &str,
+    opts: &MdToAdfOptions,
+    included: &mut Vec<IncludedFile>,
+) -> Result<Conversion<Doc>, Diagnostics> {
     let limit = opts
         .limits
         .max_markdown_bytes
@@ -103,6 +125,7 @@ pub fn to_adf(source: &str, opts: &MdToAdfOptions) -> Result<Conversion<Doc>, Di
         cx.warn(*code, message.clone(), span);
     }
     let mut result = tree::build(&mut cx, &pre).and_then(|parsed| lower::lower(parsed, &mut cx));
+    *included = std::mem::take(&mut cx.includes.read);
     if let Some(span) = cx.over_budget.clone() {
         result = Err(cx
             .diag(

@@ -82,7 +82,7 @@ impl CsvParams {
             header: self.header.unwrap_or(base.header),
             max_rows: self.max_rows,
             align_numbers: self.align_numbers.unwrap_or(base.align_numbers),
-            limits: limits.clone(),
+            limits: *limits,
         }
     }
 }
@@ -104,7 +104,18 @@ pub(crate) fn embedded_table(
     let Conversion { output, warnings } = super::to_adf(csv, opts)?;
     let mut tables = output.content.into_iter().filter_map(|block| match block {
         DocBlock::Table(table) => Some(table),
-        _ => None,
+        DocBlock::Paragraph(_)
+        | DocBlock::Heading(_)
+        | DocBlock::BulletList(_)
+        | DocBlock::OrderedList(_)
+        | DocBlock::TaskList(_)
+        | DocBlock::CodeBlock(_)
+        | DocBlock::Blockquote(_)
+        | DocBlock::Rule(_)
+        | DocBlock::Panel(_)
+        | DocBlock::Expand(_)
+        | DocBlock::MediaSingle(_)
+        | DocBlock::Raw(_) => None,
     });
     match (tables.next(), tables.next()) {
         (Some(table), None) => Ok(Conversion {
@@ -120,6 +131,7 @@ pub(crate) fn embedded_table(
 
 /// Moves a diagnostic from CSV-relative lines to the lines of the Markdown that holds the CSV:
 /// `first_line` is the Markdown line of the CSV's first line.
+#[allow(dead_code)] // used by the csv fence (phase 2)
 pub(crate) fn shift_lines(diagnostic: &mut Diagnostic, first_line: u32) {
     if let Some(location) = diagnostic.location.as_mut() {
         let shift = first_line.saturating_sub(1);

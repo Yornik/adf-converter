@@ -26,15 +26,20 @@ Options:
   -h, --help                 Print help (see more with '--help')
 
 Markdown options:
-      --softbreak <MODE>   What a newline inside a paragraph becomes [default: space] [possible
-                           values: space, hardbreak]
-      --html <POLICY>      What happens to HTML without an ADF equivalent [default: text] [possible
-                           values: text, drop, error]
-      --images <POLICY>    What happens to images [default: link] [possible values: link, external,
-                           drop]
-      --extensions <LIST>  ADF extensions to recognise: all, none, or a comma-separated list
-                           (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media)
-                           [default: all]
+      --softbreak <MODE>    What a newline inside a paragraph becomes [default: space] [possible
+                            values: space, hardbreak]
+      --html <POLICY>       What happens to HTML without an ADF equivalent [default: text] [possible
+                            values: text, drop, error]
+      --images <POLICY>     What happens to images [default: link] [possible values: link, external,
+                            drop]
+      --extensions <LIST>   ADF extensions to recognise: all, none, or a comma-separated list
+                            (alerts,details,cells,raw-adf,mention,status,date,emoji,card,media,csv)
+                            [default: all]
+      --include-root <DIR>  Let ![alt](adf:csv/PATH) read CSV files under DIR and include them as
+                            tables. Off by default; no directory is ever read without this flag. The
+                            Markdown decides which files are read: DIR must hold only data you are
+                            willing to publish (never a home directory, a repository root or a
+                            directory with secrets). Markdown input only
 
 CSV options:
       --delimiter <DELIM>  Field separator: comma (default), tab, semicolon, pipe, or one printable

@@ -1,0 +1,4 @@
+# A bad option is located at the image and names the path.
+bin.name = "adf"
+args = ["convert", "--include-root", "tests/fixtures/include/data"]
+status.code = 3

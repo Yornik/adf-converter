@@ -318,6 +318,23 @@
       "note": "references a file already uploaded to Jira or Confluence; adf never uploads. --images drop removes it (W_IMAGE_DROPPED); a bad argument keeps the alt text (W_INVALID_EXTENSION_ARG)"
     },
     {
+      "name": "csv-include",
+      "kind": "extension",
+      "extension": "csv",
+      "syntax": "![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "hardBreak",
+        "link",
+        "alignment"
+      ],
+      "note": "off unless --include-root DIR is given (the example below shows the disabled form: nothing is read, W_INCLUDE_DISABLED); PATH is relative to DIR, uses / and is %-decoded once; absolute paths, .., backslashes, ':' and symlinks out of DIR are refused (E_INCLUDE); the Markdown decides what is read, so DIR must hold only data you are willing to publish; at most 16 files, 1 MiB each and 4 MiB in all per document"
+    },
+    {
       "name": "csv-tables",
       "kind": "csv",
       "syntax": "adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back",
@@ -414,6 +431,21 @@
       "adf": [
         "mediaSingle",
         "media"
+      ],
+      "default": true
+    },
+    {
+      "name": "csv",
+      "syntax": "![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR",
+      "adf": [
+        "table",
+        "tableRow",
+        "tableHeader",
+        "tableCell",
+        "paragraph",
+        "hardBreak",
+        "link",
+        "alignment"
       ],
       "default": true
     }
@@ -522,6 +554,18 @@
       "severity": "error",
       "exit_code": 3,
       "summary": "The ADF document has no table with the requested number."
+    },
+    {
+      "code": "E_CSV_OPTION",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "A ```csv fence or an adf:csv include has an unknown, repeated or invalid option."
+    },
+    {
+      "code": "E_INCLUDE",
+      "severity": "error",
+      "exit_code": 3,
+      "summary": "An adf:csv include was refused (path outside the root, not a regular file, over a budget) or its file could not be read."
     },
     {
       "code": "W_MARK_DROPPED",
@@ -642,6 +686,12 @@
       "severity": "warning",
       "exit_code": 0,
       "summary": "The document is empty; Jira rejects empty comment bodies."
+    },
+    {
+      "code": "W_INCLUDE_DISABLED",
+      "severity": "warning",
+      "exit_code": 0,
+      "summary": "An adf:csv include was found but no include root is set (--include-root), so nothing was read and the image became its alt text."
     },
     {
       "code": "W_ADF_PASSTHROUGH",

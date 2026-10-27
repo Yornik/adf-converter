@@ -151,7 +151,7 @@ fn unlisted_extension_names(paragraph: &str) -> Vec<&'static str> {
 #[test]
 fn extension_list_check_notices_a_missing_name() {
     let without_media = "Names: `alerts`, `details`, `cells`, `raw-adf`, `mention`, `status`, \
-                         `date`, `emoji`, `card`.";
+                         `date`, `emoji`, `card`, `csv`.";
     assert_eq!(unlisted_extension_names(without_media), ["media"]);
     let bare_words = "alerts details cells raw-adf mention status date emoji card media";
     assert_eq!(unlisted_extension_names(bare_words), Extensions::NAMES);

@@ -1,0 +1,3 @@
+# ![alt](adf:csv/PATH) with --include-root reads the file under DIR and includes it as a table.
+bin.name = "adf"
+args = ["convert", "--include-root", "tests/fixtures/include/data"]

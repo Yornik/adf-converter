@@ -18,11 +18,13 @@ adf convert [INPUT|-] [-o PATH] [--from md|adf|csv] [--to md|csv] [-e ENVELOPE] 
             [-t auto|jira|confluence] [--pretty|--compact] [--strict]
             [--softbreak space|hardbreak] [--html text|drop|error]
             [--images link|external|drop] [--extensions all|none|LIST]
+            [--include-root DIR]                                                  (--from md)
             [--md-flavor roundtrip|plain] [--error-format auto|text|json] [-q] [--no-color]
             [--delimiter DELIM] [--no-header] [--max-rows N] [--align-numbers]   (--from csv)
             [--table N] [--csv-safe]                                              (--to csv)
 adf validate [INPUT|-] [--from auto|md|adf|csv] [-e ENVELOPE] [--field NAME] [-t …] [--strict]
              [--json] [--softbreak …] [--html …] [--images …] [--extensions …]
+             [--include-root DIR]                                                  (--from md)
              [--delimiter DELIM] [--no-header] [--max-rows N] [--align-numbers]   (--from csv)
 adf capabilities [--json]
 adf examples [FEATURE] [--json]
@@ -65,10 +67,23 @@ adf version [--json]            (also: adf --version)
   for `-e confluence` and `jira` otherwise.
 - **Self-check.** Output is checked before it is written (schema, target rules, invariants). If
   `adf`'s own output fails that check, it reports `E_INTERNAL` (exit 1), because that is a bug.
+- **`--include-root DIR`** (Markdown input only): allow `![alt](adf:csv/PATH)` images to read CSV
+  files under `DIR` and include them as tables; see
+  [Including a CSV file](syntax.md#including-a-csv-file). **Off by default**: without the flag
+  nothing is read, whatever the Markdown says (`W_INCLUDE_DISABLED`). There is no default
+  directory, not even the one of the input file, and no environment variable. `DIR` must exist and
+  be a directory (`E_USAGE`, exit 2, checked before any input is read); it is canonicalised once,
+  and every path must resolve inside it. The Markdown decides what is read, so `DIR` must hold
+  only data you are willing to publish: never a home directory, a repository root or a directory
+  with secrets, and do not give the flag to an agent that generates Markdown from untrusted text.
+  With `--from adf` or `--from csv` the flag is a usage error (exit 2). Stdin works with a root.
+  Includes are bounded: at most 16 files per document, 1 MiB per file, 4 MiB in all
+  ([Limits](#limits)). A refused include is `E_INCLUDE` (exit 3) and nothing is written.
 - **Options of the other direction** are accepted and have no effect. With `--from adf`: `-t`,
   `--pretty`, `--compact` and the Markdown options (`--softbreak`, `--html`, `--images`,
   `--extensions`). With Markdown input: `--md-flavor`. With CSV input: `--md-flavor` and the
   Markdown options. Likewise `validate` ignores the Markdown options when it checks ADF or CSV.
+  `--include-root` is the exception: it is refused (`E_USAGE`) wherever the input is not Markdown.
 - **CSV flags** are only valid where they mean something; anywhere else they are a usage error
   (`E_USAGE`, exit 2) whose message names the flag:
 
@@ -143,6 +158,9 @@ other output). The rules (which table, merged cells, cell text, quoting, `--csv-
   at most 100 of each code (see [Diagnostics](#diagnostics)). Exit code 4 if anything fails.
 - **`--from md`**: a dry run of `convert`. It reports the warnings the conversion would produce,
   at most 100 of each code. Exit code 0, or 5 with `--strict` if there are warnings.
+  `--include-root DIR` works as for `convert` and really reads the included files (it is a dry
+  run of the conversion, not of the file access); with `--from adf`, `--from csv`, or `--from auto`
+  when the input turns out to be ADF, it is a usage error (exit 2).
 - **`--from csv`**: a dry run of `convert --from csv`, with the same CSV flags (`--delimiter`,
   `--no-header`, `--max-rows`, `--align-numbers`) and the same exit codes as `--from md`.
   `--from auto` never chooses CSV: pass `--from csv`.
@@ -150,8 +168,14 @@ other output). The rules (which table, merged cells, cell text, quoting, `--csv-
 
   ```json
   {"schema_version":1,"valid":false,"from":"adf","target":"jira","envelope":"jira-comment",
-   "adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[<diagnostic>…],"warnings":[<diagnostic>…]}
+   "adf_schema":"@atlaskit/adf-schema@57.7.18","errors":[<diagnostic>…],"warnings":[<diagnostic>…],
+   "includes":[{"path":"data/q1.csv","bytes":812}]}
   ```
+
+  `includes` lists the files that `adf:csv` includes read, in document order: the PATH as written
+  in the Markdown (before percent-decoding, without the query) and the bytes read. It is always
+  present and empty when nothing was read (no `--include-root`, no include, ADF or CSV input);
+  after an error it lists the files read before it. The text output is unchanged.
 
   `envelope` is the detected (adf) or requested (md, csv) envelope, or `null` when the input could
   not be read or holds no ADF document. When the input cannot be read, `from` is `adf` unless
@@ -317,6 +341,8 @@ included in `adf capabilities --json`.
 | <a id="e_invariant"></a>`E_INVARIANT` | 4 | The ADF document breaks a rule Jira/Confluence enforce beyond the JSON schema. |
 | <a id="e_lossy"></a>`E_LOSSY` | 5 | The conversion would lose information and `--strict` (or `--html error`) is set. |
 | <a id="e_input_csv"></a>`E_INPUT_CSV` | 3 | The CSV input is malformed or has no rows: a quoted field is never closed (located at its opening quote, by line and column), or every line is blank. |
+| <a id="e_csv_option"></a>`E_CSV_OPTION` | 3 | A ```` ```csv ```` fence or an `adf:csv` include has an unknown, repeated or invalid option (`delimiter`, `header`, `max-rows`, `align`); located at the fence's info string or at the image. |
+| <a id="e_include"></a>`E_INCLUDE` | 3 | An `adf:csv` include was refused or failed: an empty, absolute or otherwise invalid PATH (backslash, `:`, `..`, `.`, empty component, control character, bad percent-encoding), a file that resolves outside `--include-root` (a symbolic link out of it), a target that is not a regular file (directory, device, FIFO, socket), a file that is missing or unreadable, an unusable root, or a budget used up (more than 16 includes, or more than 4 MiB read, per document). Located at the image; the message names the rule and the PATH as written, never a resolved path. A file over 1 MiB is `E_INPUT_TOO_LARGE`, one that is not UTF-8 is `E_INPUT_ENCODING`, a CSV problem inside the file is `E_INPUT_CSV`, each naming the PATH. |
 | <a id="e_input_no_table"></a>`E_INPUT_NO_TABLE` | 3 | `--to csv`: the ADF document has no table, or fewer tables than the number given with `--table`; the message says how many it has. |
 
 ### Warnings: Markdown → ADF
@@ -330,7 +356,7 @@ included in `adf capabilities --json`.
 | <a id="w_html_as_text"></a>`W_HTML_AS_TEXT` | Raw HTML without an ADF equivalent was kept as literal text. |
 | <a id="w_html_dropped"></a>`W_HTML_DROPPED` | Raw HTML was dropped (`--html drop`), or an unrecognised tag inside `<summary>` was removed (an expand title is plain text). |
 | <a id="w_image_as_link"></a>`W_IMAGE_AS_LINK` | An image became a link; ADF images need media uploaded to Jira/Confluence. |
-| <a id="w_image_dropped"></a>`W_IMAGE_DROPPED` | An image was dropped (`--images drop`), including an `adf:media` file image. |
+| <a id="w_image_dropped"></a>`W_IMAGE_DROPPED` | An image was dropped (`--images drop`), including an `adf:media` file image or an `adf:csv` include. |
 | <a id="w_unsafe_url"></a>`W_UNSAFE_URL` | A link target is not an allowed URL and became plain text. |
 | <a id="w_control_char"></a>`W_CONTROL_CHAR` | Control characters were removed from text. ADF → Markdown also reports it when carriage returns (CR LF or a lone CR) in text or code are written as line breaks. |
 | <a id="w_table_cell_dropped"></a>`W_TABLE_CELL_DROPPED` | Table cells beyond the header row's width were dropped. |
@@ -340,6 +366,7 @@ included in `adf capabilities --json`.
 | <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. |
 | <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. For an `adf:media` image (extension `media`): a bad id, collection, `width`, `height`, `layout` or `size`, an unknown or duplicate key, or an empty value; the alt text is kept. |
 | <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown. |
+| <a id="w_include_disabled"></a>`W_INCLUDE_DISABLED` | An `![alt](adf:csv/PATH)` include was found but no include root is set (`--include-root`), so nothing was read and the image became its alt text (the PATH when the alt text is empty). Located at the image. |
 | <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | Reserved: a construct is not supported by the target product and was replaced by a fallback. This version never emits it: Markdown cannot produce a construct a target rejects, and raw ADF that the target rejects fails with `E_RAW_ADF` instead. |
 
 ### Warnings: document checks
@@ -383,7 +410,9 @@ more warning of the same code, without a location, counts the rest.
 | `NO_COLOR` | Disables colour. |
 
 No other environment variables are read. `adf` never reads config files and never makes network
-requests.
+requests. The only files it reads are the input, and, only with `--include-root DIR`, the CSV
+files that `![alt](adf:csv/PATH)` images name under `DIR` (see
+[Including a CSV file](syntax.md#including-a-csv-file)).
 
 ## Limits
 
@@ -398,6 +427,7 @@ requests.
 | Output size warning | 32,767 characters of compact JSON | `W_SIZE_LIMIT` |
 | Output size: the Markdown written by ADF → Markdown, the CSV written by ADF → CSV, and the estimated compact JSON written by Markdown → ADF and CSV → ADF | 64 MiB | `E_INPUT_TOO_LARGE` |
 | Empty cells that `--md-flavor plain` adds to keep table columns aligned (merged cells): all tables of the document together | 100,000 | `E_INPUT_TOO_LARGE` |
+| `adf:csv` includes (only with `--include-root`): files per document / bytes read per document / bytes per file | 16 / 4 MiB / 1 MiB (the Markdown limit); the table cells and the output are counted with the document's other tables | `E_INCLUDE` (files, total bytes), `E_INPUT_TOO_LARGE` (one file, cells, output) |
 | Diagnostics listed per code | 100; the rest are counted in one summary diagnostic of that code ([Diagnostics](#diagnostics)) | |
 
 A CSV file is bounded the same way, but exactly: `adf` counts `width × (rows + 1)` while it reads

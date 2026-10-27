@@ -5,15 +5,16 @@ use serde::Serialize;
 use super::Outcome;
 use super::args::{ValidateArgs, ValidateFrom};
 use super::convert::{
-    check_adf_field, check_field_used, check_no_csv_input_flags, csv_options, csv_pipeline,
-    markdown_options, markdown_pipeline, parse_and_unwrap, parse_envelope, prefix_pointers,
-    read_input, resolve_target, strict_failure,
+    check_adf_field, check_field_used, check_include_root, check_no_csv_input_flags, csv_options,
+    csv_pipeline, markdown_options, markdown_pipeline_reporting, not_markdown_include_root,
+    parse_and_unwrap, parse_envelope, prefix_pointers, read_input, resolve_target, strict_failure,
 };
 use super::report::DiagnosticJson;
 use crate::adf::envelope::Envelope;
 use crate::catalog::ADF_SCHEMA;
 use crate::diagnostics::{Code, Diagnostic, cap_per_code, reported_count};
 use crate::limits::MAX_LISTED_PER_CODE;
+use crate::md::IncludedFile;
 use crate::options::Target;
 
 /// The `validate --json` report (`schemas/validate-report.v1.json`).
@@ -27,6 +28,8 @@ struct Report<'a> {
     adf_schema: &'static str,
     errors: Vec<DiagnosticJson<'a>>,
     warnings: Vec<DiagnosticJson<'a>>,
+    /// The files `adf:csv` includes read, in document order.
+    includes: &'a [IncludedFile],
 }
 
 /// What was checked.
@@ -36,6 +39,7 @@ struct Checked {
     envelope: Option<&'static str>,
     label: Option<String>,
     diagnostics: Vec<Diagnostic>,
+    includes: Vec<IncludedFile>,
 }
 
 /// Runs `adf validate`.
@@ -78,6 +82,7 @@ pub(crate) fn run(args: &ValidateArgs) -> Outcome {
                 .filter(|d| !d.is_error())
                 .map(|d| DiagnosticJson::new(d, label))
                 .collect(),
+            includes: &checked.includes,
         };
         let mut stdout = serde_json::to_vec(&report).unwrap_or_default();
         stdout.push(b'\n');
@@ -114,6 +119,12 @@ fn check_flags(args: &ValidateArgs) -> Result<(), Box<Outcome>> {
     if args.from == ValidateFrom::Adf {
         check_no_envelope(args)?;
     }
+    // Auto-detection (ADF or Markdown) can only be settled once the input is read; a root that
+    // cannot be used is refused before that.
+    check_include_root(
+        args.markdown.include_root.as_deref(),
+        !matches!(args.from, ValidateFrom::Adf | ValidateFrom::Csv),
+    )?;
     if args.from == ValidateFrom::Csv {
         return Ok(());
     }
@@ -144,6 +155,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                 envelope: None,
                 label: outcome.label.clone(),
                 diagnostics: outcome.diagnostics,
+                includes: Vec::new(),
             });
         }
         Err(outcome) => return Err(outcome),
@@ -157,6 +169,9 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
 
     if from_adf {
         check_no_envelope(args)?;
+        if args.markdown.include_root.is_some() {
+            return Err(Box::new(not_markdown_include_root()));
+        }
         let field = args.envelope.field.as_deref();
         check_adf_field(field)?;
         let unwrapped = match parse_and_unwrap(&input.text, field) {
@@ -168,6 +183,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
                     envelope: None,
                     label,
                     diagnostics: vec![diagnostic],
+                    includes: Vec::new(),
                 });
             }
         };
@@ -188,16 +204,20 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
             envelope: Some(unwrapped.envelope.name()),
             label,
             diagnostics,
+            includes: Vec::new(),
         });
     }
 
     let envelope: Envelope =
         parse_envelope(args.envelope.envelope, args.envelope.field.as_deref())?;
     let target = resolve_target(args.target, &envelope);
-    let converted = if args.from == ValidateFrom::Csv {
-        csv_pipeline(&input.text, &csv_options(&args.csv, target))
+    let (converted, includes) = if args.from == ValidateFrom::Csv {
+        (
+            csv_pipeline(&input.text, &csv_options(&args.csv, target)),
+            Vec::new(),
+        )
     } else {
-        markdown_pipeline(&input.text, &markdown_options(&args.markdown, target))
+        markdown_pipeline_reporting(&input.text, &markdown_options(&args.markdown, target))
     };
     let mut diagnostics = match converted {
         Ok(converted) => converted.warnings,
@@ -218,6 +238,7 @@ fn check(args: &ValidateArgs) -> Result<Checked, Box<Outcome>> {
         envelope: Some(envelope.name()),
         label,
         diagnostics,
+        includes,
     })
 }
 

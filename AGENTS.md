@@ -125,7 +125,12 @@ Add new codes at the end of their group in `src/diagnostics.rs`. Never rename or
   `#anchor`). Everything else becomes plain text with `W_UNSAFE_URL`.
 - Strip control characters (`W_CONTROL_CHAR`). Never echo large chunks of input in messages.
 - No network calls, no subprocesses, no config files, and no environment variables beyond those in
-  `docs/cli-contract.md`. `unsafe` is forbidden. `deny.toml` bans network and TLS crates.
+  `docs/cli-contract.md`. File access: the CLI reads its input and writes `-o`; the library reads
+  files only in `src/md/include.rs`, only for `![alt](adf:csv/PATH)` includes under an explicit
+  `--include-root` (never a default root), and no other file access exists in the library
+  (`tests/source_lints.rs` checks it). Every include path is validated as text, resolved inside the
+  canonical root, a regular file, and read with a hard byte bound; messages never hold a resolved
+  path. `unsafe` is forbidden. `deny.toml` bans network and TLS crates.
 
 ## Git & PRs
 

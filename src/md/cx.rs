@@ -5,6 +5,7 @@ use crate::diagnostics::{Code, Diagnostic, Location};
 use crate::limits::MAX_OUTPUT_BYTES;
 use crate::options::MdToAdfOptions;
 
+use super::include::Includes;
 use super::ir::Span;
 
 /// Internal hard cap on container nesting, whatever `Limits::max_depth` says (the default is
@@ -110,6 +111,11 @@ pub(crate) struct Cx<'a> {
     output_estimate: usize,
     /// Where the output first exceeded [`MAX_OUTPUT_BYTES`], if it did.
     pub(crate) over_budget: Option<Span>,
+    /// Table cells so far (GFM tables, padding included, and included CSV tables), against
+    /// [`MAX_TABLE_CELLS`](crate::limits::MAX_TABLE_CELLS).
+    pub(crate) table_cells: usize,
+    /// The files read by `adf:csv` includes.
+    pub(crate) includes: Includes,
 }
 
 impl<'a> Cx<'a> {
@@ -122,6 +128,8 @@ impl<'a> Cx<'a> {
             ids: LocalIdGen::new(text),
             output_estimate: 0,
             over_budget: None,
+            table_cells: 0,
+            includes: Includes::default(),
         }
     }
 
