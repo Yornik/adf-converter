@@ -172,13 +172,16 @@ tables, links), plus:
 | `[😄](adf:emoji/:smile:)` | emoji |
 | `[https://site.atlassian.net/browse/PROJ-1](adf:card)` | smart link card |
 | `![shot.png](adf:media/<media-id>?width=W&height=H)` | an uploaded image (file you already attached; the id is not the attachment id) |
+| `[report.pdf](adf:attachment/<media-id>)` | an attached file shown by name: a paragraph of only such links is a media group, a link amid text is an inline file (rendering in the products is not verified) |
 
 To embed an uploaded screenshot, follow "Attaching files and screenshots" in
 [references/posting.md](references/posting.md#attaching-files-and-screenshots): upload with `curl`,
 get the media id, then write the `adf:media` line. Attach the file to the same issue that holds
 the comment or description. Read the image's pixel size for `width` and `height` with
 `file shot.png`, `sips -g pixelWidth -g pixelHeight shot.png` (macOS) or
-`identify -format '%w %h' shot.png`. `adf` never uploads or downloads.
+`identify -format '%w %h' shot.png`. `adf` never uploads or downloads. For a PDF, log or archive
+use the `adf:attachment` link with the same media id (and, on Confluence, the same `collection`);
+the link text is the file name.
 
 To turn a CSV or TSV file into a table, run `adf convert data.csv --from csv -e jira-comment -o
 body.json` (add `--delimiter tab` or `semicolon`; adf never guesses it). To get a table out as CSV,

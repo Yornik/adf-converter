@@ -175,8 +175,9 @@ adf convert description.md -e jira-description --images external -o description.
 - **`--images external`**: roundtrip Markdown writes an embedded external image as
   `![alt](url)`. With the default `--images link`, it would come back as a text link
   (`W_IMAGE_AS_LINK`). With `--images external`, images you add are embedded by URL too.
-- Uploaded images and screenshots come back as `![alt](adf:media/<id>?…)` lines when `adf` can
-  express them; leave those lines unchanged (see
+- Uploaded images and screenshots come back as `![alt](adf:media/<id>?…)` lines, and attached
+  files with a file name as `[name](adf:attachment/<id>?…)` links, when `adf` can express them;
+  leave those lines unchanged (see
   [Attaching files and screenshots](#attaching-files-and-screenshots)).
 - Use the envelope of the place you post to: `-e jira-comment` for a comment, `-e confluence` for
   a Confluence page (see [Update a page](#update-a-page)).
@@ -250,7 +251,9 @@ Images and files in Jira and Confluence are not URLs. A screenshot in a comment 
 file in Atlassian's media service (an ADF `media` node of type `file`, with an `id` and a
 `collection`). To embed one, you upload the file, find out its **media id**, write that id into
 your Markdown as `![alt](adf:media/<id>?…)` (see
-[File media in syntax.md](syntax.md#file-media-adfmedia-images)), and post as usual.
+[File media in syntax.md](syntax.md#file-media-adfmedia-images)), and post as usual. Files that are
+not pictures are written as `[name](adf:attachment/<id>?…)` links instead (see
+[Other files](#other-files-pdf-logs-archives)).
 
 `adf` never uploads and never downloads, and it does not call any API to find an id either.
 Uploading, looking up ids and fetching files are steps for you (or your agent) and `curl`. Every
@@ -403,10 +406,34 @@ to reuse.
 
 ### Other files (PDF, logs, archives)
 
-This version has no Markdown syntax for links to files (no `adf:attachment`). The products show
-them as a `mediaGroup` (a block of file chips) or as `mediaInline` (inside a paragraph). You can
-splice a `mediaGroup` in with a raw ```` ```adf ```` block, using the same id and collection as
-above. `adf` accepts it; whether the product renders it in a comment or page has not been checked.
+The products show a file that is not a picture as a `mediaGroup` (a block of file cards) or as a
+`mediaInline` (inside a paragraph). Write it as a link whose text is the file name and whose
+address is `adf:attachment/<media id>`, with the same id and collection as for images
+([all rules](syntax.md#attached-files-adfattachment-links)):
+
+```markdown
+[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) [trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)
+
+See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
+```
+
+- A paragraph of only attachment links is one `mediaGroup`; a link with text around it is a
+  `mediaInline`. In a list item, a heading, a task item and a cell of a GFM table the links are
+  always inline, because a list item cannot hold a `mediaGroup` and the others are not blocks you
+  can fill with one.
+- The link text becomes the file name (`alt`). It must not be empty, and it is not looked up or
+  checked against the attachment.
+- Jira: leave `collection` out. Confluence: use what the upload returned, as for images.
+- A wrong argument keeps the link text and reports `W_INVALID_EXTENSION_ARG`. As for images,
+  `adf` checks the shape of the id, not that it exists.
+- **Rendering is not verified.** `adf` validates both nodes for Jira and Confluence, but nobody has
+  confirmed that the products show a `mediaGroup` or `mediaInline` that was written through the
+  REST API, in a comment, a description or a page. Community reports for Jira comments disagree on
+  which node the editor writes (`mediaGroup` in 2023, `mediaInline` in 2025). Try the syntax in
+  your sandbox first; the checklist is in
+  [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site).
+- For anything the link cannot say (a caption is not part of a group; extra attributes), splice
+  the node in with a raw ```` ```adf ```` block.
 
 ````markdown
 ```adf
@@ -416,8 +443,8 @@ above. `adf` accepts it; whether the product renders it in a comment or page has
 
 ### Pitfalls
 
-- **The media id is not the attachment id.** `adf:media/10042` is not a UUID: `adf` keeps the
-  alt text and reports `W_INVALID_EXTENSION_ARG`. A made-up UUID, or a UUID from another issue,
+- **The media id is not the attachment id.** `adf:media/10042` and `adf:attachment/10042` are not
+  UUIDs: `adf` keeps the alt text or the link text and reports `W_INVALID_EXTENSION_ARG`. A made-up UUID, or a UUID from another issue,
   passes `adf` and is reported to fail in Jira with `400` `ATTACHMENT_VALIDATION_ERROR`
   (community-reported).
 - **The same file on a Confluence page and in a comment.** A bug report says that attaching a file
@@ -448,12 +475,18 @@ above. `adf` accepts it; whether the product renders it in a comment or page has
 ### Reading content that holds media
 
 Converting an issue, comment or page with the default (roundtrip) flavour writes a file image as
-a line that you can read, edit and post back unchanged:
+a line that you can read, edit and post back unchanged, and an attached file with a file name as
+a link:
 
 ```sh
 adf convert --from adf comment.json
 # ![shot.png](adf:media/11111111-2222-3333-4444-555555555555?width=1512&height=945)
+# [report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000)
 ```
+
+A `mediaInline` without a file name (real Jira data has some), a node with extra attributes
+(`localId` too) and a paragraph of only inline files stay raw `adf` blocks: see
+[syntax.md](syntax.md#attached-files-mediagroup-mediainline) for why.
 
 What `adf` cannot write that way stays a ```` ```adf ```` block with `W_ADF_PASSTHROUGH`, or becomes
 a marker in the plain flavour (`[image: shot.png]`, `[attachment: log.txt]`; see
@@ -562,6 +595,6 @@ save the raw API response.
 | `400` "Comment body can not be empty" | An empty body, often from piping a failed `adf` into curl. | Convert to a file first. |
 | `400` "Invalid message" (Confluence) | `value` was an object instead of a string. | Use `-e confluence`. |
 | `400` `CONTENT_LIMIT_EXCEEDED`, or a size error | The body is too large. | Watch for `W_SIZE_LIMIT`; split the content. |
-| `400` `ATTACHMENT_VALIDATION_ERROR` (community-reported) | The id in an `adf:media` image is not the media id of a file attached to this issue (an attachment id, a made-up UUID, or one from another issue). | See [Attaching files and screenshots](#attaching-files-and-screenshots). |
+| `400` `ATTACHMENT_VALIDATION_ERROR` (community-reported) | The id in an `adf:media` image or `adf:attachment` link is not the media id of a file attached to this issue (an attachment id, a made-up UUID, or one from another issue). | See [Attaching files and screenshots](#attaching-files-and-screenshots). |
 | `401` / `403` | Wrong email or token, a scoped token on the site URL, or missing permissions. | Check the token and the base URL. |
 | `404` | Wrong issue key, page ID or site, or no permission to see it. | Check the URL. |

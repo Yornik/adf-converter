@@ -187,8 +187,8 @@ Confluence pages and footer comments, acli (and its `comment create` caveat), an
 [docs/envelopes.md](docs/envelopes.md) describes every envelope.
 
 Screenshots and attachments are references to uploaded files, not URLs. `adf` never uploads or
-downloads: you upload with `curl`, find the media id, and write it as `![alt](adf:media/<id>)`.
-The steps, including which of them are undocumented, are in
+downloads: you upload with `curl`, find the media id, and write it as `![alt](adf:media/<id>)` for
+a picture, or as `[file name](adf:attachment/<id>)` for a file. The steps, including which of them are undocumented, are in
 [Attaching files and screenshots](docs/posting.md#attaching-files-and-screenshots).
 
 ## Supported syntax
@@ -222,12 +222,13 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `![alt](url)` | a link (`W_IMAGE_AS_LINK`); `--images external` embeds by URL |
 | `![alt](adf:csv/PATH?delimiter=…)` with `--include-root DIR` ([rules](docs/syntax.md#including-a-csv-file)) | `table` from a CSV file under `DIR`; off by default, one way |
 | `![alt](adf:media/<uuid>?width=…&height=…)` | `mediaSingle` with a `media` of type `file`: a screenshot or image you already uploaded ([how](docs/posting.md#attaching-files-and-screenshots)) |
+| `[file name](adf:attachment/<uuid>?collection=…)` | `mediaGroup` for a paragraph of only such links, `mediaInline` for a link amid text: a file you already uploaded, shown by name ([rules](docs/syntax.md#attached-files-adfattachment-links); not verified to render, see [posting](docs/posting.md#other-files-pdf-logs-archives)) |
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
 them. ADF → Markdown writes the same syntax (except the one-way `csv` fence), so for these constructs, converting back with
 `--images external` gives the same document (with the default `--images link`, embedded external
-images become links; `adf:media` images need no flag). Nodes Markdown cannot express become
+images become links; `adf:media` images and `adf:attachment` links need no flag). Nodes Markdown cannot express become
 ```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
