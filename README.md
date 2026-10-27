@@ -89,7 +89,7 @@ adf --version
 With Rust 1.99 or later:
 
 ```sh
-cargo install --git https://github.com/Yornik/adf-converter --locked
+cargo install --git https://github.com/Yornik/adf-converter --locked adf-converter
 ```
 
 This installs `adf` into `~/.cargo/bin`. Add `--tag vX.Y.Z` to build a specific release.

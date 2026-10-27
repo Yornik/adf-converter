@@ -29,7 +29,7 @@ mkdir -p ~/.local/bin && cp adf-converter-v*-"$target"/adf ~/.local/bin/
 
 Without `gh`, download the zip and `SHA256SUMS` from
 <https://github.com/Yornik/adf-converter/releases/latest>. With Rust installed:
-`cargo install --git https://github.com/Yornik/adf-converter --locked`.
+`cargo install --git https://github.com/Yornik/adf-converter --locked adf-converter`.
 
 ## Credentials
 
