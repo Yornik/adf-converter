@@ -193,7 +193,8 @@ adf convert "$work/d.md" -e jira-description --images external -o "$work/d.json"
 An uploaded image is a reference to a media-service file, not a URL. `adf` never uploads or
 downloads and never looks ids up: you do the API calls, then write
 `![alt](adf:media/<media id>?width=W&height=H)` in the Markdown (syntax:
-[syntax.md](syntax.md#file-media-media)). Steps are labelled **documented** (Atlassian API
+[syntax.md](syntax.md#file-media-media)), or `[file name](adf:attachment/<media id>)` for a file
+that is not a picture (`adf` 0.4.0 or later). Steps are labelled **documented** (Atlassian API
 reference), **community-reported** (not documented, may break) or **unverified**; say so when you
 tell the user what you did. The full recipe with sources is
 [docs/posting.md](https://github.com/Yornik/adf-converter/blob/main/docs/posting.md#attaching-files-and-screenshots).
@@ -252,9 +253,14 @@ Pitfalls:
   makes the whole table or list a raw ```` ```adf ```` block when read back. Give `width` and
   `height`.
 - JSM request comments are plain strings, not ADF; use `POST /rest/api/3/issue/{key}/comment`.
-- Other files (PDF, logs) have no Markdown syntax in this version.
+- Other files (PDF, logs, archives): write `[name](adf:attachment/<media id>)` (`adf` 0.4.0 or
+  later) with the media id and collection found as above ([syntax.md](syntax.md#attached-files-media)). A paragraph of only
+  such links is a `mediaGroup`, a link amid text a `mediaInline`. `adf` validates both nodes for
+  Jira and Confluence, but whether the products render them when written through the API is
+  **unverified**: tell the user, and check the result.
 
-Reading: the roundtrip flavour writes `![alt](adf:media/<id>?…)` lines; the plain flavour writes
+Reading: the roundtrip flavour writes `![alt](adf:media/<id>?…)` lines and
+`[name](adf:attachment/<id>?…)` links; the plain flavour writes
 markers such as `[image: alt]` and `[attachment: name]`. To fetch a file, list the issue's
 attachments (`GET /rest/api/3/issue/KEY?fields=attachment`, match `.filename` to the alt text,
 download `GET /rest/api/3/attachment/content/ID` with `curl -L -o FILE`), or on Confluence list

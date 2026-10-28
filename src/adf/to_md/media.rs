@@ -6,6 +6,7 @@
 
 use serde_json::Value;
 
+use crate::adf::model::has_visible_char;
 use crate::adf::reader::{Node, marker_alt};
 
 use super::escape::{TextContext, TextEscape, escape_text, has_unsafe_control};
@@ -31,6 +32,10 @@ const MEDIA_ATTRS: [&str; 7] = [
     "height",
     "localId",
 ];
+
+/// Attributes of an attached file (`media` in a `mediaGroup`, or `mediaInline`) the link syntax
+/// carries. Unlike the image form it drops nothing silently: a `localId` keeps the raw block.
+const ATTACHMENT_ATTRS: [&str; 4] = ["type", "id", "collection", "alt"];
 
 /// Attributes of a `mediaSingle` the syntax carries.
 const SINGLE_ATTRS: [&str; 4] = ["layout", "width", "widthType", "localId"];
@@ -107,6 +112,55 @@ pub(super) fn file_media_dest(single: &Node<'_>, media: &Node<'_>) -> Result<Str
         dest.push_str(&query.join("&"));
     }
     Ok(dest)
+}
+
+/// The file name and the destination `adf:attachment/<id>[?collection=<c>]` of an attached file:
+/// a `media` of a `mediaGroup`, or a `mediaInline`. Anything the link cannot say, or that
+/// Markdown → ADF would change (marks, other attributes, a malformed id or collection, no file
+/// name, a file name with control characters, line breaks or surrounding white space), is an error
+/// that names what to change.
+pub(super) fn attachment_link(node: &Node<'_>) -> Result<(String, String), String> {
+    if node.attr_str("type") != Some("file") {
+        return Err("the media is not a file".to_owned());
+    }
+    if !node.marks.is_empty() {
+        return Err("a mark on an attached file has no adf:attachment form".to_owned());
+    }
+    if !node.content.is_empty() {
+        return Err("the media has children".to_owned());
+    }
+    if let Some(name) = node.attr_names().find(|n| !ATTACHMENT_ATTRS.contains(n)) {
+        return Err(format!(
+            "the media attribute '{}' has no adf:attachment form",
+            clip(name)
+        ));
+    }
+    let id = node
+        .attr_str("id")
+        .filter(|id| is_uuid(id))
+        .ok_or("the media id is not a UUID (an attachment id is not a media id)")?;
+    let collection = node
+        .attr_str("collection")
+        .filter(|c| is_collection(c))
+        .ok_or("the media collection is missing or has characters outside A-Z a-z 0-9 - _ (at most 64)")?;
+    let alt = node
+        .attr_str("alt")
+        .filter(|alt| !alt.is_empty())
+        .ok_or("the file has no name (alt), which is the link text of adf:attachment")?;
+    if has_unsafe_control(alt) || alt.contains(['\n', '\r']) || alt.trim() != alt {
+        return Err(
+            "the file name has control characters, line breaks or surrounding spaces".to_owned(),
+        );
+    }
+    if !has_visible_char(alt) {
+        return Err("the file name has no visible character".to_owned());
+    }
+    let mut dest = format!("adf:attachment/{id}");
+    if !collection.is_empty() {
+        dest.push_str("?collection=");
+        dest.push_str(collection);
+    }
+    Ok((alt.to_owned(), dest))
 }
 
 /// An attribute name for a message: control characters escaped, at most 40 characters.

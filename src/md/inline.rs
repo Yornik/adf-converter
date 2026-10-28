@@ -7,8 +7,8 @@
 use linkify::{LinkFinder, LinkKind};
 
 use crate::adf::model::{
-    ALLOWED_URL_FORMS, Formatting, HexColor, Href, Link, MediaSingle, MediaSource, NonEmptyString,
-    SubSup,
+    ALLOWED_URL_FORMS, Formatting, HexColor, Href, Inline, Link, MediaSingle, MediaSource,
+    NonEmptyString, SubSup,
 };
 use crate::diagnostics::{Code, Diagnostic};
 use crate::options::{HtmlPolicy, ImagePolicy, SoftBreak};
@@ -44,6 +44,8 @@ enum ImageMode {
     File,
     /// `adf:media/<id>…` while the `media` extension is disabled: only the alt text is kept.
     FileDisabled,
+    /// `adf:attachment/…` written as an image: it is a link form, only the alt text is kept.
+    AttachmentForm,
     /// `adf:csv/PATH…` with an include root: the file becomes a table.
     Csv,
     /// `adf:csv/PATH…` without an include root: nothing is read, the alt text is kept.
@@ -402,6 +404,7 @@ fn image_mode(dest: &str, cx: &Cx<'_>) -> ImageMode {
                 ImageMode::FileDisabled
             }
         }
+        Some((kind, _)) if kind == "attachment" => ImageMode::AttachmentForm,
         Some((kind, _))
             if kind == "csv" || kind.starts_with("csv?") || kind.starts_with("csv#") =>
         {
@@ -860,6 +863,16 @@ impl InlineBuilder {
         span: &Span,
         cx: &mut Cx<'_>,
     ) {
+        if kind == "attachment" && cx.opts.images == ImagePolicy::Drop {
+            // `--images drop` removes file attachments with the images, label included.
+            self.toks.truncate(start);
+            cx.warn(
+                Code::ImageDropped,
+                "Attachment dropped (--images drop)",
+                span,
+            );
+            return;
+        }
         let inner = self.toks.get(start..).unwrap_or_default();
         let inner_marked = inner.iter().any(|t| match t {
             Tok::Text { marks, .. } => !marks.is_empty(),
@@ -904,10 +917,23 @@ impl InlineBuilder {
                         );
                     }
                 }
+                if let Inline::MediaInline(media) = &node {
+                    // Counted where the node is made, as text is counted when it is emitted.
+                    let file = &media.file;
+                    cx.charge(
+                        120 + file.id.as_str().len()
+                            + file.collection.as_str().len()
+                            + file.alt.as_str().len(),
+                        span,
+                    );
+                }
                 self.toks.push(Tok::Node(node));
                 self.toks.extend(images);
             }
-            Err(fallback) => cx.warn(fallback.code, fallback.message, span),
+            Err(fallback) => match fallback.hint {
+                Some(hint) => cx.warn_hint(fallback.code, fallback.message, hint, span),
+                None => cx.warn(fallback.code, fallback.message, span),
+            },
         }
     }
 
@@ -1008,6 +1034,16 @@ impl InlineBuilder {
                 cx.warn(
                     Code::ExtensionDisabled,
                     "adf:media image found, but the 'media' extension is disabled; the alt text was kept",
+                    &frame.span,
+                );
+                let alt = clean_alt(&frame, cx);
+                self.push_alt_text(alt, frame.span);
+            }
+            ImageMode::AttachmentForm => {
+                cx.warn_hint(
+                    Code::UnknownExtension,
+                    "adf:attachment is a link form, not an image form",
+                    "Write [file name](adf:attachment/<uuid>) as a link, or ![alt](adf:media/<uuid>) for an image",
                     &frame.span,
                 );
                 let alt = clean_alt(&frame, cx);

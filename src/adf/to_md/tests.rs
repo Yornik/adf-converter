@@ -1814,6 +1814,13 @@ mod arbitrary {
             Just(json!({"type": "emoji", "attrs": {"shortName": ":x:", "text": "❌"}})),
             Just(json!({"type": "inlineCard", "attrs": {"url": "https://e.com"}})),
             Just(json!({"type": "mediaInline", "attrs": {"id": "m", "collection": ""}})),
+            // Files the link syntax can say (`adf:attachment`), alone and as a group's media.
+            Just(
+                json!({"type": "mediaInline", "attrs": {"type": "file", "id": "66666666-7777-8888-9999-000000000000", "collection": "", "alt": "f.pdf"}})
+            ),
+            Just(
+                json!({"type": "media", "attrs": {"type": "file", "id": "66666666-7777-8888-9999-000000000001", "collection": "contentId-1", "alt": "a [b] | c.zip"}})
+            ),
             Just(json!({"type": "rule"})),
             Just(json!({"type": "paragraph"})),
             Just(
@@ -1846,6 +1853,7 @@ mod arbitrary {
                 "expand",
                 "nestedExpand",
                 "mediaSingle",
+                "mediaGroup",
                 "decisionList",
                 "layoutSection",
                 "weird",

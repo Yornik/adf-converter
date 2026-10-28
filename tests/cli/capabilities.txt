@@ -36,18 +36,19 @@ Markdown features:
   footnotes       gfm         text[^1] … [^1]: note
 
 ADF extensions (--extensions; all on by default):
-  alerts          > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]
-  details         <details><summary>Title</summary> … </details>
-  cells           ::: cell … :::
-  raw-adf         ```adf with a block node or an array of block nodes
-  mention         [@Display Name](adf:mention/ACCOUNT_ID)
-  status          [TEXT](adf:status/neutral|purple|blue|red|yellow|green)
-  date            [YYYY-MM-DD](adf:date)
-  emoji           [😄](adf:emoji/:smile:)
-  card            [https://…](adf:card)
-  media           ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
-  csv             ```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text
-  csv-include     ![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR
+  alerts              > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION]
+  details             <details><summary>Title</summary> … </details>
+  cells               ::: cell … :::
+  raw-adf             ```adf with a block node or an array of block nodes
+  mention             [@Display Name](adf:mention/ACCOUNT_ID)
+  status              [TEXT](adf:status/neutral|purple|blue|red|yellow|green)
+  date                [YYYY-MM-DD](adf:date)
+  emoji               [😄](adf:emoji/:smile:)
+  card                [https://…](adf:card)
+  media               ![alt](adf:media/UUID?collection=&width=&height=&layout=&size=)
+  attachment (media)  [file name](adf:attachment/UUID?collection=)
+  csv                 ```csv or ```tsv fence, optionally followed by key=value options (delimiter, header, max-rows, align); the body is the CSV text
+  csv-include (csv)   ![alt](adf:csv/PATH?delimiter=&header=&max-rows=&align=) with --include-root DIR
 
 CSV tables (--from csv, --from adf --to csv):
   csv-tables      adf convert --from csv FILE (header row, --delimiter, --no-header, --max-rows, --align-numbers); --from adf --to csv writes one table back

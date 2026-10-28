@@ -295,21 +295,22 @@ paste ids, URLs, tokens or response bodies from a real site into the repository;
 happened instead.
 
 For each step, upload the test image with the recipe, write the `adf:media` line (also try the
-same node as a raw ```` ```adf ```` block), convert with `adf convert … -e jira-comment` or
+same node as a raw ```` ```adf ```` block; for files that are not pictures, write the
+`adf:attachment` link), convert with `adf convert … -e jira-comment` or
 `-e confluence`, post, and look at the result in the browser. Then read it back with
-`adf convert --from adf` (roundtrip flavour) and check that the `adf:media` line or the fence
-matches what you wrote.
+`adf convert --from adf` (roundtrip flavour) and check that the `adf:media` line, the
+`adf:attachment` link or the fence matches what you wrote.
 
 | # | Question | How to try | Result |
 |---|---|---|---|
 | 1 | Does the redirect lookup (`GET /rest/api/3/attachment/content/{id}` without following redirects) still return the media id? Which status (`302` or `303`), and does it need authentication? | Step 2 of the Jira recipe, with and without `-u`. | not run |
 | 2 | Is `width`/`height` required on a file `media` in a Jira comment? Which `layout` and pixel `size` does Jira honour? | Post the same image with both, with only one, and with neither; vary `layout` and `size=…px`/`%`. | not run |
-| 3 | Does Jira accept a `mediaGroup`, a `mediaInline` and a caption in a comment and in a description? What does real `mediaInline` JSON look like? | Attach a text file in the Jira editor, read the comment back, and post raw ADF with each node. | not run |
+| 3 | Does Jira accept a `mediaGroup`, a `mediaInline` and a caption in a comment and in a description, and does it render them? What does real `mediaInline` JSON look like? | Attach a text file in the Jira editor, read the comment back, and post each node: `[name](adf:attachment/<media id>)` alone on a line (a `mediaGroup`) and inside a sentence (a `mediaInline`), and a raw ADF block for the caption. | not run |
 | 4 | Confluence comment media: which collection works, and does API-written file media render? Does external media render in Jira and Confluence comments? | Footer comment with the page's `contentId-<pageId>` and with `comment-container-<pageId>`; an editor-attached file read back; `--images external` in both products. | not run |
 | 5 | Which API lists a Confluence comment's attachments? (CONFCLOUD-84981, a suggestion in Gathering Interest, says the v1 `content/{commentId}/child/attachment` endpoint is deprecated and returns 410 Gone, and that there is no supported API path and no workaround. v1 attachment endpoints may be retired, which would also end the page upload in the recipe.) | Call it for a comment with an editor-attached file, and repeat the page upload of the Confluence recipe. | not run |
 | 6 | Do `__fileName`, `__fileSize` and similar attributes ever appear in REST readbacks? | Read back media posted from the editor, from the API and from a page copy. | not run |
 | 7 | Do the Rovo MCP upload and comment tools exist, and do they preserve media nodes? | Only if you use that server; read the tool descriptions first. | not run |
-| 8 | Are media nodes accepted in tables, panels, lists and expands, as `adf` places them? | Post `adf:media` lines inside each container, after `adf validate`, and check the result renders. `adf` keeps media inside list items, quotes, panels, expands and table cells; it moves it out only of task items and `adf:` labels (`W_BLOCK_HOISTED`). | not run |
+| 8 | Are media nodes accepted in tables, panels, lists and expands, as `adf` places them? | Post `adf:media` lines and `adf:attachment` links inside each container, after `adf validate`, and check the result renders. `adf` keeps media inside list items, quotes, panels, expands and table cells; it moves it out only of task items and `adf:` labels (`W_BLOCK_HOISTED`). A `mediaGroup` (a paragraph of only attachment links) goes in every container except a list item, where the links stay inline `mediaInline`s; a GFM table cell holds inline files only (use a `::: cell` box for a group). | not run |
 
 When the result changes what the docs say:
 - Update [posting.md](posting.md#attaching-files-and-screenshots) and the skill's

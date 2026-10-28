@@ -231,7 +231,7 @@ fn jira_file_media_cases() -> Vec<(&'static str, Value)> {
             "files that stay raw ADF",
             doc(json!([
                 {"type":"mediaGroup","content":[
-                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"report.pdf"}}]},
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"report.pdf","width":10,"height":20}}]},
                 {"type":"paragraph","content":[{"type":"text","text":"see "},
                     {"type":"mediaInline","attrs":{"type":"file","id":id,"collection":""}}]},
                 {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
@@ -239,6 +239,61 @@ fn jira_file_media_cases() -> Vec<(&'static str, Value)> {
                     {"type":"caption","content":[{"type":"text","text":"Figure 1"}]}]},
                 {"type":"mediaSingle","attrs":{"layout":"center"},"content":[
                     {"type":"media","attrs":{"type":"file","id":"legacy-id","collection":"contentId-1"}}]}
+            ])),
+        ),
+    ]
+}
+
+/// Attached files as Jira and Confluence store them: a `mediaGroup` and `mediaInline`s with a
+/// file name, in every container. They are written as `adf:attachment` links and read back
+/// unchanged. (`mediaInline`s without a file name stay raw ADF: see the cases above.)
+fn attachment_cases() -> Vec<(&'static str, Value)> {
+    let id = "66666666-7777-8888-9999-000000000000";
+    let other = "66666666-7777-8888-9999-000000000001";
+    let file = |id: &str, collection: &str, alt: &str| json!({"type":"media","attrs":{"type":"file","id":id,"collection":collection,"alt":alt}});
+    let inline = |id: &str, collection: &str, alt: &str| json!({"type":"mediaInline","attrs":{"type":"file","id":id,"collection":collection,"alt":alt}});
+    let text = |text: &str| json!({"type":"text","text":text});
+    vec![
+        (
+            "a group and inline files",
+            doc(json!([
+                {"type":"paragraph","content":[text("Attached:")]},
+                {"type":"mediaGroup","content":[file(id, "", "report.pdf"), file(other, "contentId-123456", "trace [1].zip")]},
+                {"type":"paragraph","content":[text("See "), inline(id, "", "report.pdf"), text(" and "), inline(other, "contentId-123456", "a|b *c*.txt"), text(".")]},
+                {"type":"paragraph","content":[inline(id, "", "a.txt"), inline(other, "", "b.txt")]},
+                {"type":"paragraph","content":[inline(id, "", "x.txt"), text(" see")]}
+            ])),
+        ),
+        (
+            "files in containers",
+            doc(json!([
+                {"type":"bulletList","content":[
+                    {"type":"listItem","content":[{"type":"paragraph","content":[inline(id, "", "alone in a list.txt")]}]},
+                    {"type":"listItem","content":[{"type":"paragraph","content":[inline(id, "", "a.txt"), text(" "), inline(other, "", "b.txt")]}]}]},
+                {"type":"heading","attrs":{"level":2},"content":[text("H "), inline(id, "", "in a heading.txt")]},
+                {"type":"heading","attrs":{"level":3},"content":[inline(id, "", "alone in a heading.txt")]},
+                {"type":"blockquote","content":[{"type":"paragraph","content":[text("q")]}, {"type":"mediaGroup","content":[file(id, "", "in a quote.pdf")]}]},
+                {"type":"panel","attrs":{"panelType":"info"},"content":[{"type":"mediaGroup","content":[file(id, "", "in a panel.pdf")]}]},
+                {"type":"expand","attrs":{"title":"Details"},"content":[{"type":"mediaGroup","content":[file(id, "", "in an expand.pdf"), file(other, "", "second.pdf")]}]},
+                {"type":"table","attrs":{"isNumberColumnEnabled":false,"layout":"default"},"content":[
+                    {"type":"tableRow","content":[{"type":"tableHeader","content":[{"type":"paragraph","content":[text("File")]}]}]},
+                    {"type":"tableRow","content":[{"type":"tableCell","content":[{"type":"paragraph","content":[inline(id, "", "in a cell.txt")]}]}]}]},
+                {"type":"table","attrs":{"isNumberColumnEnabled":false,"layout":"default"},"content":[
+                    {"type":"tableRow","content":[{"type":"tableCell","content":[
+                        {"type":"paragraph","content":[text("box")]}, {"type":"mediaGroup","content":[file(id, "", "in a box.pdf")]}]}]}]},
+                {"type":"taskList","attrs":{"localId":"l"},"content":[
+                    {"type":"taskItem","attrs":{"localId":"i","state":"TODO"},"content":[text("t "), inline(id, "", "in a task.txt")]}]}
+            ])),
+        ),
+        (
+            "files with Jira bookkeeping stay raw ADF around the syntax",
+            doc(json!([
+                {"type":"mediaGroup","content":[file(id, "", "fine.pdf")]},
+                {"type":"mediaGroup","content":[
+                    {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"with a size.pdf","width":10,"height":20}}]},
+                {"type":"paragraph","content":[text("no name "), {"type":"mediaInline","attrs":{"type":"file","id":id,"collection":""}}]},
+                {"type":"paragraph","content":[inline(id, "", "alone.pdf")]},
+                {"type":"paragraph","content":[inline(id, "", "a.pdf"), text(" "), inline(other, "", "b.pdf")]}
             ])),
         ),
     ]
@@ -300,6 +355,72 @@ fn jira_shaped_file_media_round_trips_after_normalize() {
 #[test]
 fn confluence_shaped_file_media_round_trips_after_normalize() {
     assert_file_media_round_trips(&confluence_file_media_cases(), Target::Confluence);
+}
+
+#[test]
+fn attached_files_round_trip_after_normalize() {
+    let cases = attachment_cases();
+    for (name, x) in &cases {
+        let errors = support::schema_errors(x);
+        assert!(
+            errors.is_empty(),
+            "{name}: the input is not schema-valid: {errors:?}"
+        );
+    }
+    for target in [Target::Jira, Target::Confluence] {
+        let options = MdToAdfOptions {
+            target,
+            ..MdToAdfOptions::default()
+        };
+        let failures: Vec<String> = cases
+            .iter()
+            .filter_map(|(name, x)| round_trip_document(name, x, &options))
+            .collect();
+        assert!(failures.is_empty(), "{}\n", failures.join("\n\n"));
+    }
+}
+
+/// A `localId` is editor bookkeeping that the link cannot say, so the group stays raw ADF. Raw
+/// blocks never carry optional `localId`s, so it reads back without it, which `normalize` allows;
+/// the Markdown is then not yet a fixed point (the second pass writes the link).
+#[test]
+fn an_attached_file_with_a_local_id_stays_raw_and_reads_back_without_it() {
+    let id = "66666666-7777-8888-9999-000000000000";
+    let x = doc(json!([{"type":"mediaGroup","content":[
+        {"type":"media","attrs":{"type":"file","id":id,"collection":"","alt":"report.pdf","localId":"m-1"}}]}]));
+    let (markdown, warnings) = support::adf_to_markdown(&x, MdFlavor::Roundtrip).unwrap();
+    assert!(markdown.starts_with("```adf\n"), "{markdown}");
+    assert!(!markdown.contains("localId"), "{markdown}");
+    assert_eq!(warnings.len(), 1);
+    let options = support::read_back_options(&MdToAdfOptions::default());
+    let (y, _) = support::md_to_value(&markdown, &options).unwrap();
+    assert_eq!(support::normalize(&y), support::normalize(&x));
+    let (second, warnings) = support::adf_to_markdown(&y, MdFlavor::Roundtrip).unwrap();
+    assert_eq!(second, format!("[report.pdf](adf:attachment/{id})\n"));
+    assert_eq!(warnings.len(), 0);
+}
+
+/// The Markdown for attached files holds links where the syntax can say the file, and raw ADF
+/// for the rest; a paragraph of only inline files stays raw because Markdown would read it back
+/// as a group.
+#[test]
+fn attached_files_are_written_as_links_or_raw_adf() {
+    for (name, x) in attachment_cases() {
+        let (markdown, warnings) = support::adf_to_markdown(&x, MdFlavor::Roundtrip)
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let raw = name.contains("raw");
+        assert_eq!(markdown.contains("```adf"), raw, "{name}:\n{markdown}");
+        assert!(
+            markdown.contains("](adf:attachment/"),
+            "{name}:\n{markdown}"
+        );
+        let passthrough = warnings
+            .iter()
+            .filter(|w| w.code.to_string() == "W_ADF_PASSTHROUGH")
+            .count();
+        // Four nodes stay raw: the size, the missing name, and the two paragraphs of only files.
+        assert_eq!(passthrough, if raw { 4 } else { 0 }, "{name}: {warnings:?}");
+    }
 }
 
 /// The file media documents are valid ADF, and the Markdown for them contains the syntax only

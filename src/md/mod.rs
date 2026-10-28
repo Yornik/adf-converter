@@ -30,6 +30,8 @@ mod prepass;
 mod tree;
 
 #[cfg(test)]
+mod attachment_tests;
+#[cfg(test)]
 mod tests;
 
 use crate::Conversion;

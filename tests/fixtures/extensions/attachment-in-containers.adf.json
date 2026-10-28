@@ -1,0 +1,577 @@
+{
+  "type": "doc",
+  "version": 1,
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Paragraph, with text on both sides "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000101",
+            "collection": "",
+            "alt": "paragraph.txt"
+          }
+        },
+        {
+          "type": "text",
+          "text": " of the file."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Heading "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000102",
+            "collection": "",
+            "alt": "heading.txt"
+          }
+        },
+        {
+          "type": "text",
+          "text": " with a file"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000103",
+            "collection": "",
+            "alt": "only-in-heading.txt"
+          }
+        }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "content": [
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Item "
+                },
+                {
+                  "type": "mediaInline",
+                  "attrs": {
+                    "type": "file",
+                    "id": "66666666-7777-8888-9999-000000000104",
+                    "collection": "",
+                    "alt": "item.txt"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "mediaInline",
+                  "attrs": {
+                    "type": "file",
+                    "id": "66666666-7777-8888-9999-000000000105",
+                    "collection": "",
+                    "alt": "only-in-item.txt"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "mediaInline",
+                  "attrs": {
+                    "type": "file",
+                    "id": "66666666-7777-8888-9999-000000000106",
+                    "collection": "",
+                    "alt": "a-in-item.txt"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": " "
+                },
+                {
+                  "type": "mediaInline",
+                  "attrs": {
+                    "type": "file",
+                    "id": "66666666-7777-8888-9999-000000000107",
+                    "collection": "",
+                    "alt": "b-in-item.txt"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "taskList",
+      "attrs": {
+        "localId": "c2825d7b-cb5f-853a-8b67-3d172b4f31c8"
+      },
+      "content": [
+        {
+          "type": "taskItem",
+          "attrs": {
+            "localId": "e392d9e6-38ea-81b3-ab93-8129dd9dbaf5",
+            "state": "TODO"
+          },
+          "content": [
+            {
+              "type": "text",
+              "text": "Task "
+            },
+            {
+              "type": "mediaInline",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000108",
+                "collection": "",
+                "alt": "task.txt"
+              }
+            },
+            {
+              "type": "text",
+              "text": " with a file"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "blockquote",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Quote "
+            },
+            {
+              "type": "mediaInline",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000109",
+                "collection": "",
+                "alt": "quote.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "mediaGroup",
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000110",
+                "collection": "",
+                "alt": "only-in-quote.txt"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "panel",
+      "attrs": {
+        "panelType": "info"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Panel "
+            },
+            {
+              "type": "mediaInline",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000111",
+                "collection": "",
+                "alt": "panel.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "mediaGroup",
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000112",
+                "collection": "",
+                "alt": "only-in-panel.txt"
+              }
+            },
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000113",
+                "collection": "",
+                "alt": "second-in-panel.txt"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Name"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableHeader",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "File"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Cell"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000114",
+                        "collection": "",
+                        "alt": "cell.txt"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Cell with text"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "see "
+                    },
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000115",
+                        "collection": "",
+                        "alt": "cell-text.txt"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "text": " here"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Two"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000116",
+                        "collection": "",
+                        "alt": "cell-a.txt"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "text": " "
+                    },
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000117",
+                        "collection": "",
+                        "alt": "cell-b.txt"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "expand",
+      "attrs": {
+        "title": "Details"
+      },
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "type": "text",
+              "text": "Inside "
+            },
+            {
+              "type": "mediaInline",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000118",
+                "collection": "",
+                "alt": "details.txt"
+              }
+            }
+          ]
+        },
+        {
+          "type": "mediaGroup",
+          "content": [
+            {
+              "type": "media",
+              "attrs": {
+                "type": "file",
+                "id": "66666666-7777-8888-9999-000000000119",
+                "collection": "",
+                "alt": "only-in-details.txt"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default"
+      },
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            {
+              "type": "tableCell",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "Box "
+                    },
+                    {
+                      "type": "mediaInline",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000120",
+                        "collection": "",
+                        "alt": "box.txt"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "mediaGroup",
+                  "content": [
+                    {
+                      "type": "media",
+                      "attrs": {
+                        "type": "file",
+                        "id": "66666666-7777-8888-9999-000000000121",
+                        "collection": "",
+                        "alt": "only-in-box.txt"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "mention",
+          "attrs": {
+            "id": "5b10ac8d82e05b22cc7d4ef5",
+            "text": "@Jane Doe"
+          }
+        },
+        {
+          "type": "text",
+          "text": " sent "
+        },
+        {
+          "type": "mediaInline",
+          "attrs": {
+            "type": "file",
+            "id": "66666666-7777-8888-9999-000000000122",
+            "collection": "",
+            "alt": "mixed.txt"
+          }
+        },
+        {
+          "type": "text",
+          "text": " and "
+        },
+        {
+          "type": "status",
+          "attrs": {
+            "text": "done",
+            "color": "green"
+          }
+        },
+        {
+          "type": "text",
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

@@ -299,6 +299,22 @@ mod tests {
         assert!(out[0].message.contains("fontSize"));
     }
 
+    /// The target lists name what a product rejects; file media is on neither list. (Whether the
+    /// products *render* `mediaGroup` and `mediaInline` written through the API is not verified.)
+    #[test]
+    fn file_media_nodes_are_not_rejected_by_either_product() {
+        let group = json!({"type":"mediaGroup","content":[{"type":"media","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000000","collection":"","alt":"a.pdf"}}]});
+        let inline = json!({"type":"mediaInline","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000000","collection":"","alt":"a.pdf"}});
+        for target in [Target::Jira, Target::Confluence] {
+            for (ty, value) in [("mediaGroup", &group), ("mediaInline", &inline)] {
+                let mut out = Vec::new();
+                assert!(!check_node(target, ty, node(value), "/n", &mut out));
+                assert_eq!(out, Vec::<Diagnostic>::new());
+                assert!(!rejected_nodes(target).any(|n| n == ty));
+            }
+        }
+    }
+
     #[test]
     fn listings() {
         assert!(rejected_nodes(Target::Jira).any(|n| n == "extension"));

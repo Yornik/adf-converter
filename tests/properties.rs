@@ -121,6 +121,29 @@ const MEDIA_IMAGES: &[&str] = &[
     "![s\u{7}](adf:media/11111111-2222-3333-4444-555555555555?width=99999999999999999999)",
     "![s ![n](adf:media/11111111-2222-3333-4444-555555555555) t](https://example.com/i.png)",
 ];
+/// `adf:attachment` links: valid ones (with and without a collection, case variants, file names
+/// that need escaping) and invalid ones (every failure family).
+const ATTACHMENT_LINKS: &[&str] = &[
+    "[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000)",
+    "[trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)",
+    "[log.txt](ADF:Attachment/AAAAAAAA-bbbb-2222-CCCC-333344445555?collection=)",
+    "[a \\[1\\] \\*b\\*.txt](adf:attachment/66666666-7777-8888-9999-000000000003 \"Title\")",
+    "[**bold** `code` name](adf:attachment/66666666-7777-8888-9999-000000000004)",
+    "**[bold.pdf](adf:attachment/66666666-7777-8888-9999-000000000005)**",
+    "[ pad ](adf:attachment/66666666-7777-8888-9999-000000000006)",
+    "[a\u{7}b](adf:attachment/66666666-7777-8888-9999-000000000007)",
+    "[](adf:attachment/66666666-7777-8888-9999-000000000008)",
+    "[ ](adf:attachment/66666666-7777-8888-9999-000000000008)",
+    "[x](adf:attachment)",
+    "[x](adf:attachment/)",
+    "[x](adf:attachment/not-a-uuid)",
+    "[x](adf:attachment/66666666-7777-8888-9999-000000000009?)",
+    "[x](adf:attachment/66666666-7777-8888-9999-000000000009?collection=a%20b)",
+    "[x](adf:attachment/66666666-7777-8888-9999-000000000009?width=1)",
+    "[x](adf:attachment/66666666-7777-8888-9999-000000000009?collection=a&collection=b)",
+    "[![i](https://example.com/i.png) x](adf:attachment/66666666-7777-8888-9999-000000000009)",
+    "![x](adf:attachment/66666666-7777-8888-9999-000000000009)",
+];
 const INLINE_HTML: &[(&str, &str)] = &[
     ("<u>", "</u>"),
     ("<ins>", "</ins>"),
@@ -192,6 +215,7 @@ fn inline_leaf() -> impl Strategy<Value = String> {
         2 => pick(INLINE_LEAVES),
         2 => pick(ADF_LINKS),
         2 => pick(MEDIA_IMAGES),
+        2 => pick(ATTACHMENT_LINKS),
     ]
 }
 
@@ -502,6 +526,8 @@ fn token_soup() -> impl Strategy<Value = String> {
         "```adf\n",
         "adf:mention/x",
         "adf:media/11111111-2222-3333-4444-555555555555",
+        "adf:attachment/66666666-7777-8888-9999-000000000000",
+        "?collection=contentId-1",
         "?width=1&layout=wide",
         "&size=50%",
         "adf:status/green",
@@ -1148,6 +1174,7 @@ fn generator_covers_the_grammar() {
         "](",
         "adf:",
         "](adf:media/",
+        "](adf:attachment/",
         "<u>",
         "&#",
         "\\",

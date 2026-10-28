@@ -2,7 +2,7 @@
 name: markdown-to-adf
 description: Converts Markdown to Atlassian Document Format (ADF) JSON, and ADF back to Markdown, with the offline `adf` CLI, so Jira comments, Jira issue descriptions, rich-text custom fields and Confluence pages render with real headings, lists, tables, code blocks, panels, mentions and status lozenges, including tables built from CSV or TSV files and tables exported as CSV. Use when posting, editing or updating Jira or Confluence comments, descriptions or pages from Markdown through the REST API, curl or acli; when embedding screenshots, images or uploaded attachments, or tables from CSV/TSV/spreadsheet data, in a Jira comment, description or Confluence page; when reading a Jira issue, comment or Confluence page as Markdown, or a table in it as CSV; or when the user mentions ADF, Atlassian Document Format, or formatted Jira comments.
 license: MIT
-compatibility: Requires the adf CLI (adf-converter 0.1.0 or later, https://github.com/Yornik/adf-converter) on PATH; native CSV and TSV (adf convert --from csv, --to csv) needs adf 0.3.0 or later. adf works offline; posting needs curl (or acli), jq for some recipes, python3 for scripts/csv2md.py (optional; only the fallback for adf before 0.3.0), network access and Atlassian credentials in environment variables.
+compatibility: Requires the adf CLI (adf-converter 0.1.0 or later, https://github.com/Yornik/adf-converter) on PATH; native CSV and TSV (adf convert --from csv, --to csv) needs adf 0.3.0 or later; adf:attachment file links need 0.4.0 or later. adf works offline; posting needs curl (or acli), jq for some recipes, python3 for scripts/csv2md.py (optional; only the fallback for adf before 0.3.0), network access and Atlassian credentials in environment variables.
 metadata:
   repository: https://github.com/Yornik/adf-converter
   min-cli-version: "0.1.0"
@@ -40,7 +40,8 @@ adf --version
 ```
 
 `adf` must be 0.1.0 or later (0.3.0 or later for native CSV, see
-[references/tables.md](references/tables.md)). If it is missing, tell the user and offer to install it from the
+[references/tables.md](references/tables.md); 0.4.0 or later for `adf:attachment` file links, see
+[references/syntax.md](references/syntax.md#attached-files-media)). If it is missing, tell the user and offer to install it from the
 latest release (see [references/posting.md](references/posting.md#install-adf)), or with
 `cargo install --git https://github.com/Yornik/adf-converter --locked adf-converter`. Don't install software
 without the user's agreement.
@@ -172,13 +173,16 @@ tables, links), plus:
 | `[😄](adf:emoji/:smile:)` | emoji |
 | `[https://site.atlassian.net/browse/PROJ-1](adf:card)` | smart link card |
 | `![shot.png](adf:media/<media-id>?width=W&height=H)` | an uploaded image (file you already attached; the id is not the attachment id) |
+| `[report.pdf](adf:attachment/<media-id>)` | a reference to an attached file by name, `adf` 0.4.0 or later (older versions keep the text and report `W_UNKNOWN_EXTENSION`): a paragraph of only such links is a media group, a link amid text is an inline file (rendering in the products is not verified) |
 
 To embed an uploaded screenshot, follow "Attaching files and screenshots" in
 [references/posting.md](references/posting.md#attaching-files-and-screenshots): upload with `curl`,
 get the media id, then write the `adf:media` line. Attach the file to the same issue that holds
 the comment or description. Read the image's pixel size for `width` and `height` with
 `file shot.png`, `sips -g pixelWidth -g pixelHeight shot.png` (macOS) or
-`identify -format '%w %h' shot.png`. `adf` never uploads or downloads.
+`identify -format '%w %h' shot.png`. `adf` never uploads or downloads. For a PDF, log or archive
+use the `adf:attachment` link with the same media id (and, on Confluence, the same `collection`);
+the link text is the file name.
 
 To turn a CSV or TSV file into a table, run `adf convert data.csv --from csv -e jira-comment -o
 body.json` (add `--delimiter tab` or `semicolon`; adf never guesses it). To get a table out as CSV,

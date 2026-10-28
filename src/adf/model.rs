@@ -93,6 +93,34 @@ impl<T: Serialize> Serialize for NonEmpty<T> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NonEmptyString(String);
 
+/// Whether `text` has a character that shows: not white space, and not one of the invisible
+/// format characters (zero-width spaces and joiners, bidirectional marks, the byte order mark,
+/// variation selectors, soft hyphen, filler characters). A file name without one is nameless.
+pub(crate) fn has_visible_char(text: &str) -> bool {
+    text.chars()
+        .any(|c| !c.is_whitespace() && !is_invisible_format(c))
+}
+
+fn is_invisible_format(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00AD}'
+            | '\u{034F}'
+            | '\u{061C}'
+            | '\u{115F}'..='\u{1160}'
+            | '\u{17B4}'..='\u{17B5}'
+            | '\u{180B}'..='\u{180F}'
+            | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}'
+            | '\u{2060}'..='\u{206F}'
+            | '\u{3164}'
+            | '\u{FE00}'..='\u{FE0F}'
+            | '\u{FEFF}'
+            | '\u{FFA0}'
+            | '\u{FFF9}'..='\u{FFFB}'
+    )
+}
+
 impl NonEmptyString {
     /// Returns `None` for an empty string. Whitespace-only text is valid ADF.
     pub fn new(value: impl Into<String>) -> Option<Self> {
@@ -247,6 +275,7 @@ child_enum! {
         Table(Table),
         Expand(Expand),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -272,6 +301,7 @@ child_enum! {
         OrderedList(OrderedList),
         CodeBlock(CodeBlock),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -286,6 +316,7 @@ child_enum! {
         CodeBlock(CodeBlock),
         Rule(Rule),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -304,6 +335,7 @@ child_enum! {
         Rule(Rule),
         NestedExpand(NestedExpand),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -322,6 +354,7 @@ child_enum! {
         Table(Table),
         NestedExpand(NestedExpand),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -338,6 +371,7 @@ child_enum! {
         Panel(Panel),
         Rule(Rule),
         MediaSingle(MediaSingle),
+        MediaGroup(MediaGroup),
     }
 }
 
@@ -1046,6 +1080,83 @@ impl Serialize for MediaNode<'_> {
     }
 }
 
+/// A file attached to a Jira issue or Confluence page, referenced by id and shown by its file
+/// name (`adf:attachment`). `adf` never uploads or looks anything up.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttachmentFile {
+    pub id: MediaId,
+    pub collection: MediaCollection,
+    /// The file name.
+    pub alt: NonEmptyString,
+}
+
+impl AttachmentFile {
+    /// The attributes of the `media` of a group and of a `mediaInline`, `type` first.
+    fn entries(&self) -> [(&'static str, AttrValue<'_>); 4] {
+        [
+            ("type", AttrValue::Str("file")),
+            ("id", AttrValue::Str(self.id.as_str())),
+            ("collection", AttrValue::Str(self.collection.as_str())),
+            ("alt", AttrValue::Str(self.alt.as_str())),
+        ]
+    }
+}
+
+/// A block of attached files:
+/// `{"type":"mediaGroup","content":[{"type":"media","attrs":{"type":"file",…}}]}`. The schema
+/// allows it everywhere except in a list item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaGroup {
+    pub files: NonEmpty<AttachmentFile>,
+}
+
+impl Node for MediaGroup {
+    const TYPE: &'static str = "mediaGroup";
+    fn fields<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        map.serialize_entry("content", &GroupMedia(&self.files))
+    }
+}
+
+/// The `media` children of a [`MediaGroup`].
+struct GroupMedia<'a>(&'a NonEmpty<AttachmentFile>);
+
+impl Serialize for GroupMedia<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut seq = serializer.serialize_seq(Some(self.0.len()))?;
+        for file in self.0 {
+            seq.serialize_element(&GroupMediaNode(file))?;
+        }
+        seq.end()
+    }
+}
+
+/// One `media` node of a [`MediaGroup`]; it carries no marks.
+struct GroupMediaNode<'a>(&'a AttachmentFile);
+
+impl Serialize for GroupMediaNode<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("type", "media")?;
+        attrs(&mut map, &self.0.entries())?;
+        map.end()
+    }
+}
+
+/// An attached file inside a line of text:
+/// `{"type":"mediaInline","attrs":{"type":"file","id":…,"collection":…,"alt":…}}`. It carries no
+/// marks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaInline {
+    pub file: AttachmentFile,
+}
+
+impl Node for MediaInline {
+    const TYPE: &'static str = "mediaInline";
+    fn fields<M: SerializeMap>(&self, map: &mut M) -> Result<(), M::Error> {
+        attrs(map, &self.file.entries())
+    }
+}
+
 serialize_as_node!(
     Doc,
     Paragraph,
@@ -1065,6 +1176,8 @@ serialize_as_node!(
     Expand,
     NestedExpand,
     MediaSingle,
+    MediaGroup,
+    MediaInline,
 );
 
 // ---------------------------------------------------------------------------------------------
@@ -1082,6 +1195,8 @@ pub enum Inline {
     Date(Date),
     Status(Status),
     InlineCard(InlineCard),
+    /// An attached file (`adf:attachment`) amid text.
+    MediaInline(MediaInline),
 }
 
 impl Serialize for Inline {
@@ -1098,6 +1213,7 @@ impl Serialize for Inline {
             Self::Date(node) => node.serialize(serializer),
             Self::Status(node) => node.serialize(serializer),
             Self::InlineCard(node) => node.serialize(serializer),
+            Self::MediaInline(node) => node.serialize(serializer),
         }
     }
 }
@@ -1644,6 +1760,42 @@ mod tests {
         );
     }
 
+    fn attachment(n: u8) -> AttachmentFile {
+        AttachmentFile {
+            id: MediaId::parse(&format!("66666666-7777-8888-9999-00000000000{n}")).unwrap(),
+            collection: if n.is_multiple_of(2) {
+                MediaCollection::parse("contentId-123456").unwrap()
+            } else {
+                MediaCollection::default()
+            },
+            alt: NonEmptyString::new(format!("file {n}.pdf")).unwrap(),
+        }
+    }
+
+    fn attachment_inline() -> MediaInline {
+        MediaInline {
+            file: attachment(2),
+        }
+    }
+
+    fn attachment_group(files: u8) -> MediaGroup {
+        MediaGroup {
+            files: NonEmpty::from_vec((1..=files).map(attachment).collect()).unwrap(),
+        }
+    }
+
+    #[test]
+    fn attached_files_serialise_in_a_fixed_shape() {
+        assert_eq!(
+            serde_json::to_string(&attachment_group(2)).unwrap(),
+            r#"{"type":"mediaGroup","content":[{"type":"media","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000001","collection":"","alt":"file 1.pdf"}},{"type":"media","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000002","collection":"contentId-123456","alt":"file 2.pdf"}}]}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Inline::MediaInline(attachment_inline())).unwrap(),
+            r#"{"type":"mediaInline","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000002","collection":"contentId-123456","alt":"file 2.pdf"}}"#
+        );
+    }
+
     #[test]
     fn doc_key_order_and_shape() {
         let doc = Doc {
@@ -1794,16 +1946,25 @@ mod tests {
                     text: NonEmptyString::new("fn main() {}\n// x"),
                 }),
                 DocBlock::Blockquote(Blockquote {
-                    content: NonEmpty::new(BlockquoteChild::Paragraph(para("q"))),
+                    content: NonEmpty::from_vec(vec![
+                        BlockquoteChild::Paragraph(para("q")),
+                        BlockquoteChild::MediaGroup(attachment_group(2)),
+                    ])
+                    .unwrap(),
                 }),
                 DocBlock::Rule(Rule),
                 DocBlock::Panel(Panel {
                     panel_type: PanelType::Warning,
-                    content: NonEmpty::new(PanelChild::Heading(Heading {
-                        level: HeadingLevel::new(1).unwrap(),
-                        content: vec![text("h")],
-                    })),
+                    content: NonEmpty::from_vec(vec![
+                        PanelChild::Heading(Heading {
+                            level: HeadingLevel::new(1).unwrap(),
+                            content: vec![text("h"), Inline::MediaInline(attachment_inline())],
+                        }),
+                        PanelChild::MediaGroup(attachment_group(1)),
+                    ])
+                    .unwrap(),
                 }),
+                DocBlock::MediaGroup(attachment_group(3)),
                 DocBlock::Table(Table {
                     rows: NonEmpty::from_vec(vec![
                         TableRow {
@@ -1817,11 +1978,14 @@ mod tests {
                                         content: vec![text("c")],
                                         align: Some(Align::End),
                                     }),
+                                    TableCellChild::MediaGroup(attachment_group(1)),
                                     TableCellChild::NestedExpand(NestedExpand {
                                         title: None,
-                                        content: NonEmpty::new(NestedExpandChild::Paragraph(para(
-                                            "x",
-                                        ))),
+                                        content: NonEmpty::from_vec(vec![
+                                            NestedExpandChild::Paragraph(para("x")),
+                                            NestedExpandChild::MediaGroup(attachment_group(1)),
+                                        ])
+                                        .unwrap(),
                                     }),
                                 ])
                                 .unwrap(),
@@ -1832,7 +1996,11 @@ mod tests {
                 }),
                 DocBlock::Expand(Expand {
                     title: Some("T".into()),
-                    content: NonEmpty::new(ExpandChild::Paragraph(para("e"))),
+                    content: NonEmpty::from_vec(vec![
+                        ExpandChild::Paragraph(para("e")),
+                        ExpandChild::MediaGroup(attachment_group(1)),
+                    ])
+                    .unwrap(),
                 }),
                 DocBlock::MediaSingle(MediaSingle::external(
                     "https://example.com/a.png".into(),
@@ -1895,6 +2063,7 @@ mod tests {
                         Inline::InlineCard(InlineCard {
                             url: Href::parse("https://example.com").unwrap(),
                         }),
+                        Inline::MediaInline(attachment_inline()),
                     ],
                     align: None,
                 }),

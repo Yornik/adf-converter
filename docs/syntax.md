@@ -311,8 +311,83 @@ and `height` when present.
 - **Not checked.** `adf` cannot know whether the id exists, belongs to this site or issue, or
   which collection the product expects. A made-up id converts without a warning; the product
   rejects or fails to render it when you post.
-- Only the image form exists in this version. Links to files (`mediaGroup`, `mediaInline`) are
-  not written from Markdown; use [raw ADF](#raw-adf-adf) for them.
+- **Files by name.** The image form builds a picture. To refer to a file by its name instead, use
+  the link form below.
+
+#### Attached files (`adf:attachment` links)
+
+Files that are already attached to an issue or a page are shown by name, not as pictures: ADF
+holds them as `mediaGroup` (a block of file cards) and `mediaInline` (a file inside a line of
+text). They belong to the `media` extension, the same on/off switch as the image form. Like the
+image form, this is a reference only: `adf` never uploads a file and never looks an id up. The
+id and the collection come from your upload, see
+[Attaching files and screenshots](posting.md#attaching-files-and-screenshots).
+
+```markdown
+[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000)
+[trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)
+```
+
+The label is the file name and becomes `alt`; it must not be empty. The path after
+`adf:attachment/` is the id, optionally followed by `?collection=…`. The id and the collection
+follow the same rules as in the [image form](#file-media-adfmedia-images) (a UUID; up to 64
+characters from `A-Za-z0-9_-`, `collection=` empty allowed). There are no other keys: `width`,
+`height`, `layout`, `size` and anything else are `W_INVALID_EXTENSION_ARG`. The scheme and the kind
+are case-insensitive.
+
+| Where the link is | ADF |
+|---|---|
+| A paragraph of only attachment links, apart by spaces, tabs or line breaks (a soft break, a hard break, `<br>`), in the document, a quote, a panel, an expand, a nested expand or a `::: cell` box | one block `mediaGroup`, with one `media` `{type: "file", id, collection, alt}` per link. One link is a group of one. |
+| Any other link: text around it, two links with nothing between them, or a place that cannot hold a `mediaGroup` | an inline `mediaInline` `{type: "file", id, collection, alt}` |
+
+```json
+{"type":"mediaGroup","content":[{"type":"media","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000000","collection":"","alt":"report.pdf"}},{"type":"media","attrs":{"type":"file","id":"66666666-7777-8888-9999-000000000002","collection":"contentId-123456","alt":"trace.zip"}}]}
+```
+
+**Where each node is allowed**, read from the vendored schema (`schemas/adf/full.json`). The
+product lists of `adf validate` (`src/adf/targets.rs`) reject neither node, so `-t jira` and
+`-t confluence` both accept them:
+
+| Node | Allowed in | Not allowed in |
+|---|---|---|
+| `mediaGroup` (block) | the document, `blockquote`, `panel`, `expand`, `nestedExpand`, `tableCell` and `tableHeader` | `listItem` |
+| `mediaInline` (inline) | `paragraph`, `heading`, `taskItem` (and `decisionItem`) | `caption`, a code block, anywhere outside inline content |
+
+`mediaInline` accepts the marks `link`, `annotation`, `border` and `dataConsumer` in the schema;
+Markdown cannot say any of them on an attachment, and the Jira product list of `adf validate`
+rejects `border` and `dataConsumer`.
+Formatting around the link or in its label (`**[a.pdf](…)**`, `[**a**.pdf](…)`) is dropped with
+`W_MARK_DROPPED`; the label is plain text.
+
+- **List items, headings, task items and GFM table cells.** A list item cannot hold a
+  `mediaGroup`, so its links are always inline, also a lone link and also in its later
+  paragraphs. A heading and a task item hold inline content only. A GFM table cell is one
+  paragraph (its column alignment is a mark of that paragraph), so links there are inline too,
+  whatever else the cell holds. Use a `::: cell` box for a group in a table. An external image
+  next to a link makes it inline: only paragraphs of nothing but links become groups.
+- **Invalid input.** A bad id, a bad `collection`, a key other than `collection`, a repeated key,
+  an empty value, or a label with no visible character keeps the label as plain text and reports
+  `W_INVALID_EXTENSION_ARG`, located at the link, with the syntax as the hint. The whole link
+  falls back. White space around the label (Unicode white space, a non-breaking space too) is
+  removed first. A label of only white space, zero-width characters (U+200B to U+200F, U+2060 to
+  U+206F, U+FEFF), bidirectional marks, variation selectors, a soft hyphen or filler characters is
+  empty. An address with no id, such as `adf:attachment?collection=x` or `adf:attachment#x`,
+  is the missing id of an attachment link (also for `--images drop`), not an unknown kind.
+- **`--extensions` without `media`.** The label is kept as plain text, with
+  `W_EXTENSION_DISABLED`.
+- **`--images`.** `--images drop` removes attachment links, label included, with
+  `W_IMAGE_DROPPED`. `--images link` (the default) and `--images external` do not affect them.
+- **The image form is not an attachment.** `![x](adf:attachment/…)` keeps its alt text and reports
+  `W_UNKNOWN_EXTENSION` with a hint that points at the link form; `[x](adf:media/…)` is the mirror
+  case.
+- **A title** on the link (`[a](adf:attachment/… "Title")`) is ignored without a warning, as for
+  the other `adf:` links (`adf:mention`, `adf:status`, …); only an image title, which has a place
+  in the picture form, is reported (`W_MARK_DROPPED`). An image in the label follows the node
+  (`W_BLOCK_HOISTED`).
+- **Not checked.** As for images, `adf` cannot know whether the id exists or which collection the
+  product expects. Whether Jira and Confluence *render* a `mediaGroup` or `mediaInline` that was
+  written through the REST API is not verified: see
+  [maintainers.md](maintainers.md#optional-checking-rendering-on-a-personal-jira-site).
 
 ### Tables
 
@@ -386,13 +461,18 @@ Allowed children, from the schema:
 
 | Container | May contain |
 |---|---|
-| document | paragraph, heading, lists, task list, code, quote, rule, panel, table, expand, media |
-| list item | paragraph (first), lists, task list, code, media |
-| quote | paragraph, lists, code, media |
-| panel | paragraph, heading, lists, task list, code, rule, media |
-| table cell | paragraph, heading, lists, task list, code, quote, panel, rule, nested expand, media |
+| document | paragraph, heading, lists, task list, code, quote, rule, panel, table, expand, media, media group |
+| list item | paragraph (first), lists, task list, code, media (no media group) |
+| quote | paragraph, lists, code, media, media group |
+| panel | paragraph, heading, lists, task list, code, rule, media, media group |
+| table cell | paragraph, heading, lists, task list, code, quote, panel, rule, nested expand, media, media group |
 | expand | everything a document may contain, except expand (→ nested expand) |
-| nested expand | paragraph, heading, lists, task list, code, quote, panel, rule, media |
+| nested expand | paragraph, heading, lists, task list, code, quote, panel, rule, media, media group |
+
+"Media" is `mediaSingle` (an [image](#file-media-adfmedia-images)); "media group" is `mediaGroup`
+(a paragraph of [attachment links](#attached-files-adfattachment-links)). An inline file
+(`mediaInline`) is inline content and goes wherever a paragraph, heading or task item does. A list
+item is the only container that cannot hold a media group: its attachment links stay inline.
 
 ### URL allowlist
 
@@ -763,7 +843,8 @@ gives the file's own line and column.
 | `mention`, `status`, `date`, `emoji`, `inlineCard` | the `adf:` link forms above |
 | `mediaSingle` with external `media` | `![alt](url)` |
 | `mediaSingle` with one Media Services file that fits [the read-back rule](#reading-file-media-back) | `![alt](adf:media/UUID?…)` |
-| anything else: other tables, other Media Services files (`mediaGroup`, `mediaInline`, captions, marks), `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), pretty-printed in its key order for the first 16 JSON levels and compact below |
+| `mediaGroup` of files, `mediaInline` with a file name, that fit [the read-back rule](#attached-files-mediagroup-mediainline) | `[name](adf:attachment/UUID?…)` links: one paragraph per group, or inline |
+| anything else: other tables, other Media Services files (captions, marks, a `mediaGroup` or `mediaInline` the link cannot say), `decisionList`, layouts, extensions, unknown nodes | ```` ```adf ```` block with the node's JSON (`W_ADF_PASSTHROUGH`), pretty-printed in its key order for the first 16 JSON levels and compact below |
 
 In the roundtrip flavour, attributes and marks that Markdown cannot express are dropped and
 reported with `W_ATTR_DROPPED`, whose `pointer` locates the node or the mark. This covers:
@@ -814,9 +895,9 @@ with `"layout":"center"`.
 
 Everything else keeps its raw ```` ```adf ```` block with `W_ADF_PASSTHROUGH`: a file
 `mediaSingle` with a caption, with marks (Confluence's `border`, for example), with other
-attributes (`occurrenceKey`, for example) or with an id that is not a UUID; a `media` of type
-`link`; a `mediaGroup`; and a paragraph holding a `mediaInline`. A lone external `mediaSingle`
-keeps its `![alt](url)` form.
+attributes (`occurrenceKey`, for example) or with an id that is not a UUID; and a `media` of type
+`link`. A `mediaGroup` and a `mediaInline` have [their own rule](#attached-files-mediagroup-mediainline).
+A lone external `mediaSingle` keeps its `![alt](url)` form.
 
 **Limitation.** A file image is written inside a table cell or list item only after a paragraph
 (`| text![alt](adf:media/…) |`, `- text` followed by the image line), because `| ![alt](…) |` reads
@@ -824,6 +905,56 @@ back as an empty paragraph followed by the image. A table cell whose only child 
 `mediaSingle`, or a list item that starts with one, is therefore not a GFM shape: the whole table
 or list becomes one ```` ```adf ```` block (`W_ADF_PASSTHROUGH`). The `::: cell` box of a 1×1
 table is not affected.
+
+#### Attached files (`mediaGroup`, `mediaInline`)
+
+The inverse of [attached files](#attached-files-adfattachment-links). A `media` of a `mediaGroup`
+and a `mediaInline` are written as `[name](adf:attachment/UUID?collection=…)` exactly when every
+attribute they hold can be written: all of these must hold, or the node keeps its raw
+```` ```adf ```` block with `W_ADF_PASSTHROUGH` (the message names the first failing condition):
+
+- `type` is `file`; the node has no `marks` and no children;
+- the only attributes are `type`, `id`, `collection` and `alt`: any other attribute, `localId`
+  too, keeps the raw block (unlike the image form, which drops `localId` silently; a raw block
+  never carries optional `localId`s, so such a node reads back without it);
+- `id` is a UUID, `collection` is present and uses the characters `A-Za-z0-9_-` (at most 64, and
+  it may be `""`; it is left out of the link when empty);
+- `alt` is present, not empty, without control characters or line breaks and without leading or
+  trailing whitespace (Unicode whitespace counts), and has a visible character (a name of only
+  zero-width or other invisible characters reads back as an invalid link). A `mediaInline`
+  **without** `alt`, which real Jira data has, keeps its raw block.
+
+A group is written as **one paragraph**, its links joined by a single space; one file that fails
+the conditions keeps the whole group raw. The file name is escaped like other link text
+(brackets, backslash, backtick, `*`, `_`, `<`, `>`, `&`, `|` and the rest), and every paragraph
+is checked by parsing it back, so it reads back as written.
+
+Where the links are written depends on what [Markdown → ADF](#attached-files-adfattachment-links)
+makes of them:
+
+| ADF | Markdown |
+|---|---|
+| `mediaGroup` in the document, a quote, a panel, an expand, a nested expand, a `::: cell` box | one paragraph of links |
+| `mediaGroup` in a list item, or in a cell of a GFM table | raw block (the whole table, for a cell), because Markdown → ADF reads links there as inline files |
+| `mediaInline` amid text, with other inline nodes, or in a heading, a task item, a list item or a GFM table cell | the link, inline (`\|` in a table cell) |
+| a paragraph of **only** files (`mediaInline`s apart by spaces, tabs or hard breaks), where a group is allowed | raw block: the same Markdown would read back as a `mediaGroup`, a different node |
+
+The last row is the one place where a file that fits the conditions stays raw. Two files with
+nothing between them (`[a](…)[b](…)`) are not apart and stay a paragraph; a lone file in a list
+item, a heading, a task item or a table cell is written as its link.
+
+The raw block is the input node as it was, without optional `localId`s (and without an `attrs`
+object that held nothing else). The round trip of a raw block holds for schema-valid nodes only:
+a `mediaGroup` with `marks`, or a `mediaInline` without `collection`, is schema-invalid input
+(`W_INPUT_SCHEMA`), and its raw block is refused when read back (`E_RAW_ADF`).
+
+A paragraph of only files where a group is allowed stays raw although a few of its shapes (a
+text between two files that carries a mark, for example) would not read back as a group; the raw
+block is exact, so the over-approximation costs only the link form. A lone file chip in such a
+paragraph has no link form at all (it would read back as a group), so `--strict` fails on it.
+
+The plain flavour is unchanged: `[attachment: name]` markers, see
+[below](#plain-flavour-media).
 
 ### Plain flavour: media
 

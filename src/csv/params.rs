@@ -117,6 +117,7 @@ pub(crate) fn embedded_table(
         | DocBlock::Panel(_)
         | DocBlock::Expand(_)
         | DocBlock::MediaSingle(_)
+        | DocBlock::MediaGroup(_)
         | DocBlock::Raw(_) => None,
     });
     match (tables.next(), tables.next()) {

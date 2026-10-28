@@ -181,7 +181,40 @@ not the numeric attachment id). `adf` never uploads and never looks ids up; see
   `--images link` and `--images external` do not affect it.
 - An image title, or a link around the image, is dropped (`W_MARK_DROPPED`).
 - `adf` cannot tell whether the id exists. A wrong id fails when you post.
-- Only images: there is no `adf:` form for other files yet (PDFs, logs). Do not invent one.
+- Only images. Other files (PDFs, logs) use the `adf:attachment` link form below.
+
+### Attached files (`media`)
+
+A reference to a file that is already attached, by its name: the link text is the file name, the
+path is the same **media id** as for images (a UUID, not the numeric attachment id), and
+`?collection=…` is optional. Same extension (`media`) as the image form. `adf` never uploads or
+looks ids up. Needs `adf` 0.4.0 or later: older versions keep the link text as plain text and
+report `W_UNKNOWN_EXTENSION` (exit 0), so check `adf --version` first, and note that those versions
+also write such files as ```` ```adf ```` blocks when reading ADF.
+
+```markdown
+[report.pdf](adf:attachment/66666666-7777-8888-9999-000000000000) [trace.zip](adf:attachment/66666666-7777-8888-9999-000000000002?collection=contentId-123456)
+
+See [log.txt](adf:attachment/66666666-7777-8888-9999-000000000001) for details.
+```
+
+- A paragraph of **only** attachment links (apart by spaces or line breaks) is one `mediaGroup`
+  (a block of file cards). A link with text around it, or two links with nothing between them, is a
+  `mediaInline` (a file inside the line).
+- In a list item, a heading, a task item and a cell of a GFM table the links are always inline:
+  a list item cannot hold a `mediaGroup`. For a group in a table, use a `::: cell` box.
+- The link text must have a visible character (white space or only invisible characters is empty).
+  Only the key `collection` exists; `width`, `height`, `layout`
+  and `size` are for images. A bad id, a bad or repeated key or an empty link text keeps the link
+  text as plain text (`W_INVALID_EXTENSION_ARG`). With `--extensions` lacking `media` the text stays
+  too (`W_EXTENSION_DISABLED`). `--images drop` removes the links (`W_IMAGE_DROPPED`);
+  `--images link` and `--images external` do not affect them. Formatting around the link or in
+  the link text is dropped (`W_MARK_DROPPED`).
+- `![x](adf:attachment/<id>)` (the image form) is not an attachment: the alt text stays and
+  `W_UNKNOWN_EXTENSION` says to use the link form.
+- `adf` accepts both nodes for Jira and Confluence. Whether the products *render* a `mediaGroup`
+  or `mediaInline` written through the API is not verified: say so, and check the result after
+  posting.
 
 ### CSV include (`csv`, needs `--include-root`)
 
@@ -247,8 +280,10 @@ warning, so `adf validate --from md` shows what to restructure.
   editing. Attributes and marks without a Markdown form (column widths, cell colours, alignment,
   Confluence inline-comment anchors) are dropped with `W_ATTR_DROPPED`.
 - A file image that `adf` can express is written as an `![alt](adf:media/<id>?…)` line (leave it
-  unchanged when you edit); captions, marks, `mediaGroup` and `mediaInline` stay ```` ```adf ````
-  blocks. A table cell or list item holding only an image (no text before it) turns the whole
+  unchanged when you edit); captions and marks stay ```` ```adf ```` blocks. A `mediaGroup` and a
+  `mediaInline` with a file name are written as `[name](adf:attachment/<id>?…)` links (leave them
+  unchanged too); one without a file name, with other attributes (`localId` too), and a paragraph
+  of only inline files stay ```` ```adf ```` blocks. A table cell or list item holding only an image (no text before it) turns the whole
   table or list into one ```` ```adf ```` block.
 - `--md-flavor plain`: compact Markdown for reading. Mentions become `@Name`, statuses `[TEXT]`,
   dates `YYYY-MM-DD`, emoji their character, cards bare URLs, external images `![alt](url)`

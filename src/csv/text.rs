@@ -89,6 +89,10 @@ pub(super) fn estimated_json_bytes(inlines: &[Inline]) -> usize {
             | Inline::Date(_)
             | Inline::Status(_)
             | Inline::InlineCard(_) => 30,
+            Inline::MediaInline(media) => 120usize
+                .saturating_add(media.file.id.as_str().len())
+                .saturating_add(media.file.collection.as_str().len())
+                .saturating_add(media.file.alt.as_str().len()),
         })
         .fold(0, usize::saturating_add)
 }

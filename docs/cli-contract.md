@@ -351,22 +351,22 @@ included in `adf capabilities --json`.
 
 | Code | Meaning |
 |---|---|
-| <a id="w_mark_dropped"></a>`W_MARK_DROPPED` | A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (`--images external`, or an `adf:media` image). |
+| <a id="w_mark_dropped"></a>`W_MARK_DROPPED` | A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (`--images external`, or an `adf:media` image), or formatting around or inside an `adf:attachment` link was dropped. |
 | <a id="w_heading_demoted"></a>`W_HEADING_DEMOTED` | A heading inside a list item or quote became a bold paragraph. |
 | <a id="w_block_hoisted"></a>`W_BLOCK_HOISTED` | A block was moved out of a container that cannot hold it (for example a table inside a list). |
 | <a id="w_block_flattened"></a>`W_BLOCK_FLATTENED` | A nested container was merged into its parent (for example a quote inside a quote). |
 | <a id="w_html_as_text"></a>`W_HTML_AS_TEXT` | Raw HTML without an ADF equivalent was kept as literal text. |
 | <a id="w_html_dropped"></a>`W_HTML_DROPPED` | Raw HTML was dropped (`--html drop`), or an unrecognised tag inside `<summary>` was removed (an expand title is plain text). |
 | <a id="w_image_as_link"></a>`W_IMAGE_AS_LINK` | An image became a link; ADF images need media uploaded to Jira/Confluence. |
-| <a id="w_image_dropped"></a>`W_IMAGE_DROPPED` | An image was dropped (`--images drop`), including an `adf:media` file image or an `adf:csv` include. |
+| <a id="w_image_dropped"></a>`W_IMAGE_DROPPED` | An image was dropped (`--images drop`), including an `adf:media` file image, an `adf:attachment` link (label included) or an `adf:csv` include. |
 | <a id="w_unsafe_url"></a>`W_UNSAFE_URL` | A link target is not an allowed URL and became plain text. |
 | <a id="w_control_char"></a>`W_CONTROL_CHAR` | Control characters were removed from text. ADF → Markdown also reports it when carriage returns (CR LF or a lone CR) in text or code are written as line breaks. |
 | <a id="w_table_cell_dropped"></a>`W_TABLE_CELL_DROPPED` | Table cells beyond the header row's width were dropped. |
 | <a id="w_footnote_flattened"></a>`W_FOOTNOTE_FLATTENED` | Footnotes became superscript numbers plus a numbered list at the end. |
 | <a id="w_task_numbering_lost"></a>`W_TASK_NUMBERING_LOST` | An ordered task list lost its numbering; ADF task lists are unordered. |
 | <a id="w_front_matter_dropped"></a>`W_FRONT_MATTER_DROPPED` | Leading YAML front matter was removed. |
-| <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. |
-| <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. For an `adf:media` image (extension `media`): a bad id, collection, `width`, `height`, `layout` or `size`, an unknown or duplicate key, or an empty value; the alt text is kept. |
+| <a id="w_unknown_extension"></a>`W_UNKNOWN_EXTENSION` | An `adf:` link names an unknown extension and was kept as plain text. Also `![x](adf:attachment/…)`: `adf:attachment` is a link form, the alt text is kept, and the hint shows the link form. |
+| <a id="w_invalid_extension_arg"></a>`W_INVALID_EXTENSION_ARG` | An `adf:` extension has an invalid argument and was kept as plain text. For an `adf:media` image (extension `media`): a bad id, collection, `width`, `height`, `layout` or `size`, an unknown or duplicate key, or an empty value; the alt text is kept. For an `adf:attachment` link (also extension `media`): a bad id or collection, a key other than `collection`, a repeated key, an empty value, or an empty file name (the link text); the link text is kept. |
 | <a id="w_extension_disabled"></a>`W_EXTENSION_DISABLED` | Extension syntax was found but the extension is disabled, so it was converted as plain Markdown (a ```` ```csv ```` fence with `csv` off stays a code block). |
 | <a id="w_include_disabled"></a>`W_INCLUDE_DISABLED` | An `![alt](adf:csv/PATH)` include was found but no include root is set (`--include-root`), so nothing was read and the image became its alt text (the PATH when the alt text is empty). Located at the image. |
 | <a id="w_node_not_in_target"></a>`W_NODE_NOT_IN_TARGET` | Reserved: a construct is not supported by the target product and was replaced by a fallback. This version never emits it: Markdown cannot produce a construct a target rejects, and raw ADF that the target rejects fails with `E_RAW_ADF` instead. |
@@ -385,7 +385,7 @@ from Markdown or ADF input alike:
 
 | Code | Meaning |
 |---|---|
-| <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead. A `codeBlock` whose language is `csv` or `tsv` is also written this way (in the `roundtrip` flavour), because a ```` ```csv ```` fence would be read back as a table. |
+| <a id="w_adf_passthrough"></a>`W_ADF_PASSTHROUGH` | An ADF node without a Markdown equivalent was written as a raw ```` ```adf ```` block. A file `mediaSingle` that [syntax.md](syntax.md#reading-file-media-back) can express is written as an `adf:media` image instead, and a `mediaGroup` or `mediaInline` that it can express as `adf:attachment` links (a paragraph of only `mediaInline`s stays raw, because it would read back as a `mediaGroup`). A `codeBlock` whose language is `csv` or `tsv` is also written this way (in the `roundtrip` flavour), because a ```` ```csv ```` fence would be read back as a table. |
 | <a id="w_attr_dropped"></a>`W_ATTR_DROPPED` | ADF attributes or marks without a Markdown equivalent were dropped (for example column widths, cell colours, paragraph alignment, or Confluence's inline-comment `annotation` marks; the full rule is in [syntax.md](syntax.md#mapping-roundtrip)). |
 | <a id="w_input_schema"></a>`W_INPUT_SCHEMA` | The input ADF does not match the schema; it was converted anyway. |
 

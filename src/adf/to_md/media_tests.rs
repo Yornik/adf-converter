@@ -559,8 +559,9 @@ fn an_inexpressible_image_in_a_cell_still_passes_the_table_through() {
 }
 
 #[test]
-fn media_group_and_media_inline_keep_their_raw_blocks() {
-    let group = json!({"type": "mediaGroup", "content": [file(json!({"alt": "r.pdf"}))]});
+fn media_group_and_media_inline_keep_their_raw_blocks_when_the_link_cannot_say_them() {
+    // A file without a name has no link text; the link syntax (`adf:attachment`) needs one.
+    let group = json!({"type": "mediaGroup", "content": [file(json!({}))]});
     let out = md(json!([group]));
     assert!(out.starts_with("```adf\n"), "{out}");
     let inline = p(&[

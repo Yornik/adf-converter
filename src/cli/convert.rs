@@ -599,7 +599,8 @@ impl RawWalk {
             | DocBlock::TaskList(_)
             | DocBlock::CodeBlock(_)
             | DocBlock::Rule(_)
-            | DocBlock::MediaSingle(_) => {}
+            | DocBlock::MediaSingle(_)
+            | DocBlock::MediaGroup(_) => {}
         }
     }
 
@@ -644,7 +645,8 @@ impl RawWalk {
             BlockquoteChild::OrderedList(list) => self.ordered_list(list, pointer, depth),
             BlockquoteChild::Paragraph(_)
             | BlockquoteChild::CodeBlock(_)
-            | BlockquoteChild::MediaSingle(_) => {}
+            | BlockquoteChild::MediaSingle(_)
+            | BlockquoteChild::MediaGroup(_) => {}
         }
     }
 
@@ -658,7 +660,8 @@ impl RawWalk {
             | PanelChild::TaskList(_)
             | PanelChild::CodeBlock(_)
             | PanelChild::Rule(_)
-            | PanelChild::MediaSingle(_) => {}
+            | PanelChild::MediaSingle(_)
+            | PanelChild::MediaGroup(_) => {}
         }
     }
 
@@ -706,7 +709,8 @@ impl RawWalk {
             | TableCellChild::TaskList(_)
             | TableCellChild::CodeBlock(_)
             | TableCellChild::Rule(_)
-            | TableCellChild::MediaSingle(_) => {}
+            | TableCellChild::MediaSingle(_)
+            | TableCellChild::MediaGroup(_) => {}
         }
     }
 
@@ -740,7 +744,8 @@ impl RawWalk {
             | ExpandChild::TaskList(_)
             | ExpandChild::CodeBlock(_)
             | ExpandChild::Rule(_)
-            | ExpandChild::MediaSingle(_) => {}
+            | ExpandChild::MediaSingle(_)
+            | ExpandChild::MediaGroup(_) => {}
         }
     }
 
@@ -764,7 +769,8 @@ impl RawWalk {
             | NestedExpandChild::TaskList(_)
             | NestedExpandChild::CodeBlock(_)
             | NestedExpandChild::Rule(_)
-            | NestedExpandChild::MediaSingle(_) => {}
+            | NestedExpandChild::MediaSingle(_)
+            | NestedExpandChild::MediaGroup(_) => {}
         }
     }
 }

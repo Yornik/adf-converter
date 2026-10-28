@@ -73,7 +73,14 @@ pub(crate) fn capabilities(json: bool) -> Outcome {
     }
     let _ = writeln!(text, "\nADF extensions (--extensions; all on by default):");
     for feature in FEATURES.iter().filter(|f| f.extension.is_some()) {
-        let _ = writeln!(text, "  {:<16}{}", feature.name, feature.syntax);
+        // A feature whose name is not its extension's: the extension is the --extensions switch.
+        let label = match feature.extension {
+            Some(extension) if extension != feature.name => {
+                format!("{} ({extension})", feature.name)
+            }
+            _ => feature.name.to_owned(),
+        };
+        let _ = writeln!(text, "  {label:<20}{}", feature.syntax);
     }
     let _ = writeln!(text, "\nCSV tables (--from csv, --from adf --to csv):");
     for feature in FEATURES.iter().filter(|f| f.kind == FeatureKind::Csv) {

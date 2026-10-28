@@ -1,0 +1,3 @@
+bin.name = "adf"
+args = ["convert", "--strict"]
+status.code = 5

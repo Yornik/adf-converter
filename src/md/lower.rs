@@ -20,9 +20,9 @@ use serde_json::Value;
 use crate::adf::model::{
     Align, AlignedParagraph, Blockquote, BlockquoteChild, BulletList, CellKind, CodeBlock, Doc,
     DocBlock, Expand, ExpandChild, Formatting, Heading, HeadingLevel, Inline, ListItem,
-    ListItemChild, MediaSingle, NestedExpand, NestedExpandChild, NonEmpty, OrderedList, Panel,
-    PanelChild, PanelType, Paragraph, RawNode, Rule, Table, TableCell, TableCellChild, TableRow,
-    TaskItem, TaskList, TaskListChild, TaskState,
+    ListItemChild, MediaGroup, MediaSingle, NestedExpand, NestedExpandChild, NonEmpty, OrderedList,
+    Panel, PanelChild, PanelType, Paragraph, RawNode, Rule, Table, TableCell, TableCellChild,
+    TableRow, TaskItem, TaskList, TaskListChild, TaskState,
 };
 use crate::diagnostics::{Code, Diagnostic};
 
@@ -82,6 +82,12 @@ impl Ctx {
         self != Self::Quote
     }
 
+    /// Whether a paragraph of only attachment links becomes a `mediaGroup` (the schema allows it
+    /// everywhere except in a list item; there the links stay inline).
+    fn allows_media_group(self) -> bool {
+        self != Self::ListItem
+    }
+
     fn raw_place(self) -> RawPlace {
         match self {
             Self::Doc => RawPlace::Doc,
@@ -111,6 +117,8 @@ enum Node {
     Expand(Expand),
     NestedExpand(NestedExpand),
     Media(MediaSingle),
+    /// A paragraph of attachment links (`adf:attachment`).
+    Attachments(MediaGroup),
     Raw(RawNode),
 }
 
@@ -130,6 +138,7 @@ impl Node {
             Self::Expand(_) => "expand",
             Self::NestedExpand(_) => "nestedExpand",
             Self::Media(_) => "mediaSingle",
+            Self::Attachments(_) => "mediaGroup",
             Self::Raw(_) => "raw ADF",
         }
     }
@@ -178,6 +187,7 @@ fn doc_child(node: Node) -> Result<DocBlock, Diagnostic> {
         Node::Table(t) => DocBlock::Table(t),
         Node::Expand(e) => DocBlock::Expand(e),
         Node::Media(m) => DocBlock::MediaSingle(m),
+        Node::Attachments(g) => DocBlock::MediaGroup(g),
         Node::Raw(r) => DocBlock::Raw(r),
         n @ Node::NestedExpand(_) => return Err(misplaced(&n, "the document")),
     })
@@ -198,7 +208,8 @@ fn list_item_child(node: Node) -> Result<ListItemChild, Diagnostic> {
         | Node::Panel(_)
         | Node::Table(_)
         | Node::Expand(_)
-        | Node::NestedExpand(_)) => return Err(misplaced(&n, "a list item")),
+        | Node::NestedExpand(_)
+        | Node::Attachments(_)) => return Err(misplaced(&n, "a list item")),
     })
 }
 
@@ -209,6 +220,7 @@ fn quote_child(node: Node) -> Result<BlockquoteChild, Diagnostic> {
         Node::Ordered(l) => BlockquoteChild::OrderedList(l),
         Node::Code(c) => BlockquoteChild::CodeBlock(c),
         Node::Media(m) => BlockquoteChild::MediaSingle(m),
+        Node::Attachments(g) => BlockquoteChild::MediaGroup(g),
         Node::Raw(r) => BlockquoteChild::Raw(r),
         n @ (Node::Heading(_)
         | Node::Task(_)
@@ -231,6 +243,7 @@ fn panel_child(node: Node) -> Result<PanelChild, Diagnostic> {
         Node::Code(c) => PanelChild::CodeBlock(c),
         Node::Rule => PanelChild::Rule(Rule),
         Node::Media(m) => PanelChild::MediaSingle(m),
+        Node::Attachments(g) => PanelChild::MediaGroup(g),
         Node::Raw(r) => PanelChild::Raw(r),
         n @ (Node::Quote(_)
         | Node::Panel(_)
@@ -253,6 +266,7 @@ fn cell_child(node: Node) -> Result<TableCellChild, Diagnostic> {
         Node::Rule => TableCellChild::Rule(Rule),
         Node::NestedExpand(e) => TableCellChild::NestedExpand(e),
         Node::Media(m) => TableCellChild::MediaSingle(m),
+        Node::Attachments(g) => TableCellChild::MediaGroup(g),
         Node::Raw(r) => TableCellChild::Raw(r),
         n @ (Node::Table(_) | Node::Expand(_)) => return Err(misplaced(&n, "a table cell")),
     })
@@ -272,6 +286,7 @@ fn expand_child(node: Node) -> Result<ExpandChild, Diagnostic> {
         Node::Table(t) => ExpandChild::Table(t),
         Node::NestedExpand(e) => ExpandChild::NestedExpand(e),
         Node::Media(m) => ExpandChild::MediaSingle(m),
+        Node::Attachments(g) => ExpandChild::MediaGroup(g),
         Node::Raw(r) => ExpandChild::Raw(r),
         n @ Node::Expand(_) => return Err(misplaced(&n, "an expand")),
     })
@@ -289,6 +304,7 @@ fn nested_expand_child(node: Node) -> Result<NestedExpandChild, Diagnostic> {
         Node::Panel(p) => NestedExpandChild::Panel(p),
         Node::Rule => NestedExpandChild::Rule(Rule),
         Node::Media(m) => NestedExpandChild::MediaSingle(m),
+        Node::Attachments(g) => NestedExpandChild::MediaGroup(g),
         Node::Raw(r) => NestedExpandChild::Raw(r),
         n @ (Node::Table(_) | Node::Expand(_) | Node::NestedExpand(_)) => {
             return Err(misplaced(&n, "a nested expand"));
@@ -696,6 +712,11 @@ impl Lowerer<'_, '_> {
 
     /// A paragraph, split around external images and included tables.
     fn paragraph(&mut self, ctx: Ctx, content: Vec<Tok>) -> Vec<Piece> {
+        if ctx.allows_media_group()
+            && let Some(group) = attachment_group(&content)
+        {
+            return vec![Piece::Node(Node::Attachments(group))];
+        }
         let mut out = Vec::new();
         for segment in split_media(content) {
             match segment {
@@ -1220,6 +1241,41 @@ impl Lowerer<'_, '_> {
             );
         }
     }
+}
+
+/// White space between two attachment links: a line break, or unlinked text of only spaces and
+/// tabs.
+fn is_link_separator(tok: &Tok) -> bool {
+    match tok {
+        Tok::HardBreak => true,
+        Tok::Text { text, marks, .. } => {
+            !marks.code && marks.fmt.link.is_none() && text.chars().all(|c| c == ' ' || c == '\t')
+        }
+        Tok::Node(_) | Tok::Media { .. } | Tok::Table { .. } => false,
+    }
+}
+
+/// The files of a paragraph that holds nothing but attachment links, each pair of them apart by
+/// white space or a line break: those paragraphs become a `mediaGroup`. `None` for any other
+/// paragraph (text around the links, two links with nothing between them, no link at all). One
+/// pass, so a paragraph with thousands of links stays linear.
+fn attachment_group(toks: &[Tok]) -> Option<MediaGroup> {
+    let mut files = Vec::new();
+    // Whether a link was seen and no separator has followed it yet.
+    let mut touching = false;
+    for tok in toks {
+        if let Tok::Node(Inline::MediaInline(media)) = tok
+            && !touching
+        {
+            files.push(media.file.clone());
+            touching = true;
+        } else if is_link_separator(tok) {
+            touching = false;
+        } else {
+            return None;
+        }
+    }
+    NonEmpty::from_vec(files).map(|files| MediaGroup { files })
 }
 
 /// Whether inline text is empty so far, or ends in a hard break or a literal space or tab.
