@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/Yornik/adf-converter/compare/v0.4.0...v0.5.0) (2026-10-28)
+
+
+### Features
+
+* **skill:** jira.sh reads and posts Jira content with JIRA_API_TOKEN ([#22](https://github.com/Yornik/adf-converter/issues/22)) ([320856d](https://github.com/Yornik/adf-converter/commit/320856d33a3d963e5a568aed28ee24f429b72efb))
+
+
+### Bug Fixes
+
+* **csv:** quote a CSV field that starts with U+FEFF ([#23](https://github.com/Yornik/adf-converter/issues/23)) ([56f890b](https://github.com/Yornik/adf-converter/commit/56f890b9ccbad2670336cf97937b7538ce5a6bce))
+
 ## [0.4.0](https://github.com/Yornik/adf-converter/compare/v0.3.0...v0.4.0) (2026-10-28)
 
 
