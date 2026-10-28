@@ -285,7 +285,7 @@ fn normalise_cell(raw: &str) -> String {
 fn expected_field(text: &str, delimiter: char) -> String {
     let needs_quotes = text.contains(delimiter)
         || text.contains(['"', '\n', '\r'])
-        || text.starts_with([' ', '\t'])
+        || text.starts_with([' ', '\t', '\u{feff}'])
         || text.ends_with([' ', '\t']);
     if needs_quotes {
         format!("\"{}\"", text.replace('"', "\"\""))
