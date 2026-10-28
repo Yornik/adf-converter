@@ -8,10 +8,11 @@ fn is_formula_start(first: char) -> bool {
 }
 
 /// A field is quoted when it contains the delimiter, a double quote, a line feed or a carriage
-/// return, or starts or ends with a space or tab.
+/// return, or starts or ends with a space or tab, or starts with U+FEFF (a first field of that
+/// kind would make the file start with a byte order mark, which readers drop).
 fn needs_quotes(text: &str, delimiter: char) -> bool {
     text.contains([delimiter, '"', '\n', '\r'])
-        || text.starts_with([' ', '\t'])
+        || text.starts_with([' ', '\t', '\u{feff}'])
         || text.ends_with([' ', '\t'])
 }
 
@@ -68,6 +69,13 @@ mod tests {
         assert_eq!(plain("\""), "\"\"\"\"");
         assert_eq!(plain("a\nb"), "\"a\nb\"");
         assert_eq!(plain("a\rb"), "\"a\rb\"");
+    }
+
+    #[test]
+    fn a_field_that_starts_with_a_byte_order_mark_is_quoted() {
+        assert_eq!(plain("\u{feff}a"), "\"\u{feff}a\"");
+        // Only at the start: a mark inside the text is data and stays bare.
+        assert_eq!(plain("a\u{feff}"), "a\u{feff}");
     }
 
     #[test]

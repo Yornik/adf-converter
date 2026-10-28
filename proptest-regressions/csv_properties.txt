@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 0ff81d8c1104cc4320ecc82e5203fbb9d3a63636f38ab77dd9ab2567fb9e2c0e # shrinks to rows = [["\0"]], delimiter = ',', eol = "\n", quote_all = false
+cc 7798e8dc05f404cd01911198bb0dcd71c5105b34a4b49050da94b6e806b3c59a # a first cell that starts with U+FEFF made the CSV start with a byte order mark
