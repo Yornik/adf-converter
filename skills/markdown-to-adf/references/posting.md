@@ -39,7 +39,7 @@ The recipes expect these environment variables. They are the user's; `adf` doesn
 |---|---|
 | `JIRA_BASE_URL` | `https://your-site.atlassian.net` (no trailing slash) |
 | `CONFLUENCE_BASE_URL` | Confluence recipes only: `https://your-site.atlassian.net/wiki` |
-| `JIRA_EMAIL` | the Atlassian account email |
+| `JIRA_EMAIL` | the Atlassian account email. Optional with `scripts/jira.sh`: it uses the output of `jira me` (jira-cli) when this is unset |
 | `JIRA_API_TOKEN` | an API token from <https://id.atlassian.com/manage-profile/security/api-tokens> |
 
 - Check that they are set without printing them:
@@ -54,6 +54,23 @@ The recipes expect these environment variables. They are the user's; `adf` doesn
   `https://api.atlassian.com/ex/jira/<cloudId>` for Jira and
   `https://api.atlassian.com/ex/confluence/<cloudId>/wiki` for Confluence. A scoped token is
   created for one product, so Confluence needs its own.
+
+## The easy path: `scripts/jira.sh`
+
+For Jira Cloud issues the skill ships a wrapper, `scripts/jira.sh`, so you do not have to write the
+curl commands. It needs `adf`, `curl`, `jq`, `JIRA_BASE_URL` and `JIRA_API_TOKEN`, and takes the
+email from `JIRA_EMAIL` or from `jira me`:
+
+```sh
+scripts/jira.sh read PROJ-123 --comments        # description and comments as Markdown
+scripts/jira.sh comment PROJ-123 comment.md     # POST /rest/api/3/issue/PROJ-123/comment
+scripts/jira.sh describe PROJ-123 body.md       # PUT the description
+```
+
+The token goes to curl on stdin (so `ps` does not show it) and is never printed. The script writes
+the converted document to a scratch file and posts it only if `adf` exited with 0, so a failed
+conversion never sends an empty request. It does not do Confluence, custom fields or editing
+(use the recipes below and the roundtrip flavour).
 
 ## The pattern
 
