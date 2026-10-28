@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/Yornik/adf-converter/compare/v0.3.0...v0.4.0) (2026-10-28)
+
+
+### Features
+
+* adf:attachment links for attached files (mediaGroup, mediaInline) ([#21](https://github.com/Yornik/adf-converter/issues/21)) ([d6e0cf2](https://github.com/Yornik/adf-converter/commit/d6e0cf2a6f7a27fd8b737dd0a55d550ae874702c))
+
+
+### Documentation
+
+* name the package in the cargo install command ([#19](https://github.com/Yornik/adf-converter/issues/19)) ([95b07cc](https://github.com/Yornik/adf-converter/commit/95b07cc684124757bc9c131d61b20b1e27cf2e97))
+
 ## [0.3.0](https://github.com/Yornik/adf-converter/compare/v0.2.0...v0.3.0) (2026-10-27)
 
 
