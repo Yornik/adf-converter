@@ -52,6 +52,20 @@ diagnostic code.
 
 ## 2. Post Markdown to Jira or Confluence
 
+**Easy path for Jira Cloud:** `scripts/jira.sh` (next to this file) reads and posts with the
+environment variables `JIRA_BASE_URL` and `JIRA_API_TOKEN`; the account email is `JIRA_EMAIL`, or
+what `jira me` prints when jira-cli is logged in. `adf` itself never reads credentials; only this
+script does, and it passes the token to curl on stdin, never on a command line.
+
+```sh
+scripts/jira.sh read PROJ-123 --comments        # description and comments as Markdown
+scripts/jira.sh comment PROJ-123 comment.md     # formatted comment from a Markdown file
+scripts/jira.sh describe PROJ-123 body.md       # replace the description
+```
+
+It converts first and posts only if `adf` succeeded. Use the curl recipes below for Confluence,
+custom fields, and anything else the script does not do.
+
 **Create a scratch directory** once and note the path it prints:
 
 ```sh

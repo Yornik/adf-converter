@@ -182,6 +182,12 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o issue.json \
   adf convert --from adf issue.json --md-flavor plain
 ```
 
+The same three steps as one command each, with `JIRA_BASE_URL` and `JIRA_API_TOKEN` set and the
+email taken from `JIRA_EMAIL` or from `jira me` ([jira-cli](https://github.com/ankitpokhrel/jira-cli)):
+[`skills/markdown-to-adf/scripts/jira.sh`](skills/markdown-to-adf/scripts/jira.sh) `comment PROJ-123
+comment.md`, `describe PROJ-123 description.md`, `read PROJ-123 --comments`. `adf` stays a pure
+converter; only this script reads the token, and it passes it to curl on stdin.
+
 [docs/posting.md](docs/posting.md) has more: updating comments, custom fields, new issues,
 Confluence pages and footer comments, acli (and its `comment create` caveat), and scoped tokens.
 [docs/envelopes.md](docs/envelopes.md) describes every envelope.
