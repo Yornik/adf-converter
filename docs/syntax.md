@@ -640,7 +640,8 @@ Without `--align-numbers` the `alignment` marks are absent.
 
 **CSV text**
 - A field is quoted if it contains the delimiter, a double quote, a line feed or a carriage
-  return, or if it starts or ends with a space or a tab. Quotes inside are doubled. Other fields
+  return, or if it starts or ends with a space or a tab, or if it starts with U+FEFF (so that the
+  file never starts with a byte order mark). Quotes inside are doubled. Other fields
   are written bare, except an empty field in a one-column table, which is written as `""` so that
   its row does not become a blank line.
 - Records end with LF, and the output always ends with LF. There is no BOM. The same delimiter is
