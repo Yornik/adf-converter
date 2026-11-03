@@ -155,7 +155,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.13.5"
+          version: "0.13.6"
           enable-cache: false
       - name: Build the release binary
         run: cargo build --locked --release
@@ -192,13 +192,13 @@ jobs:
         run: shellcheck --external-sources scripts/*.sh
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.13.5"
+          version: "0.13.6"
           enable-cache: false
       - name: Validate renovate.json and release-please-config.json against their schemas
         run: |
-          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+          uvx --from 'check-jsonschema==0.39.0' check-jsonschema \
             --builtin-schema vendor.renovate .github/renovate.json
-          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+          uvx --from 'check-jsonschema==0.39.0' check-jsonschema \
             --schemafile https://raw.githubusercontent.com/googleapis/release-please/v17.11.2/schemas/config.json \
             release-please-config.json
 
@@ -216,7 +216,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.13.5"
+          version: "0.13.6"
           enable-cache: false
       - name: Download @atlaskit/adf-schema@latest
         id: latest
@@ -238,7 +238,7 @@ jobs:
           while IFS= read -r -d '' f; do files+=("$f"); done \
             < <(find tests/fixtures -type f -name '*.adf.json' -print0 | LC_ALL=C sort -z)
           [[ ${#files[@]} -gt 0 ]] || { echo "::error::no goldens under tests/fixtures"; exit 1; }
-          uvx --from 'check-jsonschema==0.38.2' check-jsonschema \
+          uvx --from 'check-jsonschema==0.39.0' check-jsonschema \
             --schemafile "$RUNNER_TEMP/latest-full.json" "${files[@]}"
 
   ci-ok:

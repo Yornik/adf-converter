@@ -25,7 +25,7 @@
 set -euo pipefail
 
 # Pinned on purpose: a new validator release must not change CI results unannounced.
-CHECK_JSONSCHEMA_VERSION=0.38.2
+CHECK_JSONSCHEMA_VERSION=0.39.0
 
 die() {
   printf 'contract.sh: error: %s\n' "$*" >&2
