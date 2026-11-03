@@ -138,7 +138,7 @@ pub const FEATURES: &[Feature] = &[
             "Run `adf --help` to list the commands.\n",
             &["code"],
         ),
-        "code only combines with link; other marks around it are dropped (W_MARK_DROPPED)",
+        "code only combines with link; bold, italic and other marks stay on the text around it and do not apply to the code text itself (W_MARK_DROPPED only when no text keeps the mark)",
     ),
     with_note(
         feature(
@@ -538,7 +538,7 @@ pub fn advice(code: Code) -> &'static str {
             "Change the input so the warnings disappear, or drop --strict (or --html error) to accept the lossy result."
         }
         Code::MarkDropped => {
-            "Move the formatting outside the code span or extension link, or accept the drop."
+            "Format the words next to the code span instead (**a `x` b**), move the formatting outside the code span or extension link, or accept the drop."
         }
         Code::HeadingDemoted => {
             "Move the heading out of the list item or quote if it should stay a heading."

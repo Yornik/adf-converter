@@ -189,14 +189,8 @@ fn push_text(
             span,
         );
     }
-    // Code spans drop other marks when they are built; `<kbd>` text arrives here with them.
-    if marks.code && marks.has_non_link_formatting() {
-        cx.warn(
-            Code::MarkDropped,
-            "Formatting on <kbd> text was dropped; ADF code text can only also be a link",
-            span,
-        );
-    }
+    // Code spans drop other marks when they are built; `<kbd>` text arrives here with them
+    // (reported by the inline builder, which knows whether other text keeps the mark).
     // Compare and merge by the marks that reach the output: `<kbd>a *b*</kbd>` is one code run.
     let marks = &if marks.code {
         Marks {
