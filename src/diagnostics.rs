@@ -77,7 +77,7 @@ codes! {
     CsvOption         = "E_CSV_OPTION",        Error, 3, "A ```csv fence or an adf:csv include has an unknown, repeated or invalid option.";
     Include           = "E_INCLUDE",           Error, 3, "An adf:csv include was refused (path outside the root, not a regular file, over a budget) or its file could not be read.";
     // --- warnings: Markdown -> ADF ------------------------------------------------------------
-    MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image).";
+    MarkDropped       = "W_MARK_DROPPED",       Warning, 0, "A text mark was dropped because ADF does not allow it there: bold, italic or another mark on inline code when no other text carries it (**`x`**; in **a `x` b** the words keep the bold, so nothing is reported), a subscript around a superscript, an image title, or a link around an image (--images external, or an adf:media image).";
     HeadingDemoted    = "W_HEADING_DEMOTED",    Warning, 0, "A heading inside a list item or quote became a bold paragraph.";
     BlockHoisted      = "W_BLOCK_HOISTED",      Warning, 0, "A block was moved out of a container that cannot hold it (for example a table inside a list).";
     BlockFlattened    = "W_BLOCK_FLATTENED",    Warning, 0, "A nested container was merged into its parent (for example a quote inside a quote).";

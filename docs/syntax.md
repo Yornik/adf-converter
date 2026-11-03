@@ -49,7 +49,7 @@ document disagree, that's a bug.
 | `**strong**` / `__strong__` | `strong` | |
 | `***both***` | `em` + `strong` | |
 | `~~strike~~` / `~strike~` | `strike` | |
-| `` `code` `` (any number of backticks) | `code` | `code` combines **only** with `link`. Other marks around code are dropped: `W_MARK_DROPPED`. Empty code spans are skipped. |
+| `` `code` `` (any number of backticks) | `code` | `code` combines **only** with `link`, so bold, italic and the other marks never apply to the code text itself. The text around the code keeps them: `` **a `x` b** `` gives bold "a ", plain code `x`, bold " b", without a warning. When nothing else inside the mark carries it (`` **`x`** ``, `` *`x`* ``), the mark is lost and `W_MARK_DROPPED` is reported. Empty code spans are skipped. |
 | `[text](url "title")`, reference links | `link` `{href, title}` | `title` only if non-empty. `href` must pass the [URL allowlist](#url-allowlist); otherwise the text is kept without a link, `W_UNSAFE_URL`. Empty link text → the URL is used as text. Link text of only spaces (`[ ](url)`) is kept, even at the edge of a block. |
 | `<https://x>`, `<a@b.c>` | `link` | Email → `mailto:`. |
 | Bare `https://x`, `www.x.com` (GFM) | `link` | `www.` gets `http://`. Only URLs that appear literally in the source are linked, so `https\://x` stays text. |

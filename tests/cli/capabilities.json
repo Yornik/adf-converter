@@ -91,7 +91,7 @@
       "adf": [
         "code"
       ],
-      "note": "code only combines with link; other marks around it are dropped (W_MARK_DROPPED)"
+      "note": "code only combines with link; bold, italic and other marks stay on the text around it and do not apply to the code text itself (W_MARK_DROPPED only when no text keeps the mark)"
     },
     {
       "name": "links",
@@ -602,7 +602,7 @@
       "code": "W_MARK_DROPPED",
       "severity": "warning",
       "exit_code": 0,
-      "summary": "A text mark was dropped because ADF does not allow it there (for example bold on inline code, or a subscript around a superscript), or an image title, or a link around an image, was dropped (--images external, or an adf:media image)."
+      "summary": "A text mark was dropped because ADF does not allow it there: bold, italic or another mark on inline code when no other text carries it (**`x`**; in **a `x` b** the words keep the bold, so nothing is reported), a subscript around a superscript, an image title, or a link around an image (--images external, or an adf:media image)."
     },
     {
       "code": "W_HEADING_DEMOTED",

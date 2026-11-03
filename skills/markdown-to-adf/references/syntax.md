@@ -14,7 +14,7 @@ the installed version supports.
 | Line break inside a paragraph | a space | Use `--softbreak hardbreak` to keep line breaks, or end the line with `\`. |
 | Line ending in `\` or two spaces, or `<br>` | line break | |
 | `*em*`, `**strong**`, `***both***`, `~~strike~~` | italic, bold, strike | |
-| `` `code` `` | inline code | Inline code can only be combined with a link. `` **`x`** `` loses the bold (`W_MARK_DROPPED`). |
+| `` `code` `` | inline code | Inline code can only be combined with a link, so bold or italic never applies to the code text itself. `` **a `x` b** `` keeps the bold on "a " and " b" (no warning); `` **`x`** `` has no text to keep the bold, so it is lost (`W_MARK_DROPPED`). |
 | `[text](https://example.com "title")` | link | Allowed: `http`, `https`, `ftp`, `ftps`, `mailto:`, `tel:`, `/path`, `#anchor`. Anything else (relative paths, `javascript:`) stays plain text (`W_UNSAFE_URL`). |
 | `<https://x.example>`, bare `https://…` or `www.…` | link | Write `https\://x` to keep a URL as text. |
 | `- item` / `* item` / `+ item` | bullet list | Indent sub-items to line up with the item's text: 2 spaces under `- `, 3 under `1. `. |

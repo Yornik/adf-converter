@@ -673,6 +673,43 @@ fn emphasis_strong_strike() {
 }
 
 #[test]
+fn code_in_marked_text_is_reported_only_when_no_text_keeps_the_mark() {
+    // Surrounding text keeps the mark, so nothing is lost that the Markdown could avoid.
+    for md in [
+        "**a `x` b**",
+        "**a `x`**",
+        "*a `x` b*",
+        "***a `x` b***",
+        "~~a `x` b~~",
+        "<u>a `x` b</u>",
+        "<sup>a `x` b</sup>",
+        "<span style=\"color: #ff5630\">a `x` b</span>",
+        "**a <kbd>x</kbd> b**",
+        "**a `x` and `y` b**",
+        "**[a `x`](https://l)**",
+        "<sup>a `x`",
+        "<u>*a</u> `x` b*",
+    ] {
+        let (_, warnings) = run(md);
+        assert_eq!(codes(&warnings), vec![], "{md}");
+    }
+    // The mark is lost for good: nothing else in its frame, or only blanks.
+    for (md, count) in [
+        ("**`x`**", 1),
+        ("**`a` `b`**", 2),
+        ("**a *`x`***", 1),
+        ("<sup>`x`</sup>", 1),
+        ("<sup>`x`", 1),
+        ("**<kbd>x</kbd>**", 1),
+        ("<kbd>a *b*</kbd>", 1),
+        ("<u>*`x`</u> b*", 1),
+    ] {
+        let (_, warnings) = run(md);
+        assert_eq!(codes(&warnings), vec![Code::MarkDropped; count], "{md}");
+    }
+}
+
+#[test]
 fn inline_code_and_marks() {
     // F1: the critical empty-text-node case.
     assert_eq!(

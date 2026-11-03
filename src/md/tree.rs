@@ -1271,7 +1271,7 @@ impl HtmlScan {
 
     /// Ends the current paragraph. Only whitespace, hard breaks or empty tags since the last
     /// paragraph: nothing to keep.
-    fn flush(&mut self, end: usize, items: &mut Vec<HtmlItem>, cx: &Cx<'_>) {
+    fn flush(&mut self, end: usize, items: &mut Vec<HtmlItem>, cx: &mut Cx<'_>) {
         let finished = std::mem::take(&mut self.inline);
         if let Some(start) = self.para_start.take() {
             let content = finished.finish(cx);
@@ -1279,7 +1279,7 @@ impl HtmlScan {
         }
     }
 
-    fn finish(mut self, items: &mut Vec<HtmlItem>, cx: &Cx<'_>) {
+    fn finish(mut self, items: &mut Vec<HtmlItem>, cx: &mut Cx<'_>) {
         let end = self.to_src(self.last_end);
         if let Some(open) = self.summary.take() {
             items.push(HtmlItem::Summary(Summary {

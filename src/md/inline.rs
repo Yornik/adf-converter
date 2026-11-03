@@ -136,6 +136,42 @@ struct Frame {
     id: u64,
     kind: FrameKind,
     adds: Adds,
+    /// [`MarkStack::visible_text`] when the frame opened.
+    text_at_open: usize,
+    /// Length of [`MarkStack::dropped`] when the frame opened.
+    drops_at_open: usize,
+}
+
+impl Adds {
+    /// Whether the frame adds a mark that code text cannot carry.
+    fn drops_on_code(self) -> bool {
+        self.em
+            || self.strong
+            || self.strike
+            || self.underline
+            || self.subsup
+            || self.color
+            || self.background
+    }
+}
+
+/// Which construct a mark was dropped from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CodeKind {
+    /// A Markdown code span.
+    Span,
+    /// `<kbd>` text.
+    Kbd,
+}
+
+/// Code text that was inside a mark ADF cannot put on code. It is reported only if no other
+/// text carries that mark (see [`MarkStack::remove`]).
+#[derive(Debug)]
+struct DroppedOnCode {
+    kind: CodeKind,
+    span: Span,
+    /// The enclosing mark frame has no text of its own, so the mark is lost altogether.
+    lost: bool,
 }
 
 /// The open frames and the mark set they produce.
@@ -165,6 +201,10 @@ struct MarkStack {
     html: usize,
     /// Open HTML tag frames per tag name (at most one entry per recognised tag).
     html_names: Vec<(String, usize)>,
+    /// Text runs with a visible (non-blank, non-code) character emitted so far.
+    visible_text: usize,
+    /// Code text inside a mark that code cannot carry, in source order.
+    dropped: Vec<DroppedOnCode>,
 }
 
 /// Most HTML tag frames open at once in one block. Closing a tag searches the open frames, so
@@ -249,7 +289,13 @@ impl MarkStack {
             }
             FrameKind::Em | FrameKind::Strong | FrameKind::Strike => {}
         }
-        self.frames.push(Frame { id, kind, adds });
+        self.frames.push(Frame {
+            id,
+            kind,
+            adds,
+            text_at_open: self.visible_text,
+            drops_at_open: self.dropped.len(),
+        });
     }
 
     fn apply(&mut self, adds: Adds, up: bool) {
@@ -267,6 +313,16 @@ impl MarkStack {
         }
         let mut frame = self.frames.remove(index);
         self.apply(frame.adds, false);
+        // A mark frame that gained no text of its own: the code inside it has no surrounding
+        // text to keep the mark, so the mark is lost.
+        if frame.adds.drops_on_code()
+            && self.visible_text == frame.text_at_open
+            && let Some(inside) = self.dropped.get_mut(frame.drops_at_open..)
+        {
+            for note in inside {
+                note.lost = true;
+            }
+        }
         if frame.adds.link {
             remove_value(&mut self.links, frame.id);
         }
@@ -331,6 +387,26 @@ impl MarkStack {
             },
             code: self.code > 0,
         }
+    }
+
+    /// Records code text inside a mark that code cannot carry; see [`DroppedOnCode`].
+    fn note_dropped_on_code(&mut self, kind: CodeKind, span: Span) {
+        self.dropped.push(DroppedOnCode {
+            kind,
+            span,
+            lost: false,
+        });
+    }
+
+    /// Closes the frames still open and returns the code text whose mark no other text keeps.
+    fn take_lost(&mut self) -> Vec<DroppedOnCode> {
+        while !self.frames.is_empty() {
+            self.remove(self.frames.len() - 1);
+        }
+        std::mem::take(&mut self.dropped)
+            .into_iter()
+            .filter(|note| note.lost)
+            .collect()
     }
 
     /// The alt text of the innermost capturing image frame.
@@ -574,6 +650,18 @@ impl InlineBuilder {
         }
     }
 
+    /// Tracks a text run for the code-mark report: visible text keeps the marks around it, and
+    /// `<kbd>` text inside a mark loses the mark like a code span.
+    fn note_text(&mut self, text: &str, marks: &Marks, span: &Span) {
+        if !marks.code {
+            if text.chars().any(|c| !c.is_whitespace()) {
+                self.stack.visible_text += 1;
+            }
+        } else if marks.has_non_link_formatting() {
+            self.stack.note_dropped_on_code(CodeKind::Kbd, span.clone());
+        }
+    }
+
     /// Emits buffer bytes `start..end` as text tokens, one per source segment. `cursor` is the
     /// index of the first segment that may overlap `start..`; it is advanced past segments
     /// that end before `end`.
@@ -613,6 +701,7 @@ impl InlineBuilder {
             } else {
                 seg.span.clone()
             };
+            self.note_text(text, &marks, &span);
             self.toks.push(Tok::Text {
                 text: text.to_owned(),
                 marks: marks.clone(),
@@ -640,11 +729,8 @@ impl InlineBuilder {
         }
         let marks = self.stack.marks();
         if marks.has_non_link_formatting() {
-            cx.warn(
-                Code::MarkDropped,
-                "Formatting around inline code was dropped; ADF code text can only also be a link",
-                &span,
-            );
+            self.stack
+                .note_dropped_on_code(CodeKind::Span, span.clone());
         }
         let marks = Marks {
             fmt: Formatting {
@@ -1443,8 +1529,19 @@ impl InlineBuilder {
     }
 
     /// Finishes the content: flushes pending text and closes unclosed HTML frames.
-    pub(crate) fn finish(mut self, cx: &Cx<'_>) -> Vec<Tok> {
+    pub(crate) fn finish(mut self, cx: &mut Cx<'_>) -> Vec<Tok> {
         self.flush(cx);
+        for note in self.stack.take_lost() {
+            let message = match note.kind {
+                CodeKind::Span => {
+                    "Formatting around inline code was dropped; ADF code text can only also be a link"
+                }
+                CodeKind::Kbd => {
+                    "Formatting on <kbd> text was dropped; ADF code text can only also be a link"
+                }
+            };
+            cx.warn(Code::MarkDropped, message, &note.span);
+        }
         self.toks
     }
 }
