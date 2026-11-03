@@ -9,12 +9,6 @@ pub const DEFAULT_MAX_INPUT_BYTES: usize = 4 * 1024 * 1024;
 /// most 32,767 characters anyway. Larger inputs fail with `E_INPUT_TOO_LARGE`.
 pub const DEFAULT_MAX_MARKDOWN_BYTES: usize = 1024 * 1024;
 
-/// Maximum number of `*` and `_` characters in one paragraph (a block between blank lines) of
-/// Markdown input. pulldown-cmark 0.13.4 resolves some emphasis patterns in quadratic time
-/// (`*a_` repeated; pulldown-cmark issue #1154, fixed upstream but not released), so a large
-/// paragraph of them would take minutes. Remove once a fixed pulldown-cmark is released.
-pub const MAX_EMPHASIS_DELIMITERS: usize = 20_000;
-
 /// Default maximum nesting depth of containers (lists, quotes, cells, …) in either direction.
 /// Deeper input fails with `E_INPUT_TOO_DEEP`; no code path may recurse without checking it.
 pub const DEFAULT_MAX_DEPTH: usize = 64;

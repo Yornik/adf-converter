@@ -1968,8 +1968,7 @@ fn large_inputs_stay_fast() {
             "urls",
             fill("see https://example.com/a and www.example.org "),
         ),
-        // One paragraph per unit: a single paragraph is capped at MAX_EMPHASIS_DELIMITERS.
-        ("emphasis", fill("*a **b** c*\n\n")),
+        ("emphasis", fill("*a **b** c* ")),
         ("inline html", fill("<u>x</u><b>y ")),
         ("unknown html", fill("<x-y>z ")),
         ("html block", format!("<div>\n{}", fill("<a b='<!--"))),
@@ -2014,8 +2013,7 @@ fn large_inputs_stay_fast() {
         ),
         (
             "closers under deep emphasis",
-            // Up to the delimiter cap: 9,000 openers and 9,000 closers in one paragraph.
-            "*a ".repeat(9_000) + &"</u>".repeat(max / 8) + &" a*".repeat(9_000),
+            "*a ".repeat(max / 16) + &"</u>".repeat(max / 8) + &" a*".repeat(max / 16),
         ),
     ];
     for (name, md) in cases {
@@ -2149,8 +2147,7 @@ fn nesting_up_to_the_limit_is_fine() {
     let (value, _) = run(&lists);
     assert_eq!(value["content"][0]["type"], "bulletList");
     // Deep inline nesting has no limit and no recursion.
-    // 20,000 delimiters: exactly MAX_EMPHASIS_DELIMITERS in one paragraph.
-    let deep_em = "*".repeat(10_000) + "x" + &"*".repeat(10_000);
+    let deep_em = "*".repeat(20_000) + "x" + &"*".repeat(20_000);
     let _ = run(&deep_em);
 }
 
@@ -2526,8 +2523,11 @@ fn link_label_runs_share_the_link() {
 /// for every text event, quadratic under deeply nested emphasis (256 KB took 2.3 s, 4 MiB ~10 min).
 #[test]
 fn captured_alt_text_stays_fast_under_deep_emphasis() {
-    // 18,000 `_`: within MAX_EMPHASIS_DELIMITERS for one paragraph.
-    let n = 9_000;
+    let n = if cfg!(debug_assertions) {
+        50_000
+    } else {
+        200_000
+    };
     let md = format!(
         "![{}{}{}](https://example.com/i.png)",
         "_a ".repeat(n),
@@ -2991,23 +2991,14 @@ fn link_url_repetition_is_bounded_by_the_output_budget() {
     );
 }
 
-/// pulldown-cmark 0.13.4 parses `*a_` repeated in quadratic time (issue #1154); paragraphs with
-/// more than `MAX_EMPHASIS_DELIMITERS` delimiters are refused before it runs.
+/// pulldown-cmark 0.13.4 parsed `*a_` repeated in quadratic time (issue #1154), so `adf` once
+/// refused paragraphs with more than 20,000 `*` and `_`. The fix is in 0.13.5; such a paragraph
+/// converts again. (Timing is checked by hand: a wall-clock assert would be flaky.)
 #[test]
-fn quadratic_emphasis_input_is_refused_fast() {
-    let limit = crate::limits::MAX_EMPHASIS_DELIMITERS;
-    let at_limit = "*a_".repeat(limit / 2);
-    assert!(super::to_adf(&at_limit, &MdToAdfOptions::default()).is_ok());
-    let over = format!("intro\n\n{}", "*a_".repeat(limit / 2 + 1));
-    let start = std::time::Instant::now();
-    let err = error_of(&over, &MdToAdfOptions::default());
-    assert_eq!(err.code, Code::InputTooLarge);
-    assert_eq!(err.location.as_ref().and_then(|l| l.line), Some(3));
-    assert!(
-        start.elapsed() < std::time::Duration::from_secs(1),
-        "{:?}",
-        start.elapsed()
-    );
+fn emphasis_paragraphs_past_the_old_delimiter_cap_convert() {
+    let md = "*a_".repeat(50_000);
+    let conversion = super::to_adf(&md, &MdToAdfOptions::default()).unwrap();
+    assert_eq!(codes(&conversion.warnings), vec![]);
 }
 
 /// `adf:media` is an image form; written as a link it keeps the label as text and says so,

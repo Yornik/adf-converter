@@ -17,7 +17,6 @@
 mod budget;
 mod csv_fence;
 mod cx;
-mod delimiters;
 mod extensions;
 mod finalize;
 mod html;
@@ -37,7 +36,7 @@ mod tests;
 use crate::Conversion;
 use crate::adf::model::Doc;
 use crate::diagnostics::{Code, Diagnostic, Diagnostics, Location};
-use crate::limits::{MAX_EMPHASIS_DELIMITERS, MAX_TABLE_CELLS};
+use crate::limits::MAX_TABLE_CELLS;
 use crate::options::MdToAdfOptions;
 
 use cx::Cx;
@@ -88,14 +87,6 @@ fn convert(
     // Before pulldown-cmark runs: it builds every padded table cell up front.
     budget::check(&pre.text, MAX_TABLE_CELLS)
         .map_err(|exceeded| Diagnostics::single(exceeded.diagnostic(&pre.text, MAX_TABLE_CELLS)))?;
-    // Before pulldown-cmark runs: it resolves some emphasis patterns in quadratic time.
-    delimiters::check(&pre.text, MAX_EMPHASIS_DELIMITERS).map_err(|offset| {
-        Diagnostics::single(delimiters::diagnostic(
-            &pre.text,
-            offset,
-            MAX_EMPHASIS_DELIMITERS,
-        ))
-    })?;
     if !tree::parses_completely(&pre.text, opts) {
         // Work around a pulldown-cmark bug triggered by indented blank lines (see
         // `tree::parses_completely`); blank lines then carry no whitespace.
