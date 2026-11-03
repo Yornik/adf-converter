@@ -31,7 +31,7 @@ path = "src/lib.rs"
 clap = { version = "4.6", features = ["derive", "env", "wrap_help"] }
 clap_complete = "4.6"
 # Default features pull in reqwest/rustls/aws-lc (network + C toolchain); we only validate local JSON.
-jsonschema = { version = "=0.59.0", default-features = false }
+jsonschema = { version = "=0.60.2", default-features = false }
 linkify = "0.11"
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
