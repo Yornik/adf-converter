@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.6.0](https://github.com/Yornik/adf-converter/compare/v0.5.0...v0.6.0) (2026-11-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove the emphasis-delimiter cap now that pulldown-cmark is fixed ([#34](https://github.com/Yornik/adf-converter/issues/34))
+
+### Features
+
+* remove the emphasis-delimiter cap now that pulldown-cmark is fixed ([#34](https://github.com/Yornik/adf-converter/issues/34)) ([937d75f](https://github.com/Yornik/adf-converter/commit/937d75f9423c11aedb17da80a8f25e30724502cc))
+
+
+### Bug Fixes
+
+* only warn W_MARK_DROPPED when no text keeps the mark around inline code ([#29](https://github.com/Yornik/adf-converter/issues/29)) ([61bb1f7](https://github.com/Yornik/adf-converter/commit/61bb1f79927a53e06421c68ad55ec5c4a7144aa1))
+
+
+### Dependencies
+
+* update rust crate jsonschema to v0.60.2 ([#32](https://github.com/Yornik/adf-converter/issues/32)) ([d615cd1](https://github.com/Yornik/adf-converter/commit/d615cd1300e57d584c5a83c37e1481ab4f5ecc4e))
+* update rust crate pulldown-cmark to v0.13.6 [security] ([#27](https://github.com/Yornik/adf-converter/issues/27)) ([4f22552](https://github.com/Yornik/adf-converter/commit/4f22552c18e951b640aa63f614494d625c2a9fd7))
+
 ## [0.5.0](https://github.com/Yornik/adf-converter/compare/v0.4.0...v0.5.0) (2026-10-28)
 
 
