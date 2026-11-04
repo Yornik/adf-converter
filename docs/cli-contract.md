@@ -203,7 +203,7 @@ full shape):
  "extensions":[{"name":"alerts","syntax":"> [!NOTE] / …","adf":["panel"],"default":true}…],
  "exit_codes":{"0":"ok (warnings may have been printed)","1":"internal error (a bug in adf)",…},
  "diagnostic_codes":[{"code":"W_IMAGE_AS_LINK","severity":"warning","exit_code":0,"summary":"…"}…],
- "limits":{"max_input_bytes":4194304,"max_markdown_bytes":1048576,"max_emphasis_delimiters":20000,"max_nesting_depth":64,"max_json_depth":512,"max_table_cells":100000,"max_output_bytes":67108864,"jira_field_char_limit":32767}}
+ "limits":{"max_input_bytes":4194304,"max_markdown_bytes":1048576,"max_nesting_depth":64,"max_json_depth":512,"max_table_cells":100000,"max_output_bytes":67108864,"jira_field_char_limit":32767}}
 ```
 
 `limits` holds the input size, the Markdown nesting depth and Jira's field size. The other limits
@@ -421,7 +421,6 @@ files that `![alt](adf:csv/PATH)` images name under `DIR` (see
 | Limit | Value | Error |
 |---|---|---|
 | Input size | Markdown and CSV (text): 1 MiB; ADF (JSON): 4 MiB | `E_INPUT_TOO_LARGE` |
-| `*` and `_` characters in one paragraph of Markdown (a block between blank lines, code included) | 20,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in Markdown input: all tables of the document together (GFM tables and ```` ```csv ```` / ```` ```tsv ```` fences), counting the empty cells that pad short rows to the header width (see below) | 100,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in CSV input: the columns of the widest row × (the data rows + the header row), checked while the file is read, located at the record that crosses the limit | 100,000 | `E_INPUT_TOO_LARGE` |
 | Table cells in ADF → CSV: the grid of the selected table after merged cells are expanded | 100,000 | `E_INPUT_TOO_LARGE` |
@@ -451,11 +450,6 @@ exceeds 100,000 cells (it counts the cells it actually builds as well). The esti
 high side: a line that directly follows a table without a blank line counts as a row. Table-like
 lines in fenced code are not counted, except towards a safety bound of 1,000,000 cells over the
 whole input.
-
-pulldown-cmark 0.13.4, the Markdown parser, resolves some emphasis patterns in quadratic time
-(`*a_` repeated; [pulldown-cmark#1154](https://github.com/pulldown-cmark/pulldown-cmark/issues/1154),
-fixed upstream but not released). Until a fixed version is released, `adf` refuses paragraphs with
-more than 20,000 `*` and `_` characters before parsing, located at the start of the paragraph.
 
 In Markdown → ADF, every text node of a link repeats the link's URL and title, so a long URL over
 link text with many differently formatted runs multiplies. `adf` estimates the size of the JSON as

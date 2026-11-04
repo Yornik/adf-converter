@@ -11,7 +11,7 @@ use crate::adf::envelope::{ENVELOPE_NAMES, Envelope};
 use crate::diagnostics::{Code, Severity};
 use crate::limits::{
     DEFAULT_MAX_DEPTH, DEFAULT_MAX_INPUT_BYTES, DEFAULT_MAX_MARKDOWN_BYTES, JIRA_FIELD_CHAR_LIMIT,
-    JSON_LEVELS_PER_CONTAINER, MAX_EMPHASIS_DELIMITERS, MAX_OUTPUT_BYTES, MAX_TABLE_CELLS,
+    JSON_LEVELS_PER_CONTAINER, MAX_OUTPUT_BYTES, MAX_TABLE_CELLS,
 };
 use crate::options::Extensions;
 
@@ -663,8 +663,6 @@ pub struct LimitsInfo {
     pub max_input_bytes: usize,
     /// Markdown and CSV input size.
     pub max_markdown_bytes: usize,
-    /// `*` and `_` characters per paragraph of Markdown input.
-    pub max_emphasis_delimiters: usize,
     /// Container levels in Markdown input.
     pub max_nesting_depth: usize,
     /// Levels of JSON arrays/objects in ADF input.
@@ -745,7 +743,6 @@ pub fn capabilities() -> Capabilities {
         limits: LimitsInfo {
             max_input_bytes: DEFAULT_MAX_INPUT_BYTES,
             max_markdown_bytes: DEFAULT_MAX_MARKDOWN_BYTES,
-            max_emphasis_delimiters: MAX_EMPHASIS_DELIMITERS,
             max_nesting_depth: DEFAULT_MAX_DEPTH,
             max_json_depth: DEFAULT_MAX_DEPTH * JSON_LEVELS_PER_CONTAINER,
             max_table_cells: MAX_TABLE_CELLS,
