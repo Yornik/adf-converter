@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/Yornik/adf-converter/compare/v0.6.0...v0.7.0) (2026-11-09)
+
+
+### Features
+
+* colour --help on a terminal and polish the README ([#38](https://github.com/Yornik/adf-converter/issues/38)) ([f524b2b](https://github.com/Yornik/adf-converter/commit/f524b2bc89498dbf114f9f28d78be850064bce9a))
+
 ## [0.6.0](https://github.com/Yornik/adf-converter/compare/v0.5.0...v0.6.0) (2026-11-04)
 
 
