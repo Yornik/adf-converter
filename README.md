@@ -1,23 +1,29 @@
 # adf-converter
 
-Markdown ⇄ Atlassian Document Format (ADF) converter for Jira and Confluence — for humans and AI
-agents.
+**Write Markdown. Post it to Jira and Confluence as real formatting.**
+
+`adf` converts Markdown ⇄ Atlassian Document Format (ADF) for Jira and Confluence, offline, for
+humans and AI agents.
 
 [![CI](https://github.com/Yornik/adf-converter/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Yornik/adf-converter/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/Yornik/adf-converter?sort=semver)](https://github.com/Yornik/adf-converter/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**[Install](#install)** · **[Quick start](#quick-start-for-humans)** ·
+**[For AI agents](#for-ai-agents)** · **[Posting](#posting-to-jira-and-confluence)** ·
+**[Syntax](#supported-syntax)** · **[Exit codes](#exit-codes)** · **[Docs](docs/)**
+
 > [!IMPORTANT]
 > adf-converter is an independent, free-time hobby project. It is not affiliated with, endorsed
 > by, sponsored by, or supported by Atlassian. Atlassian, Jira and Confluence are trademarks of
 > Atlassian. Report problems with Jira or Confluence themselves to
-> [Atlassian Support](https://support.atlassian.com/); report problems with this tool
-> [here](https://github.com/Yornik/adf-converter/issues).
+> [Atlassian Support](https://support.atlassian.com/); report problems with this tool in the
+> [adf-converter issue tracker](https://github.com/Yornik/adf-converter/issues).
 
-The command is `adf`. It is a single self-contained binary that works offline: it never makes
-network requests and never sees your credentials; it reads only its input and, if you pass
-`--include-root DIR`, the CSV files that the Markdown names under `DIR`. You post its output with `curl`, acli or your
-own code.
+`adf` is a single self-contained binary that works offline: it never makes network requests and
+never sees your credentials; it reads only its input and, if you pass `--include-root DIR`, the
+CSV files that the Markdown names under `DIR`. You post its output with `curl`, acli or your own
+code.
 
 ## Why
 
@@ -25,7 +31,9 @@ own code.
   comments, descriptions and rich-text fields only as ADF, and Confluence's v2 API accepts pages
   and comments as ADF (`atlas_doc_format`). Plain text loses headings, lists, tables and code
   blocks, Markdown sent as plain text shows up as literal asterisks and pipes, and wiki markup
-  (`h2.`, `{code}`) only works with the older Jira v2 API.
+  (`h2.`, `{code}`) only works with the older Jira v2 API. `adf` converts Markdown to ADF, so
+  headings, lists, tables, code blocks, panels, mentions and status lozenges arrive as real
+  formatting.
 - **Hand-made ADF is easy to get wrong, and Jira's error messages don't say where.** An empty
   text node, bold on inline code, a heading inside a list item or a task item without a
   `localId` all get a generic `400` error, often just `INVALID_INPUT`. `adf` checks every
@@ -96,8 +104,19 @@ This installs `adf` into `~/.cargo/bin`. Add `--tag vX.Y.Z` to build a specific 
 
 ## Quick start for humans
 
+`adf --help` and `adf <command> --help` list every option; the full interface is in
+[docs/cli-contract.md](docs/cli-contract.md).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/help-dark.svg">
+  <img alt="Terminal running adf --help: the usage line and the commands convert, validate, capabilities, examples, schema, explain, completions, version and help"
+       src="docs/assets/help-light.svg">
+</picture>
+
+### Markdown → ADF
+
 ```sh
-# Markdown → ADF. Pretty JSON on a terminal, compact JSON in pipes and files.
+# Pretty JSON on a terminal, compact JSON in pipes and files.
 adf convert notes.md
 
 # A ready-to-post Jira comment body, written atomically (nothing is written if it fails).
@@ -105,11 +124,19 @@ adf convert notes.md -e jira-comment -o comment.json
 
 # From the clipboard (macOS; on Linux use wl-paste/wl-copy or xclip).
 pbpaste | adf convert - -e jira-comment | pbcopy
+```
 
-# ADF → Markdown: a bare document, a Jira issue or comment, or a Confluence page body.
+### ADF → Markdown
+
+```sh
+# A bare document, a Jira issue or comment, or a Confluence page body.
 adf convert --from adf issue.json
 adf convert --from adf issue.json --md-flavor plain    # compact, for reading and LLMs
+```
 
+### CSV and TSV tables
+
+```sh
 # CSV or TSV → a table, and a table → CSV (adf 0.3.0 or later).
 adf convert data.csv --from csv -e jira-comment -o comment.json
 adf convert data.tsv --from csv --delimiter tab --max-rows 25 --align-numbers -o table.json
@@ -118,16 +145,26 @@ adf convert --from adf issue.json --to csv --csv-safe -o table.csv   # --csv-saf
 # Include a CSV file in the Markdown (adf 0.3.0 or later). Off unless you give a root: the
 # Markdown decides what is read, so use a directory that holds only data you may publish.
 printf '![Q1](adf:csv/q1.csv?delimiter=semicolon)\n' | adf convert --include-root exports -e jira-comment
+```
 
-# Check before posting.
+### Check before posting
+
+```sh
 adf validate --from md notes.md     # lists the lossy steps as warnings (up to 100 per code)
 adf validate comment.json           # ADF: schema + Jira rules, exit 4 if invalid
 adf explain W_IMAGE_AS_LINK         # what a diagnostic code means
 ```
 
-Warnings go to stderr, the result to stdout. `--strict` turns every warning into a failure (exit
-5) and writes nothing. `adf --help` and `adf <command> --help` list every option; the full
-interface is in [docs/cli-contract.md](docs/cli-contract.md).
+For a Markdown file with an external image, `adf validate --from md notes.md` reports one warning:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/validate-dark.svg">
+  <img alt="Terminal output of adf validate: warning W_IMAGE_AS_LINK at notes.md:3:37 with a hint, then a summary of 0 errors and 1 warning"
+       src="docs/assets/validate-light.svg">
+</picture>
+
+Warnings go to stderr, the result to stdout. `--strict` turns every warning into a failure
+(exit 5) and writes nothing.
 
 ## For AI agents
 
@@ -182,19 +219,30 @@ curl --fail-with-body -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" -o issue.json \
   adf convert --from adf issue.json --md-flavor plain
 ```
 
-The same three steps as one command each, with `JIRA_BASE_URL` and `JIRA_API_TOKEN` set and the
-email taken from `JIRA_EMAIL` or from `jira me` ([jira-cli](https://github.com/ankitpokhrel/jira-cli)):
-[`skills/markdown-to-adf/scripts/jira.sh`](skills/markdown-to-adf/scripts/jira.sh) `comment PROJ-123
-comment.md`, `describe PROJ-123 description.md`, `read PROJ-123 --comments`. `adf` stays a pure
-converter; only this script reads the token, and it passes it to curl on stdin.
+The same three steps as one command each, with
+[`skills/markdown-to-adf/scripts/jira.sh`](skills/markdown-to-adf/scripts/jira.sh) (needs `curl`,
+`jq`, `JIRA_BASE_URL` and `JIRA_API_TOKEN`; the email comes from `JIRA_EMAIL` or from `jira me`,
+[jira-cli](https://github.com/ankitpokhrel/jira-cli)):
+
+```sh
+skills/markdown-to-adf/scripts/jira.sh comment PROJ-123 comment.md
+skills/markdown-to-adf/scripts/jira.sh describe PROJ-123 description.md
+skills/markdown-to-adf/scripts/jira.sh read PROJ-123 --comments
+```
+
+`adf` stays a pure converter; only this script reads the token, and it passes it to curl on stdin.
 
 [docs/posting.md](docs/posting.md) has more: updating comments, custom fields, new issues,
 Confluence pages and footer comments, acli (and its `comment create` caveat), and scoped tokens.
 [docs/envelopes.md](docs/envelopes.md) describes every envelope.
 
+### Screenshots and attachments
+
 Screenshots and attachments are references to uploaded files, not URLs. `adf` never uploads or
 downloads: you upload with `curl`, find the media id, and write it as `![alt](adf:media/<id>)` for
-a picture, or (adf 0.4.0 or later; older versions keep the text and report `W_UNKNOWN_EXTENSION`) as `[file name](adf:attachment/<id>)` for a file. The steps, including which of them are undocumented, are in
+a picture, or as `[file name](adf:attachment/<id>)` for a file (adf 0.4.0 or later; older versions
+keep the text and report `W_UNKNOWN_EXTENSION`). The steps, including which of them are
+undocumented, are in
 [Attaching files and screenshots](docs/posting.md#attaching-files-and-screenshots).
 
 ## Supported syntax
@@ -232,19 +280,22 @@ mapping, including every repair rule, is [docs/syntax.md](docs/syntax.md).
 | `[^1]` footnotes | superscript numbers and a list at the end (`W_FOOTNOTE_FLATTENED`) |
 
 All extensions are on by default; `--extensions none` or `--extensions alerts,details` limits
-them. ADF → Markdown writes the same syntax (except the one-way `csv` fence), so for these constructs, converting back with
-`--images external` gives the same document (with the default `--images link`, embedded external
-images become links; `adf:media` images and `adf:attachment` links need no flag). Nodes Markdown cannot express become
-```` ```adf ```` blocks (`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
+them. ADF → Markdown writes the same syntax (except the one-way `csv` fence), so for these
+constructs, converting back with `--images external` gives the same document (with the default
+`--images link`, embedded external images become links; `adf:media` images and `adf:attachment`
+links need no flag). Nodes Markdown cannot express become ```` ```adf ```` blocks
+(`W_ADF_PASSTHROUGH`); attributes and marks it cannot express, such as column widths or
 Confluence inline-comment marks, are dropped (`W_ATTR_DROPPED`).
 
 CSV is read and written by the commands above. A ```` ```csv ```` or ```` ```tsv ```` fence inside
-Markdown becomes a table (extension `csv`). **A ```` ```csv ```` fence used to stay a code block**:
-to show CSV as code, use another language word such as ```` ```text ````, or turn the extension
-off. A CSV file can be included in the middle of a Markdown document with `--include-root`
-(see [Including a CSV file](docs/syntax.md#including-a-csv-file)). The Agent Skill's
-[tables.md](skills/markdown-to-adf/references/tables.md) has recipes for previews of big tables
-and for spreadsheets.
+Markdown becomes a table (extension `csv`). A CSV file can be included in the middle of a Markdown
+document with `--include-root` (see [Including a CSV file](docs/syntax.md#including-a-csv-file)).
+The Agent Skill's [tables.md](skills/markdown-to-adf/references/tables.md) has recipes for
+previews of big tables and for spreadsheets.
+
+> [!NOTE]
+> **Behaviour change (adf 0.3.0).** A ```` ```csv ```` fence used to stay a code block. To show
+> CSV as code, use another language word such as ```` ```text ````, or turn the extension off.
 
 ## Exit codes
 
@@ -285,8 +336,8 @@ cargo-deny) locally.
 `adf` treats all input as untrusted, enforces size and nesting limits, and makes no network
 requests. It reads no file the Markdown names unless you pass `--include-root DIR`; then the
 Markdown decides which files under `DIR` are read, so `DIR` must hold only data you are willing to
-publish (see [Including a CSV file](docs/syntax.md#including-a-csv-file)). To report a vulnerability, see [SECURITY.md](SECURITY.md); please don't open a public
-issue.
+publish (see [Including a CSV file](docs/syntax.md#including-a-csv-file)). To report a
+vulnerability, see [SECURITY.md](SECURITY.md); please don't open a public issue.
 
 ## License
 

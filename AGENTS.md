@@ -22,6 +22,7 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --locked --no-deps
 cargo deny --locked check
 uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf   # the skills-ref package's CLI is `agentskills`
+scripts/screenshots.sh                             # regenerate docs/assets/*-{dark,light}.svg (freeze v0.2.2)
 # CI jobs that scripts/check.sh does not run (all feed the required `ci-ok` check):
 cargo build --locked --release && scripts/contract.sh target/release/adf   # `contract`; needs jq and uv
 shellcheck --external-sources scripts/*.sh         # `workflows`
@@ -167,6 +168,6 @@ Treat these as P0/P1 (block the merge):
   intentional output change; keep `docs/` in sync with behaviour.
 - **Ask first:** new dependencies or `Cargo.toml` changes; contract changes; edits under
   `.github/`; updating the vendored schema in `schemas/adf/`; deleting or loosening tests.
-- **Never:** commit secrets or tokens; hand-edit blessed files or `schemas/adf/full.json`; add
-  network I/O; call a real Jira or Confluence site from tests or CI; use employer or customer
-  content anywhere in the repository; push to `main`.
+- **Never:** commit secrets or tokens; hand-edit blessed files, the generated `docs/assets/*.svg`
+  or `schemas/adf/full.json`; add network I/O; call a real Jira or Confluence site from tests or
+  CI; use employer or customer content anywhere in the repository; push to `main`.

@@ -45,6 +45,12 @@ Optional tools:
 - [jq](https://jqlang.org/) and uv for `scripts/contract.sh`, and
   [shellcheck](https://www.shellcheck.net/) and [actionlint](https://github.com/rhysd/actionlint)
   (CI uses 1.7.12) for the other CI checks below.
+- [freeze](https://github.com/charmbracelet/freeze) v0.2.2 for `scripts/screenshots.sh`, which
+  regenerates the terminal screenshots in `docs/assets/` (a `-dark.svg` and a `-light.svg` of each)
+  from the real binary. Run it after an intentional change to the top of `adf --help`, to the text
+  diagnostics or to the `adf validate` summary line. Review both variants, update the `alt` text of
+  the two `<picture>` elements in README.md if what they show changed, and commit the images. Never
+  edit the SVGs by hand.
 - A nightly toolchain and `cargo-fuzz` for the fuzz targets; see `fuzz/README.md`.
 
 `scripts/check.sh` runs the core checks of CI:

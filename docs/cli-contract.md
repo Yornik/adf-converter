@@ -317,7 +317,9 @@ always listed.
 
 **Other switches:**
 - `-q/--quiet` suppresses warnings. Errors are always printed, and exit codes are unchanged.
-- `NO_COLOR` and `--no-color` disable colour. Colour is only used on a terminal.
+- `NO_COLOR` and `--no-color` disable colour. Colour is only used on a terminal: for diagnostics on
+  stderr, and for `--help` on stdout (not on Windows). Piped or redirected output never contains
+  escape sequences.
 
 ## Diagnostic codes
 
