@@ -165,7 +165,7 @@ fn dispatch(command: &Command) -> Outcome {
 fn clap_error(err: &clap::Error) -> u8 {
     match err.kind() {
         ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
-            let text = err.render().to_string();
+            let text = help_text(err, help_color());
             match output::stdout(text.as_bytes()) {
                 Ok(()) => 0,
                 Err(io_err) if io_err.kind() == io::ErrorKind::BrokenPipe => 0,
@@ -181,6 +181,27 @@ fn clap_error(err: &clap::Error) -> u8 {
             reporter.emit(&[usage_diagnostic(err)], None);
             Code::Usage.exit_code()
         }
+    }
+}
+
+/// Whether `--help` may use colour: only on a terminal, and never with `--no-color` or `NO_COLOR`.
+/// Not on Windows either: this raw ANSI skips the console set-up clap does, so a console without
+/// virtual-terminal processing would show the escapes.
+fn help_color() -> bool {
+    !cfg!(windows)
+        && output::stdout_is_terminal()
+        && !report::early_no_color()
+        && !output::no_color_env()
+}
+
+/// The text of `--help` or `--version`: plain unless `color` is set (then it carries the ANSI
+/// styles of [`args`]).
+fn help_text(err: &clap::Error, color: bool) -> String {
+    let rendered = err.render();
+    if color {
+        rendered.ansi().to_string()
+    } else {
+        rendered.to_string()
     }
 }
 
@@ -358,6 +379,33 @@ mod tests {
     fn usage(argv: &[&str]) -> Diagnostic {
         let err = Cli::try_parse_from(argv).unwrap_err();
         usage_diagnostic(&err)
+    }
+
+    #[test]
+    fn help_is_plain_unless_colour_is_allowed() {
+        let err = Cli::try_parse_from(["adf", "--help"]).unwrap_err();
+        let plain = help_text(&err, false);
+        let styled = help_text(&err, true);
+        assert!(!plain.contains('\u{1b}'), "plain help holds an escape");
+        assert!(styled.contains("\u{1b}["), "styled help holds no escape");
+        // Same words either way: only the styling differs.
+        let stripped: String = {
+            let mut out = String::new();
+            let mut chars = styled.chars();
+            while let Some(c) = chars.next() {
+                if c == '\u{1b}' {
+                    for end in chars.by_ref() {
+                        if end == 'm' {
+                            break;
+                        }
+                    }
+                } else {
+                    out.push(c);
+                }
+            }
+            out
+        };
+        assert_eq!(stripped, plain);
     }
 
     #[test]

@@ -5,14 +5,26 @@
 
 use std::path::PathBuf;
 
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::options::{
     CsvDelimiter, Extensions, HtmlPolicy, ImagePolicy, MdFlavor, SoftBreak, Target,
 };
 
-const AFTER_HELP: &str = "\
-Examples:
+/// Styles of `--help` on a terminal. `cli::help_color` decides whether they are used: never with
+/// `--no-color` or `NO_COLOR`, never on Windows, and never when stdout is not a terminal.
+const STYLES: Styles = Styles::styled()
+    .literal(AnsiColor::Green.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::Cyan.on_default());
+
+/// The text after the option list of `adf --help`. The `Examples:` heading has the style of
+/// clap's headings; plain help strips it like the rest.
+fn after_help() -> String {
+    let heading = *STYLES.get_header();
+    format!(
+        "\
+{heading}Examples:{heading:#}
   adf convert notes.md -e jira-comment -o comment.json   Markdown to a Jira comment body
   adf convert - < notes.md                               read Markdown from stdin
   adf convert --from adf issue.json --md-flavor plain    a Jira issue (GET response) as Markdown
@@ -26,7 +38,9 @@ Exit codes: 0 ok, 1 internal error, 2 usage, 3 input/IO, 4 validation failed, 5 
 Diagnostics go to stderr: text on a terminal, JSON lines otherwise (--error-format).
 
 Unofficial community tool; not affiliated with or endorsed by Atlassian. Jira and Confluence are
-trademarks of Atlassian.";
+trademarks of Atlassian."
+    )
+}
 
 /// Convert Markdown to Atlassian Document Format (ADF) JSON for Jira and Confluence, and back.
 // `bin_name` is fixed so that usage lines say `adf` whatever argv[0] is (`adf.exe` on Windows, a
@@ -36,7 +50,8 @@ trademarks of Atlassian.";
     name = "adf",
     bin_name = "adf",
     version,
-    after_help = AFTER_HELP,
+    after_help = after_help(),
+    styles = STYLES,
     term_width = 100,
     subcommand_required = true
 )]
