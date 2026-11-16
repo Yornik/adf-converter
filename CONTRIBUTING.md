@@ -40,7 +40,7 @@ Optional tools:
   for the licence and advisory checks; `scripts/check.sh` runs it when it is installed.
 - [uv](https://docs.astral.sh/uv/) to run the skill validator and the workflow linter:
   `uvx --from skills-ref==0.1.1 agentskills validate skills/markdown-to-adf` (the `skills-ref`
-  package installs a command named `agentskills`) and `uvx zizmor@1.31.1 .github/workflows` (the
+  package installs a command named `agentskills`) and `uvx zizmor@1.32.0 .github/workflows` (the
   version CI uses).
 - [jq](https://jqlang.org/) and uv for `scripts/contract.sh`, and
   [shellcheck](https://www.shellcheck.net/) and [actionlint](https://github.com/rhysd/actionlint)
@@ -73,7 +73,7 @@ cargo build --locked --release && scripts/contract.sh target/release/adf
 # workflows: lints the scripts and workflows
 shellcheck --external-sources scripts/*.sh
 actionlint
-uvx zizmor@1.31.1 .github/workflows
+uvx zizmor@1.32.0 .github/workflows
 ```
 
 ## Workflow

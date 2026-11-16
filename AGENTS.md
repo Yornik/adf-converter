@@ -27,7 +27,7 @@ scripts/screenshots.sh                             # regenerate docs/assets/*-{d
 cargo build --locked --release && scripts/contract.sh target/release/adf   # `contract`; needs jq and uv
 shellcheck --external-sources scripts/*.sh         # `workflows`
 actionlint                                         # `workflows` (CI: 1.7.12)
-uvx zizmor@1.31.1 .github/workflows                # `workflows`; same zizmor version as CI
+uvx zizmor@1.32.0 .github/workflows                # `workflows`; same zizmor version as CI
 ```
 
 ## Layout
