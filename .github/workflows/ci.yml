@@ -155,7 +155,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.6"
+          version: "0.13.7"
           enable-cache: false
       - name: Build the release binary
         run: cargo build --locked --release
@@ -192,7 +192,7 @@ jobs:
         run: shellcheck --external-sources scripts/*.sh
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.6"
+          version: "0.13.7"
           enable-cache: false
       - name: Validate renovate.json and release-please-config.json against their schemas
         run: |
@@ -216,7 +216,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.6"
+          version: "0.13.7"
           enable-cache: false
       - name: Download @atlaskit/adf-schema@latest
         id: latest
