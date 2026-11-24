@@ -24,7 +24,14 @@ yanked = "deny"
 unmaintained = "all"
 unsound = "all"
 # Every entry needs an `id` and a `reason`, and should link to a tracking issue.
-ignore = []
+ignore = [
+  # RUSTSEC-2026-0542: chrono is unmaintained, so humantime (which wraps it) is
+  # flagged unmaintained too. The chain reaches us only through trycmd
+  # (trycmd -> humantime -> humantime-serde), a dev-dependency that never ships.
+  # No safe upgrade exists upstream yet; re-check when trycmd drops humantime.
+  # Tracked in the Renovate PR stream, first hit 2026-11-23.
+  "RUSTSEC-2026-0542",
+]
 
 [licenses]
 # Licences of crates that end up in the binary (cargo-deny skips dev-dependencies here by
