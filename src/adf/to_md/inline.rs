@@ -272,9 +272,7 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                 }
                 (Some((label, _)), false) => push_text(&label, &Style::default(), atoms),
                 (None, false) => {
-                    let raw = node
-                        .attr("timestamp")
-                        .map_or_default(ToString::to_string);
+                    let raw = node.attr("timestamp").map_or_default(ToString::to_string);
                     push_text(raw.trim_matches('"'), &Style::default(), atoms);
                 }
                 (Some((_, false)) | None, true) => {
