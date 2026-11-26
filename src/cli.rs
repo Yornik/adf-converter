@@ -109,7 +109,7 @@ pub fn install_panic_hook() {
         // only the file name for those.
         let place = info
             .location()
-            .map(|location| {
+            .map_or_default(|location| {
                 let file = std::path::Path::new(location.file());
                 let shown = if file.is_absolute() {
                     file.file_name()
@@ -118,8 +118,7 @@ pub fn install_panic_hook() {
                     location.file().to_owned()
                 };
                 format!(" at {shown}:{}", location.line())
-            })
-            .unwrap_or_default();
+            });
         let diagnostic = Diagnostic::new(
             Code::Internal,
             format!("adf crashed{place}; this is a bug"),

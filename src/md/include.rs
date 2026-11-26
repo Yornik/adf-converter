@@ -408,11 +408,10 @@ fn relocate(diagnostic: Diagnostic, label: &str, cx: &Cx<'_>, span: &Span) -> Di
         .as_ref()
         .filter(|_| !diagnostic.message.contains("line "))
         .and_then(|l: &Location| l.line.map(|line| (line, l.column)))
-        .map(|(line, column)| match column {
+        .map_or_default(|(line, column)| match column {
             Some(column) => format!(" (line {line}, column {column} of the file)"),
             None => format!(" (line {line} of the file)"),
-        })
-        .unwrap_or_default();
+        });
     let message = plain(&format!("In {label}: {}{at}", diagnostic.message));
     let mut moved = cx.diag(diagnostic.code, message, span);
     moved.hint = diagnostic.hint.map(|hint| embedded_hint(&hint));

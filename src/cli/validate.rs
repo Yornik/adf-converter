@@ -259,8 +259,7 @@ fn summary(checked: &Checked, errors: usize, warnings: usize) -> String {
     };
     let envelope = checked
         .envelope
-        .map(|envelope| format!(", envelope {envelope}"))
-        .unwrap_or_default();
+        .map_or_default(|envelope| format!(", envelope {envelope}"));
     let counts = format!(
         "{} {}, {} {}",
         errors,

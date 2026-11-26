@@ -518,8 +518,7 @@ fn self_check_failure(errors: Vec<Diagnostic>, raw: &[String], target: Target) -
                     .location
                     .as_ref()
                     .and_then(|location| location.pointer.as_deref())
-                    .map(|pointer| format!(" at {pointer}"))
-                    .unwrap_or_default();
+                    .map_or_default(|pointer| format!(" at {pointer}"));
                 format!("{}{at}: {}", error.code, error.message)
             })
             .collect();
