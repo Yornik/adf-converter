@@ -123,7 +123,7 @@ jobs:
           persist-credentials: false
       - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
         with:
-          tool: cargo-deny@0.20.2
+          tool: cargo-deny@0.22.0
           fallback: none
       - name: cargo deny (advisories, bans, licenses, sources)
         run: cargo deny --locked check
@@ -155,7 +155,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.7"
+          version: "0.13.9"
           enable-cache: false
       - name: Build the release binary
         run: cargo build --locked --release
@@ -192,7 +192,7 @@ jobs:
         run: shellcheck --external-sources scripts/*.sh
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.7"
+          version: "0.13.9"
           enable-cache: false
       - name: Validate renovate.json and release-please-config.json against their schemas
         run: |
@@ -216,7 +216,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.7"
+          version: "0.13.9"
           enable-cache: false
       - name: Download @atlaskit/adf-schema@latest
         id: latest
