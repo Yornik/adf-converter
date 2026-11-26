@@ -783,8 +783,7 @@ fn passthrough_message_names_the_failing_condition() {
             .warnings
             .into_iter()
             .find(|w| w.code == Code::AdfPassthrough)
-            .map(|w| w.message)
-            .unwrap_or_default()
+            .map_or_default(|w| w.message)
     };
     let cases: Vec<(Value, &str)> = vec![
         (image(json!({"id": "10001"})), "not a UUID"),

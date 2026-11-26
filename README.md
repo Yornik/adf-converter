@@ -94,7 +94,7 @@ adf --version
 
 ### From source
 
-With Rust 1.99 or later:
+With Rust 1.100 or later:
 
 ```sh
 cargo install --git https://github.com/Yornik/adf-converter --locked adf-converter

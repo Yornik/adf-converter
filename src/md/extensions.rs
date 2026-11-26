@@ -215,7 +215,7 @@ fn date(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
 }
 
 fn emoji(arg: Option<&str>, label: &str) -> Result<Inline, Fallback> {
-    let raw = arg.map(str::trim).unwrap_or_default();
+    let raw = arg.map_or_default(str::trim);
     let name = raw.strip_prefix(':').unwrap_or(raw);
     let name = name.strip_suffix(':').unwrap_or(name);
     if name.is_empty()

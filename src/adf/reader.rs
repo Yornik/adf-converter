@@ -339,7 +339,7 @@ fn read_node(
     let text = field("text").and_then(Value::as_str);
     let marks = field("marks")
         .and_then(Value::as_array)
-        .map(|marks| {
+        .map_or_default(|marks| {
             marks
                 .iter()
                 .map(|mark| Mark {
@@ -347,8 +347,7 @@ fn read_node(
                     attrs: mark.get("attrs").and_then(Value::as_object),
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     let has_content_key = field("content").is_some();
     let mut content = Vec::new();
     if let Some(children) = field("content").and_then(Value::as_array) {

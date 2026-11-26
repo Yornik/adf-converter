@@ -2,7 +2,7 @@
 name = "adf-converter"
 version = "0.7.0"
 edition = "2024"
-rust-version = "1.99"
+rust-version = "1.100"
 license = "MIT"
 description = "Convert Markdown to Atlassian Document Format (ADF) JSON and back. Independent project, not affiliated with Atlassian."
 repository = "https://github.com/Yornik/adf-converter"

@@ -827,8 +827,7 @@ fn rendered(name: &str) -> String {
     let document = feature_docs()
         .into_iter()
         .find(|(n, _)| *n == name)
-        .map(|(_, d)| d)
-        .unwrap_or_default();
+        .map_or_default(|(_, d)| d);
     to_markdown(&document, &AdfToMdOptions::default())
         .unwrap()
         .output

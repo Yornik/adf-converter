@@ -115,7 +115,7 @@ pub(super) fn render_inline(
     let atoms = build_atoms(nodes, cx)?;
     render_atoms(atoms, kind, cx.roundtrip).ok_or_else(|| {
         Fail::unrepresentable(
-            &nodes.first().map(Node::pointer).unwrap_or_default(),
+            &nodes.first().map_or_default(Node::pointer),
             "its inline formatting could not be written as Markdown that parses back unchanged",
         )
     })
@@ -272,10 +272,7 @@ fn push_node_atoms(node: &Node<'_>, cx: &mut Ctx, atoms: &mut Vec<Atom>) -> Resu
                 }
                 (Some((label, _)), false) => push_text(&label, &Style::default(), atoms),
                 (None, false) => {
-                    let raw = node
-                        .attr("timestamp")
-                        .map(ToString::to_string)
-                        .unwrap_or_default();
+                    let raw = node.attr("timestamp").map_or_default(ToString::to_string);
                     push_text(raw.trim_matches('"'), &Style::default(), atoms);
                 }
                 (Some((_, false)) | None, true) => {
@@ -737,7 +734,7 @@ fn layout(atoms: Vec<Atom>) -> Layout {
     for (line_no, line) in lines.iter().enumerate() {
         let keys: Vec<Vec<MarkKey>> = line
             .iter()
-            .map(|a| a.style().map(mark_keys).unwrap_or_default())
+            .map(|a| a.style().map_or_default(mark_keys))
             .collect();
         let mut evs = Vec::new();
         let mut open: Vec<usize> = Vec::new();

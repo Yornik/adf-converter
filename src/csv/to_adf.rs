@@ -358,13 +358,12 @@ mod tests {
                         assert_eq!(paragraphs.len(), 1);
                         paragraphs[0]["content"]
                             .as_array()
-                            .map(|inlines| {
+                            .map_or_default(|inlines| {
                                 inlines
                                     .iter()
                                     .map(|i| i["text"].as_str().unwrap_or("\n"))
                                     .collect::<String>()
                             })
-                            .unwrap_or_default()
                     })
                     .collect()
             })
