@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/Yornik/adf-converter/compare/v0.7.0...v0.7.1) (2026-11-26)
+
+
+### Dependencies
+
+* update rust crate jsonschema to v0.61.2 ([#45](https://github.com/Yornik/adf-converter/issues/45)) ([31b30e8](https://github.com/Yornik/adf-converter/commit/31b30e8f1c3321e61213a5f6a669732584230ce7))
+
 ## [0.7.0](https://github.com/Yornik/adf-converter/compare/v0.6.0...v0.7.0) (2026-11-09)
 
 
